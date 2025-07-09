@@ -35,23 +35,23 @@ const Login = ({ setUserRole }) => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
+    <div className="h-screen flex items-center justify-center bg-[#004990] px-4">
       <form
         onSubmit={handleLogin}
-        className="bg-white shadow-md p-8 rounded-md w-full max-w-sm border border-gray-200"
+        className="bg-white shadow-xl p-8 rounded-lg w-full max-w-md border border-gray-200"
       >
         <div className="flex justify-center mb-6">
-          <img src={logo} alt="Logo Memphis" className="w-40" />
+          <img src={logo} alt="Logo Memphis" className="w-48" />
         </div>
-        <h2 className="text-center text-xl font-semibold text-[#5f5f5f] mb-4">
+        <h2 className="text-center text-xl font-bold text-gray-800 mb-4">
           Iniciar Sesión
         </h2>
         <input
           type="email"
-          placeholder="Correo"
+          placeholder="Correo electrónico"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          className="w-full p-2 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
           required
         />
         <input
@@ -59,12 +59,12 @@ const Login = ({ setUserRole }) => {
           placeholder="Contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          className="w-full p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
           required
         />
         <button
           type="submit"
-          className="bg-[#fbc102] hover:bg-yellow-400 text-white font-semibold py-2 rounded w-full"
+          className="bg-[#fbc102] hover:bg-yellow-400 text-[#004990] font-semibold py-2 rounded w-full transition-all"
         >
           Ingresar
         </button>
@@ -74,7 +74,3 @@ const Login = ({ setUserRole }) => {
 };
 
 export default Login;
-
-
-
-

@@ -7,6 +7,7 @@ import {
 import { obtenerProveedores } from "../firebase/proveedoresHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { PlusCircle, Trash2 } from "lucide-react";
+import Select from "react-select";
 
 const Cotizaciones = () => {
   const [cotizaciones, setCotizaciones] = useState([]);
@@ -73,6 +74,8 @@ const Cotizaciones = () => {
     cargarCotizaciones();
   };
 
+  const proveedorSeleccionado = proveedores.find((p) => p.id === form.proveedorId);
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">📑 Registro de Cotizaciones</h2>
@@ -92,18 +95,31 @@ const Cotizaciones = () => {
           onChange={(e) => setForm({ ...form, fecha: e.target.value })}
           className="border p-2 rounded"
         />
-        <select
-          value={form.proveedorId}
-          onChange={(e) => setForm({ ...form, proveedorId: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="">Selecciona proveedor</option>
-          {proveedores.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.razonSocial}
-            </option>
-          ))}
-        </select>
+
+        {/* Selector de proveedor con búsqueda */}
+        <div className="col-span-1 md:col-span-2">
+          <Select
+            options={proveedores.map((p) => ({
+              value: p.id,
+              label: `${p.ruc} - ${p.razonSocial}`,
+            }))}
+            value={
+              proveedorSeleccionado
+                ? { value: proveedorSeleccionado.id, label: `${proveedorSeleccionado.ruc} - ${proveedorSeleccionado.razonSocial}` }
+                : null
+            }
+            onChange={(opcion) => {
+              setForm((prev) => ({
+                ...prev,
+                proveedorId: opcion?.value || "",
+              }));
+            }}
+            placeholder="Selecciona proveedor..."
+            isClearable
+            isSearchable
+          />
+        </div>
+
         <input
           type="text"
           placeholder="Detalle (opcional)"
@@ -112,6 +128,7 @@ const Cotizaciones = () => {
           className="border p-2 rounded"
         />
 
+        {/* Ítems */}
         <div className="col-span-1 md:col-span-2 border-t pt-4">
           <p className="font-bold mb-2">🧾 Agregar ítems:</p>
           <div className="flex flex-col md:flex-row gap-2 mb-2">

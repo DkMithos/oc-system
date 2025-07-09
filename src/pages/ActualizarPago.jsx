@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
 import { subirArchivosPago } from "../firebase/storageHelpers"; // Este helper sube archivos a Firebase Storage
+import { toast } from "react-toastify";
 
 const ActualizarPago = () => {
   const navigate = useNavigate();
@@ -122,6 +123,8 @@ const ActualizarPago = () => {
         >
           Registrar Pago
         </button>
+        toast.success("Pago actualizado ✅");
+        toast.error("Error al guardar");
       </div>
     </div>
   );

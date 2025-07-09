@@ -1,4 +1,3 @@
-// src/routes/AppRoutes.jsx
 import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Historial from "../pages/Historial";
@@ -14,21 +13,22 @@ import Logs from "../pages/Logs";
 import RegistrarPago from "../pages/RegistrarPago";
 import HistorialPagos from "../pages/HistorialPagos";
 import CargarMaestros from "../pages/CargarMaestros";
+import CajaChica from "../pages/CajaChica";
+import Requerimientos from "../pages/Requerimientos";
 
-const AppRoutes = ({ userRole }) => {
+
+function AppRoutes({ userRole }) {
   return (
     <Routes>
       <Route element={<Layout />}>
-        {/* Rutas para FINANZAS */}
         {userRole === "finanzas" && (
           <>
-            <Route index element={<HistorialPagos />} /> {/* Ruta raíz */}
+            <Route index element={<HistorialPagos />} />
             <Route path="/pago" element={<RegistrarPago />} />
             <Route path="/pagos" element={<HistorialPagos />} />
           </>
         )}
 
-        {/* Rutas para usuarios que NO son finanzas */}
         {["admin", "comprador", "gerencia", "operaciones"].includes(userRole) && (
           <>
             <Route path="/" element={<Historial />} />
@@ -40,6 +40,7 @@ const AppRoutes = ({ userRole }) => {
           <>
             <Route path="/firmar" element={<FirmarOC />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/caja" element={<CajaChica />} />
           </>
         )}
 
@@ -49,6 +50,7 @@ const AppRoutes = ({ userRole }) => {
             <Route path="/cotizaciones" element={<Cotizaciones />} />
             <Route path="/proveedores" element={<Proveedores />} />
             <Route path="/editar" element={<EditarOC />} />
+            <Route path="/requerimientos" element={<Requerimientos />} />
             <Route path="/dashboard" element={<Dashboard />} />
           </>
         )}
@@ -62,12 +64,13 @@ const AppRoutes = ({ userRole }) => {
             <Route path="/editar" element={<EditarOC />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/logs" element={<Logs />} />
-            <Route path="/cargar" element={<CargarMaestros />} />
+            <Route path="/cargar-maestros" element={<CargarMaestros />} />
+            <Route path="/requerimientos" element={<Requerimientos />} />
           </>
         )}
       </Route>
     </Routes>
   );
-};
+}
 
 export default AppRoutes;

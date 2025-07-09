@@ -7,6 +7,7 @@ import {
 } from "../firebase/proveedoresHelpers";
 import { consultarSunat } from "../utils/consultaSunat";
 import { Pencil, Trash2 } from "lucide-react";
+import CuentaBancariaForm from "../components/CuentaBancariaForm";
 
 const Proveedores = () => {
   const [proveedores, setProveedores] = useState([]);
@@ -20,6 +21,17 @@ const Proveedores = () => {
     bancos: [],
   });
   const [editandoId, setEditandoId] = useState(null);
+
+  const [cuenta, setCuenta] = useState({
+    nombre: "",
+    cuenta: "",
+    cci: "",
+    moneda: "",
+  });
+
+  const [busqueda, setBusqueda] = useState("");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const porPagina = 10;
 
   useEffect(() => {
     cargarProveedores();
@@ -74,6 +86,7 @@ const Proveedores = () => {
         contacto: "",
         bancos: [],
       });
+      setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
       setEditandoId(null);
       cargarProveedores();
     } catch (e) {
@@ -82,7 +95,7 @@ const Proveedores = () => {
     }
   };
 
-  const eliminar = async (id) => {
+  const eliminarRegistro = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este proveedor?")) return;
     await eliminarProveedor(id);
     cargarProveedores();
@@ -92,6 +105,16 @@ const Proveedores = () => {
     setForm(prov);
     setEditandoId(prov.id);
   };
+
+  // FILTRO + PAGINACIÓN
+  const proveedoresFiltrados = proveedores.filter((p) =>
+    `${p.ruc} ${p.razonSocial}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  const totalPaginas = Math.ceil(proveedoresFiltrados.length / porPagina);
+  const inicio = (paginaActual - 1) * porPagina;
+  const fin = inicio + porPagina;
+  const proveedoresPaginados = proveedoresFiltrados.slice(inicio, fin);
 
   return (
     <div className="p-6">
@@ -141,7 +164,19 @@ const Proveedores = () => {
           onChange={(e) => setForm({ ...form, contacto: e.target.value })}
           className="border p-2 rounded"
         />
-        <div className="col-span-1 md:col-span-2 flex gap-4 mt-2">
+
+        {/* Reutilización del componente de Cuentas */}
+        <CuentaBancariaForm
+          cuenta={cuenta}
+          setCuenta={setCuenta}
+          cuentas={form.bancos}
+          setCuentas={(nuevasCuentas) =>
+            setForm((prev) => ({ ...prev, bancos: nuevasCuentas }))
+          }
+        />
+
+        {/* Botones */}
+        <div className="col-span-2 flex gap-4 mt-4">
           <button
             onClick={guardar}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
@@ -161,6 +196,7 @@ const Proveedores = () => {
                   contacto: "",
                   bancos: [],
                 });
+                setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
                 setEditandoId(null);
               }}
             >
@@ -168,6 +204,20 @@ const Proveedores = () => {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Buscador */}
+      <div className="mb-4 max-w-sm">
+        <input
+          type="text"
+          placeholder="Buscar por RUC o razón social..."
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value);
+            setPaginaActual(1);
+          }}
+          className="border px-3 py-2 rounded w-full"
+        />
       </div>
 
       {/* Tabla de Proveedores */}
@@ -184,14 +234,14 @@ const Proveedores = () => {
             </tr>
           </thead>
           <tbody>
-            {proveedores.length === 0 ? (
+            {proveedoresPaginados.length === 0 ? (
               <tr>
                 <td colSpan="6" className="p-4 text-center text-gray-500">
-                  No hay proveedores registrados.
+                  No hay proveedores.
                 </td>
               </tr>
             ) : (
-              proveedores.map((p) => (
+              proveedoresPaginados.map((p) => (
                 <tr key={p.id} className="border-t hover:bg-gray-50">
                   <td className="p-2">{p.ruc}</td>
                   <td className="p-2">{p.razonSocial}</td>
@@ -209,7 +259,7 @@ const Proveedores = () => {
                     <button
                       className="text-red-600 hover:text-red-800"
                       title="Eliminar"
-                      onClick={() => eliminar(p.id)}
+                      onClick={() => eliminarRegistro(p.id)}
                     >
                       <Trash2 size={18} />
                     </button>
@@ -219,6 +269,31 @@ const Proveedores = () => {
             )}
           </tbody>
         </table>
+
+        {/* Paginación */}
+        {totalPaginas > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-4">
+            <button
+              onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
+              disabled={paginaActual === 1}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span>
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              onClick={() =>
+                setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))
+              }
+              disabled={paginaActual === totalPaginas}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

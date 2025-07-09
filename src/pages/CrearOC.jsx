@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
-import { proveedores } from "../datos/fakeData";
-import { guardarOC } from "../firebase/firestoreHelpers";
+import { guardarOC, obtenerCentrosCosto, obtenerCondicionesPago, obtenerProveedores } from "../firebase/firestoreHelpers";
 import { consultarSunat } from "../utils/consultaSunat";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/Logo_OC.png";
+import Select from "react-select";
 
 const CrearOC = () => {
   const navigate = useNavigate();
   const userEmail = localStorage.getItem("userEmail") || "";
+  const userName = localStorage.getItem("userName") || "";
 
   const [formData, setFormData] = useState({
     fechaEmision: new Date().toISOString().split("T")[0],
@@ -32,46 +33,18 @@ const CrearOC = () => {
   const [otros, setOtros] = useState(0);
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
 
   useEffect(() => {
-    const buscarProveedor = async () => {
-      const prov = proveedores.find((p) => p.ruc === formData.proveedorRuc);
-      if (prov) {
-        setFormData((prev) => ({
-          ...prev,
-          proveedor: prov,
-          bancoSeleccionado: "",
-          monedaSeleccionada: "",
-        }));
-      } else if (formData.proveedorRuc.length === 11) {
-        try {
-          const data = await consultarSunat(formData.proveedorRuc);
-          setFormData((prev) => ({
-            ...prev,
-            proveedor: {
-              ruc: data.ruc,
-              razonSocial: data.razonSocial,
-              direccion: data.direccion,
-              contacto: "",
-              email: "",
-              telefono: "",
-              bancos: [],
-            },
-          }));
-        } catch (error) {
-          alert("No se pudo obtener datos del proveedor desde SUNAT");
-        }
-      }
+    const cargarDatosMaestros = async () => {
+      const centros = await obtenerCentrosCosto();
+      const condiciones = await obtenerCondicionesPago();
+      const listaProveedores = await obtenerProveedores();
+      setCentrosCosto(centros.map((c) => c.nombre));
+      setCondicionesPago(condiciones.map((c) => c.nombre));
+      setProveedores(listaProveedores);
     };
-
-    buscarProveedor();
-  }, [formData.proveedorRuc]);
-
-  useEffect(() => {
-    const cc = JSON.parse(localStorage.getItem("centrosCosto")) || [];
-    const cp = JSON.parse(localStorage.getItem("condicionesPago")) || [];
-    setCentrosCosto(cc);
-    setCondicionesPago(cp);
+    cargarDatosMaestros();
   }, []);
 
   const bancosDisponibles = formData.proveedor?.bancos || [];
@@ -166,18 +139,27 @@ const CrearOC = () => {
 
         <input type="text" disabled value={formData.comprador} className="border p-2 rounded" />
 
-        <select
-          value={formData.proveedorRuc}
-          onChange={(e) => setFormData({ ...formData, proveedorRuc: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="">Selecciona proveedor</option>
-          {proveedores.map((p) => (
-            <option key={p.ruc} value={p.ruc}>
-              {p.ruc}
-            </option>
-          ))}
-        </select>
+        {/* Select con búsqueda de proveedor */}
+        <div className="col-span-2 md:col-span-3">
+          <Select
+            placeholder="Selecciona proveedor por RUC o Razón Social"
+            options={proveedores.map((p) => ({
+              label: `${p.ruc} - ${p.razonSocial}`,
+              value: p.ruc,
+              data: p,
+            }))}
+            onChange={(opcion) => {
+              setFormData((prev) => ({
+                ...prev,
+                proveedor: opcion.data,
+                proveedorRuc: opcion.data.ruc,
+                bancoSeleccionado: "",
+                monedaSeleccionada: "",
+              }));
+            }}
+            isSearchable
+          />
+        </div>
 
         {formData.proveedor?.razonSocial && (
           <>

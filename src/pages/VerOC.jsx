@@ -4,6 +4,7 @@ import html2pdf from "html2pdf.js";
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
+import { guardarOC } from "../firebase/firestoreHelpers";
 
 const VerOC = () => {
   const location = useLocation();
@@ -88,20 +89,25 @@ const VerOC = () => {
               <p>www.memphismaquinarias.com</p>
             </div>
           </div>
-          <h1 className="text-lg font-bold text-[#004990]">ORDEN DE COMPRA</h1>
+          <div className="text-right">
+            <h1 className="text-lg font-bold text-[#004990]">ORDEN DE COMPRA</h1>
+            <p className="text-sm font-semibold text-blue-800">N° {oc.numeroOC || oc.id}</p>
+          </div>
         </div>
 
-        {/* DATOS GENERALES Y PROVEEDOR */}
+        {/* DATOS GENERALES */}
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">DATOS GENERALES</h3>
         <div className="grid grid-cols-2 gap-2 mb-2 border p-2 rounded">
           <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision}</div>
+          {oc.requerimiento && (
+            <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>
+          )}
           <div><strong>N° Cotización:</strong> {oc.cotizacion}</div>
-          <div><strong>Fecha de Entrega:</strong> {oc.fechaEntrega}</div>
           <div><strong>Centro de Costo:</strong> {oc.centroCosto}</div>
-          <div><strong>Condición de Pago:</strong> {oc.condicionPago}</div>
-          <div><strong>Lugar de Entrega:</strong> {oc.lugarEntrega}</div>
-          <div className="col-span-2"><strong>Observaciones:</strong> {oc.observaciones}</div>
         </div>
 
+        {/* PROVEEDOR */}
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">PROVEEDOR</h3>
         <div className="grid grid-cols-2 gap-2 mb-4 border p-2 rounded">
           <div><strong>Proveedor:</strong> {oc.proveedor?.razonSocial}</div>
           <div><strong>RUC:</strong> {oc.proveedor?.ruc}</div>
@@ -116,6 +122,7 @@ const VerOC = () => {
         </div>
 
         {/* ÍTEMS */}
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE DE COMPRA</h3>
         <table className="w-full text-[9px] border border-collapse mb-3">
           <thead className="bg-gray-200 text-[9px]">
             <tr>
@@ -148,6 +155,7 @@ const VerOC = () => {
         </table>
 
         {/* TOTALES */}
+        <h3 className="text-right text-sm font-semibold mb-1 text-blue-900">RESUMEN</h3>
         <div className="text-right mb-4 pr-2">
           <p><strong>Subtotal:</strong> {formatearMoneda(subtotal, simbolo)}</p>
           <p><strong>IGV (18%):</strong> {formatearMoneda(igv, simbolo)}</p>
@@ -155,29 +163,68 @@ const VerOC = () => {
           <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
         </div>
 
+        {/* CONDICIONES DE ENTREGA */}
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
+        <div className="grid grid-cols-2 gap-2 mb-4 border p-2 rounded">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <span className="font-semibold">Lugar de entrega:</span>
+              <p>{oc.lugarEntrega}</p>
+            </div>
+            <div>
+              <span className="font-semibold">Fecha de entrega:</span>
+              <p>{oc.fechaEntrega}</p>
+            </div>
+            <div>
+              <span className="font-semibold">Condición de pago:</span>
+              <p>{oc.condicionPago}</p>
+            </div>
+            <div>
+              <span className="font-semibold">Observaciones:</span>
+              <p>{oc.observaciones || "—"}</p>
+            </div>
+          </div>
+        </div>
+
         {/* FIRMAS */}
-        {(oc.firmaOperaciones || oc.firmaGerencia) && (
-          <div className="grid grid-cols-2 gap-8 text-center mt-2">
-            {oc.firmaOperaciones && (
-              <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-sm">
+          <div>
+            <p className="border-t border-gray-600 pt-2 font-semibold">{oc.comprador}</p>
+            <p>Solicitante / Comprador</p>
+          </div>
+          <div>
+            {oc.firmaOperaciones ? (
+              <>
                 <p className="font-semibold">Aprobado por Operaciones</p>
                 <img src={oc.firmaOperaciones} alt="Firma Operaciones" className="h-20 mx-auto mt-1" />
-              </div>
-            )}
-            {oc.firmaGerencia && (
-              <div>
-                <p className="font-semibold">Aprobado por Gerencia</p>
-                <img src={oc.firmaGerencia} alt="Firma Gerencia" className="h-20 mx-auto mt-1" />
-              </div>
+              </>
+            ) : (
+              <>
+                <p className="border-t border-gray-600 pt-2 font-semibold">______________________</p>
+                <p>Operaciones</p>
+              </>
             )}
           </div>
-        )}
+          <div>
+            {oc.firmaGerencia ? (
+              <>
+                <p className="font-semibold">Aprobado por Gerencia</p>
+                <img src={oc.firmaGerencia} alt="Firma Gerencia" className="h-20 mx-auto mt-1" />
+              </>
+            ) : (
+              <>
+                <p className="border-t border-gray-600 pt-2 font-semibold">______________________</p>
+                <p>Gerencia</p>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* PIE DE DOCUMENTO */}
         <div className="mt-4 text-[8px] leading-snug text-gray-700 border-t pt-2">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A LOS SIGUIENTES CORREOS:</p>
           <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe</li>
+            <li>FACTURAS ELECTRÓNICAS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe</li>
             <li>CONSULTA DE PAGOS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe</li>
           </ul>
           <p className="mt-1 text-justify italic">

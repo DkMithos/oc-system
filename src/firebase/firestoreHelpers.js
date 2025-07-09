@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  increment,
   setDoc,
 } from "firebase/firestore";
 import { db } from "./config";
@@ -51,11 +52,6 @@ export const obtenerLogs = async () => {
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
-// ✅ Órdenes de Compra
-export const guardarOC = async (orden) => {
-  const ref = await addDoc(collection(db, OC_COLLECTION), orden);
-  return ref.id;
-};
 
 export const obtenerOCs = async () => {
   const snapshot = await getDocs(collection(db, OC_COLLECTION));
@@ -81,8 +77,76 @@ export const obtenerCotizaciones = async () => {
 
 // ✅ Proveedores
 export const obtenerProveedores = async () => {
-  const snapshot = await getDocs(collection(db, PROVEEDORES_COLLECTION));
+  const snapshot = await getDocs(collection(db, "proveedores"));
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
+// Obtener centros de costo
+export const obtenerCentrosCosto = async () => {
+  const snapshot = await getDocs(collection(db, "centrosCosto"));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+};
 
+// Guardar nuevo centro de costo
+export const guardarCentroCosto = async (centro) => {
+  await addDoc(collection(db, "centrosCosto"), centro);
+};
+
+// Editar centro de costo
+export const editarCentroCosto = async (id, nombre) => {
+  await updateDoc(doc(db, "centrosCosto", id), { nombre });
+};
+
+// Eliminar centro de costo
+export const eliminarCentroCosto = async (id) => {
+  await deleteDoc(doc(db, "centrosCosto", id));
+};
+
+// Guardar nueva condición de pago
+export const guardarCondicionPago = async (condicion) => {
+  await addDoc(collection(db, "condicionesPago"), condicion);
+};
+
+// Obtener condiciones de pago
+export const obtenerCondicionesPago = async () => {
+  const snapshot = await getDocs(collection(db, "condicionesPago"));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+};
+
+// Editar condiciones de pago
+export const editarCondicionPago = async (id, nombre) => {
+  await updateDoc(doc(db, "condicionesPago", id), { nombre });
+};
+
+// Eliminar condición de pago
+export const eliminarCondicionPago = async (id) => {
+  await deleteDoc(doc(db, "condicionesPago", id));
+};
+
+// Genera el número correlativo y guarda la OC
+export const guardarOC = async (ocData) => {
+  const correlativoRef = doc(db, "correlativos", "ordenesCompra");
+  const correlativoSnap = await getDoc(correlativoRef);
+
+  let nuevoNumero = 350;
+
+  if (correlativoSnap.exists()) {
+    const data = correlativoSnap.data();
+    nuevoNumero = (data.ultimo || 349) + 1;
+  }
+
+  // Formato final
+  const numeroOC = `MM-${String(nuevoNumero).padStart(6, "0")}`;
+
+  const nuevaOC = {
+    ...ocData,
+    numeroOC,
+  };
+
+  const docRef = await addDoc(collection(db, "ordenesCompra"), nuevaOC);
+
+  // Actualiza el último número usado
+  await setDoc(correlativoRef, { ultimo: nuevoNumero }, { merge: true });
+
+  return docRef.id;
+};
