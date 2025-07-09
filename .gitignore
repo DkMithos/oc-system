@@ -7,22 +7,42 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+build/
+dist-ssr/
+
+# Local environment variables
+.env
+.env.*.local
 *.local
 
 # Editor directories and files
-.vscode/*
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+
+# VS-related files (for Windows)
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-node_modules/
-dist/
-.env
+# Package manager lockfiles (keep only one if using one tool)
+package-lock.json
+yarn.lock
+
+# Cache and temp
+*.cache
+*.tmp
+*.bak
