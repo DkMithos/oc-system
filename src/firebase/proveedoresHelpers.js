@@ -4,7 +4,6 @@ import {
   getDocs,
   addDoc,
   updateDoc,
-  deleteDoc,
   doc,
 } from "firebase/firestore";
 
@@ -25,10 +24,4 @@ export const agregarProveedor = async (proveedor) => {
 export const actualizarProveedor = async (id, data) => {
   const ref = doc(db, PROV_COLLECTION, id);
   return await updateDoc(ref, data);
-};
-
-// Eliminar proveedor
-export const eliminarProveedor = async (id) => {
-  const ref = doc(db, PROV_COLLECTION, id);
-  return await deleteDoc(ref);
 };

@@ -2,16 +2,23 @@ import React, { useEffect, useState } from "react";
 import {
   obtenerCotizaciones,
   agregarCotizacion,
-  eliminarCotizacion,
 } from "../firebase/cotizacionesHelpers";
 import { obtenerProveedores } from "../firebase/proveedoresHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle } from "lucide-react";
 import Select from "react-select";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { useUsuario } from "../context/UserContext";
 
 const Cotizaciones = () => {
+  const { usuario, loading } = useUsuario();
   const [cotizaciones, setCotizaciones] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [archivoCotizacion, setArchivoCotizacion] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroProveedor, setFiltroProveedor] = useState("");
+
   const [form, setForm] = useState({
     codigo: "",
     fecha: new Date().toISOString().split("T")[0],
@@ -27,9 +34,11 @@ const Cotizaciones = () => {
   });
 
   useEffect(() => {
-    cargarCotizaciones();
-    cargarProveedores();
-  }, []);
+    if (!loading && usuario) {
+      cargarCotizaciones();
+      cargarProveedores();
+    }
+  }, [usuario, loading]);
 
   const cargarCotizaciones = async () => {
     const lista = await obtenerCotizaciones();
@@ -56,8 +65,16 @@ const Cotizaciones = () => {
       return;
     }
 
-    await agregarCotizacion(form);
+    const cotizacion = { ...form };
+
+    if (archivoCotizacion) {
+      const urlTemporal = URL.createObjectURL(archivoCotizacion);
+      cotizacion.archivoUrl = urlTemporal;
+    }
+
+    await agregarCotizacion(cotizacion);
     alert("Cotización guardada ✅");
+
     setForm({
       codigo: "",
       fecha: new Date().toISOString().split("T")[0],
@@ -65,16 +82,51 @@ const Cotizaciones = () => {
       detalle: "",
       items: [],
     });
+    setArchivoCotizacion(null);
     cargarCotizaciones();
   };
 
-  const eliminar = async (id) => {
-    if (!window.confirm("¿Eliminar esta cotización?")) return;
-    await eliminarCotizacion(id);
-    cargarCotizaciones();
+  const cotizacionesFiltradas = cotizaciones.filter((cot) => {
+    const matchBusqueda =
+      cot.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
+      cot.detalle.toLowerCase().includes(busqueda.toLowerCase());
+    const matchProveedor = filtroProveedor ? cot.proveedorId === filtroProveedor : true;
+    return matchBusqueda && matchProveedor;
+  });
+
+  const exportarExcel = () => {
+    if (!cotizacionesFiltradas.length) {
+      alert("No hay datos para exportar");
+      return;
+    }
+
+    const data = cotizacionesFiltradas.map((cot) => {
+      const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
+      return {
+        Código: cot.codigo,
+        Fecha: cot.fecha,
+        Proveedor: proveedor?.razonSocial || "—",
+        Detalle: cot.detalle,
+        "N° Ítems": cot.items.length,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cotizaciones");
+
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(blob, `Cotizaciones_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const proveedorSeleccionado = proveedores.find((p) => p.id === form.proveedorId);
+
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -96,7 +148,6 @@ const Cotizaciones = () => {
           className="border p-2 rounded"
         />
 
-        {/* Selector de proveedor con búsqueda */}
         <div className="col-span-1 md:col-span-2">
           <Select
             options={proveedores.map((p) => ({
@@ -105,15 +156,15 @@ const Cotizaciones = () => {
             }))}
             value={
               proveedorSeleccionado
-                ? { value: proveedorSeleccionado.id, label: `${proveedorSeleccionado.ruc} - ${proveedorSeleccionado.razonSocial}` }
+                ? {
+                    value: proveedorSeleccionado.id,
+                    label: `${proveedorSeleccionado.ruc} - ${proveedorSeleccionado.razonSocial}`,
+                  }
                 : null
             }
-            onChange={(opcion) => {
-              setForm((prev) => ({
-                ...prev,
-                proveedorId: opcion?.value || "",
-              }));
-            }}
+            onChange={(opcion) =>
+              setForm((prev) => ({ ...prev, proveedorId: opcion?.value || "" }))
+            }
             placeholder="Selecciona proveedor..."
             isClearable
             isSearchable
@@ -128,17 +179,25 @@ const Cotizaciones = () => {
           className="border p-2 rounded"
         />
 
+        {/* Subir archivo */}
+        <div className="col-span-1 md:col-span-2">
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            onChange={(e) => setArchivoCotizacion(e.target.files[0])}
+            className="border p-2 rounded w-full"
+          />
+        </div>
+
         {/* Ítems */}
         <div className="col-span-1 md:col-span-2 border-t pt-4">
-          <p className="font-bold mb-2">🧾 Agregar ítems:</p>
+          <p className="font-bold mb-2">Agregar ítems:</p>
           <div className="flex flex-col md:flex-row gap-2 mb-2">
             <input
               type="text"
               placeholder="Ítem"
               value={itemActual.nombre}
-              onChange={(e) =>
-                setItemActual({ ...itemActual, nombre: e.target.value })
-              }
+              onChange={(e) => setItemActual({ ...itemActual, nombre: e.target.value })}
               className="border p-2 rounded flex-1"
             />
             <input
@@ -146,10 +205,7 @@ const Cotizaciones = () => {
               placeholder="Cantidad"
               value={itemActual.cantidad}
               onChange={(e) =>
-                setItemActual({
-                  ...itemActual,
-                  cantidad: parseInt(e.target.value),
-                })
+                setItemActual({ ...itemActual, cantidad: parseInt(e.target.value) })
               }
               className="border p-2 rounded w-32"
             />
@@ -173,7 +229,6 @@ const Cotizaciones = () => {
               <PlusCircle size={18} />
             </button>
           </div>
-
           <ul className="text-sm list-disc ml-6">
             {form.items.map((item, i) => (
               <li key={i}>
@@ -186,13 +241,42 @@ const Cotizaciones = () => {
 
         <button
           onClick={guardar}
-          className="col-span-1 md:col-span-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-fit"
         >
           Guardar Cotización
         </button>
       </div>
 
-      {/* Tabla de cotizaciones */}
+      {/* Filtros y Exportar */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+        <input
+          type="text"
+          placeholder="🔍 Buscar por código o detalle..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="border p-2 rounded w-full md:w-1/2"
+        />
+        <select
+          value={filtroProveedor}
+          onChange={(e) => setFiltroProveedor(e.target.value)}
+          className="border p-2 rounded w-full md:w-1/3"
+        >
+          <option value="">Todos los proveedores</option>
+          {proveedores.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.razonSocial}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={exportarExcel}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
+        >
+          Exportar
+        </button>
+      </div>
+
+      {/* Tabla */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
@@ -202,21 +286,19 @@ const Cotizaciones = () => {
               <th className="p-2">Fecha</th>
               <th className="p-2">Detalle</th>
               <th className="p-2">Ítems</th>
-              <th className="p-2">Acciones</th>
+              <th className="p-2">Archivo</th>
             </tr>
           </thead>
           <tbody>
-            {cotizaciones.length === 0 ? (
+            {cotizacionesFiltradas.length === 0 ? (
               <tr>
                 <td colSpan="6" className="text-center text-gray-500 p-4">
                   No hay cotizaciones registradas.
                 </td>
               </tr>
             ) : (
-              cotizaciones.map((cot) => {
-                const proveedor = proveedores.find(
-                  (p) => p.id === cot.proveedorId
-                );
+              cotizacionesFiltradas.map((cot) => {
+                const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
                 return (
                   <tr key={cot.id} className="text-center border-t">
                     <td className="p-2">{cot.codigo}</td>
@@ -225,13 +307,18 @@ const Cotizaciones = () => {
                     <td className="p-2">{cot.detalle}</td>
                     <td className="p-2">{cot.items?.length || 0}</td>
                     <td className="p-2">
-                      <button
-                        onClick={() => eliminar(cot.id)}
-                        className="text-red-600 hover:underline"
-                        title="Eliminar cotización"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {cot.archivoUrl ? (
+                        <a
+                          href={cot.archivoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Ver
+                        </a>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 );

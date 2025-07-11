@@ -1,13 +1,12 @@
-// src/components/admin/GestorUsuarios.jsx
 import React, { useState } from "react";
-import { UserRoundPlus, Trash2 } from "lucide-react";
+import { UserRoundPlus, RefreshCcw } from "lucide-react";
 
 const GestorUsuarios = ({
   usuarios = [],
   roles = [],
   agregarUsuario,
-  eliminarUsuario,
   cambiarRol,
+  cambiarEstadoUsuario, // nueva función para cambiar estado
 }) => {
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: "", rol: "" });
   const [filtroCorreo, setFiltroCorreo] = useState("");
@@ -30,6 +29,14 @@ const GestorUsuarios = ({
     e.preventDefault();
     await agregarUsuario(nuevoUsuario);
     setNuevoUsuario({ email: "", rol: "" });
+  };
+
+  const handleCambioEstado = async (usuario) => {
+    const nuevoEstado = usuario.estado === "Activo" ? "Inactivo" : "Activo";
+    const motivo = prompt(`¿Motivo del cambio de estado a "${nuevoEstado}"?`);
+    if (!motivo) return;
+
+    await cambiarEstadoUsuario(usuario.email, nuevoEstado, motivo);
   };
 
   return (
@@ -107,12 +114,13 @@ const GestorUsuarios = ({
         </button>
       </div>
 
-      {/* Lista usuarios */}
+      {/* Lista de usuarios */}
       <table className="w-full text-sm border mb-4">
         <thead className="bg-gray-100">
           <tr>
             <th className="text-left p-2">Correo</th>
             <th className="text-left p-2">Rol</th>
+            <th className="text-left p-2">Estado</th>
             <th className="text-left p-2">Acciones</th>
           </tr>
         </thead>
@@ -134,12 +142,26 @@ const GestorUsuarios = ({
                 </select>
               </td>
               <td className="p-2">
-                <button
-                  className="text-red-600 underline flex items-center gap-1"
-                  onClick={() => eliminarUsuario(u.email)}
+                <span
+                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                    u.estado === "Activo"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
                 >
-                  <Trash2 size={14} />
-                  Eliminar
+                  {u.estado}
+                </span>
+              </td>
+              <td className="p-2">
+                <button
+                  className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1"
+                  onClick={() => handleCambioEstado(u)}
+                  title={
+                    u.estado === "Activo" ? "Suspender usuario" : "Reactivar usuario"
+                  }
+                >
+                  <RefreshCcw size={14} />
+                  {u.estado === "Activo" ? "Suspender" : "Reactivar"}
                 </button>
               </td>
             </tr>

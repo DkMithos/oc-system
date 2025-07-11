@@ -1,26 +1,32 @@
-// src/pages/Historial.jsx
 import React, { useEffect, useState } from "react";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { useNavigate } from "react-router-dom";
+import { useUsuario } from "../context/UserContext";
 
 const Historial = () => {
+  const { usuario, loading } = useUsuario();
   const [ordenes, setOrdenes] = useState([]);
   const navigate = useNavigate();
-  const userRole = localStorage.getItem("userRole");
 
   useEffect(() => {
-    const cargarOCs = async () => {
-      const data = await obtenerOCs();
-      setOrdenes(data);
-    };
-    cargarOCs();
-  }, []);
+    if (!loading && usuario) {
+      const cargarOCs = async () => {
+        const data = await obtenerOCs();
+        setOrdenes(data);
+      };
+      cargarOCs();
+    }
+  }, [usuario, loading]);
 
   const puedeFirmar = (oc) => {
-    if (userRole === "operaciones" && oc.estado === "Pendiente de Operaciones") return true;
-    if (userRole === "gerencia" && oc.estado === "Aprobado por Operaciones") return true;
+    const rol = usuario?.rol;
+    if (rol === "operaciones" && oc.estado === "Pendiente de Operaciones") return true;
+    if (rol === "gerencia" && oc.estado === "Aprobado por Operaciones") return true;
     return false;
   };
+
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -63,9 +69,7 @@ const Historial = () => {
                     </span>
                   </td>
                   <td className="border px-3 py-2 text-xs">
-                    {oc.estado === "Pagado" && oc.numeroFactura
-                      ? oc.numeroFactura
-                      : "—"}
+                    {oc.estado === "Pagado" && oc.numeroFactura ? oc.numeroFactura : "—"}
                   </td>
                   <td className="border px-3 py-2">
                     <div className="flex flex-wrap justify-center gap-2">
@@ -76,7 +80,7 @@ const Historial = () => {
                         Ver
                       </button>
 
-                      {oc.estado === "Rechazado" && (
+                      {oc.estado === "Rechazado" && usuario.rol === "admin" && (
                         <button
                           onClick={() => navigate(`/editar?id=${oc.id}`)}
                           className="text-orange-600 underline"
@@ -90,7 +94,7 @@ const Historial = () => {
                           onClick={() => navigate(`/firmar?id=${oc.id}`)}
                           className="text-green-600 underline"
                         >
-                          Firmar
+                          Aprobar / Rechazar
                         </button>
                       )}
                     </div>

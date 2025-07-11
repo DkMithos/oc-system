@@ -4,7 +4,7 @@ import html2pdf from "html2pdf.js";
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
-import { guardarOC } from "../firebase/firestoreHelpers";
+import { useUsuario } from "../context/UserContext";
 
 const VerOC = () => {
   const location = useLocation();
@@ -12,8 +12,8 @@ const VerOC = () => {
   const queryParams = new URLSearchParams(location.search);
   const ocId = queryParams.get("id");
   const stateOC = location.state?.orden;
-  const currentUserEmail = localStorage.getItem("userEmail");
 
+  const { usuario, loading } = useUsuario();
   const [oc, setOC] = useState(null);
 
   useEffect(() => {
@@ -29,23 +29,26 @@ const VerOC = () => {
     cargarOrden();
   }, [ocId, stateOC]);
 
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
   if (!oc) return <div className="p-6">Cargando orden de compra...</div>;
   if (!oc.items) return <div className="p-6">Orden no válida o vacía.</div>;
 
-  const calcularNeto = (item) =>
-    (item.precioUnitario - item.descuento) * item.cantidad;
-
+  const calcularNeto = (item) => (item.precioUnitario - item.descuento) * item.cantidad;
   const subtotal = oc.items.reduce((acc, item) => acc + calcularNeto(item), 0);
   const igv = subtotal * 0.18;
   const otros = oc.resumen?.otros || 0;
   const total = subtotal + igv + otros;
-
   const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
 
   const puedeExportar =
     oc.estado === "Aprobado por Gerencia" ||
     (oc.monedaSeleccionada === "Soles" && total <= 3500) ||
     (oc.monedaSeleccionada === "Dólares" && total <= 1000);
+
+  const puedeFirmar =
+    (usuario.rol === "operaciones" && oc.estado === "Pendiente de Operaciones") ||
+    (usuario.rol === "gerencia" && oc.estado === "Aprobado por Operaciones");
 
   const exportarPDF = () => {
     const elemento = document.getElementById("contenido-oc");
@@ -59,11 +62,7 @@ const VerOC = () => {
       filename: `OC-${oc.id}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 2 },
-      jsPDF: {
-        unit: "in",
-        format: "a4",
-        orientation: "portrait",
-      },
+      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["avoid-all"] },
     };
 
@@ -99,9 +98,7 @@ const VerOC = () => {
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DATOS GENERALES</h3>
         <div className="grid grid-cols-2 gap-2 mb-2 border p-2 rounded">
           <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision}</div>
-          {oc.requerimiento && (
-            <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>
-          )}
+          {oc.requerimiento && <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>}
           <div><strong>N° Cotización:</strong> {oc.cotizacion}</div>
           <div><strong>Centro de Costo:</strong> {oc.centroCosto}</div>
         </div>
@@ -166,24 +163,10 @@ const VerOC = () => {
         {/* CONDICIONES DE ENTREGA */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
         <div className="grid grid-cols-2 gap-2 mb-4 border p-2 rounded">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <span className="font-semibold">Lugar de entrega:</span>
-              <p>{oc.lugarEntrega}</p>
-            </div>
-            <div>
-              <span className="font-semibold">Fecha de entrega:</span>
-              <p>{oc.fechaEntrega}</p>
-            </div>
-            <div>
-              <span className="font-semibold">Condición de pago:</span>
-              <p>{oc.condicionPago}</p>
-            </div>
-            <div>
-              <span className="font-semibold">Observaciones:</span>
-              <p>{oc.observaciones || "—"}</p>
-            </div>
-          </div>
+          <div><span className="font-semibold">Lugar de entrega:</span><p>{oc.lugarEntrega}</p></div>
+          <div><span className="font-semibold">Fecha de entrega:</span><p>{oc.fechaEntrega}</p></div>
+          <div><span className="font-semibold">Condición de pago:</span><p>{oc.condicionPago}</p></div>
+          <div><span className="font-semibold">Observaciones:</span><p>{oc.observaciones || "—"}</p></div>
         </div>
 
         {/* FIRMAS */}
@@ -244,15 +227,14 @@ const VerOC = () => {
             Exportar como PDF
           </button>
         )}
-        {["mchuman@memphis.pe", "gmacher@memphis.pe"].includes(currentUserEmail) &&
-          !oc.firmaOperaciones &&
-          !oc.firmaGerencia && (
-            <button
-              onClick={() => navigate(`/firmar?id=${oc.id}`)}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Firmar OC
-            </button>
+
+        {puedeFirmar && (
+          <button
+            onClick={() => navigate(`/firmar?id=${oc.id}`)}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            Aprobar / Rechazar OC
+          </button>
         )}
       </div>
     </div>

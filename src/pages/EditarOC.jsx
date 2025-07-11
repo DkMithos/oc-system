@@ -12,12 +12,15 @@ import {
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import Select from "react-select";
+import { useUsuario } from "../context/UserContext";
 
 const EditarOC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const ocId = queryParams.get("id");
+
+  const { usuario, loading } = useUsuario();
 
   const [formData, setFormData] = useState(null);
   const [items, setItems] = useState([]);
@@ -29,9 +32,14 @@ const EditarOC = () => {
   useEffect(() => {
     const cargarDatos = async () => {
       const oc = await obtenerOCporId(ocId);
-      const userRole = localStorage.getItem("userRole");
+      if (!oc || oc.estado !== "Rechazado") {
+        alert("Esta orden no puede ser editada.");
+        navigate("/");
+        return;
+      }
 
-      if (!oc || oc.estado !== "Rechazado" || !["comprador", "admin"].includes(userRole)) {
+      // Rol necesario
+      if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
         alert("No tienes permiso para editar esta orden.");
         navigate("/");
         return;
@@ -50,10 +58,12 @@ const EditarOC = () => {
       setProveedores(listaProveedores);
     };
 
-    cargarDatos();
-  }, [ocId, navigate]);
+    if (!loading) {
+      cargarDatos();
+    }
+  }, [ocId, navigate, usuario, loading]);
 
-  if (!formData) return <div className="p-6">Cargando orden...</div>;
+  if (!formData || loading) return <div className="p-6">Cargando orden...</div>;
 
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
@@ -73,8 +83,6 @@ const EditarOC = () => {
   const igv = subtotal * 0.18;
   const valorVenta = subtotal;
   const totalFinal = subtotal + igv + parseFloat(otros || 0);
-
-  const simbolo = formData.monedaSeleccionada === "Dólares" ? "$" : "S/";
 
   const validarFormulario = () => {
     if (
@@ -117,7 +125,7 @@ const EditarOC = () => {
         ...(formData.historial || []),
         {
           accion: "Edición",
-          por: localStorage.getItem("userEmail"),
+          por: usuario.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],
@@ -265,7 +273,11 @@ const EditarOC = () => {
         />
       </div>
 
-      <ItemTable items={items} setItems={setItems} moneda={formData.monedaSeleccionada} />
+      <ItemTable
+        items={items}
+        setItems={setItems}
+        moneda={formData.monedaSeleccionada}
+      />
 
       <div className="bg-[#f4f4f4] p-6 rounded shadow mt-6 grid grid-cols-2 gap-4">
         <select

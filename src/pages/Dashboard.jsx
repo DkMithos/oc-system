@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
-import { obtenerTodasOC, obtenerTodosMovimientosCaja } from "../firebase/dashboardHelpers";
-import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import {
+  obtenerTodasOC,
+  obtenerTodosMovimientosCaja,
+} from "../firebase/dashboardHelpers";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+} from "recharts";
 import { format, parseISO, subMonths } from "date-fns";
+import { useUsuario } from "../context/UserContext";
 
 const Dashboard = () => {
+  const { usuario, loading } = useUsuario();
   const [ocData, setOcData] = useState([]);
   const [movimientosCaja, setMovimientosCaja] = useState([]);
 
@@ -14,8 +29,13 @@ const Dashboard = () => {
       setOcData(oc);
       setMovimientosCaja(caja);
     };
-    cargarDatos();
-  }, []);
+
+    if (!loading) cargarDatos();
+  }, [loading]);
+
+  if (loading || !usuario) {
+    return <div className="p-6">Cargando dashboard...</div>;
+  }
 
   // ▶ Totales por estado de OC
   const estados = ocData.reduce((acc, oc) => {
@@ -40,8 +60,12 @@ const Dashboard = () => {
     .map(([nombre, cantidad]) => ({ nombre, cantidad }));
 
   // ▶ Caja chica resumen
-  const ingresos = movimientosCaja.filter(m => m.tipo === "ingreso").reduce((acc, m) => acc + Number(m.monto), 0);
-  const egresos = movimientosCaja.filter(m => m.tipo === "egreso").reduce((acc, m) => acc + Number(m.monto), 0);
+  const ingresos = movimientosCaja
+    .filter((m) => m.tipo === "ingreso")
+    .reduce((acc, m) => acc + Number(m.monto), 0);
+  const egresos = movimientosCaja
+    .filter((m) => m.tipo === "egreso")
+    .reduce((acc, m) => acc + Number(m.monto), 0);
 
   const dataCaja = [
     { name: "Ingresos", value: ingresos },
@@ -104,7 +128,9 @@ const Dashboard = () => {
       {/* Gráficos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-lg font-semibold mb-4">📆 OC Emitidas (últimos 6 meses)</h3>
+          <h3 className="text-lg font-semibold mb-4">
+            📆 OC Emitidas (últimos 6 meses)
+          </h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={ultimos6Meses}>
               <XAxis dataKey="mes" />

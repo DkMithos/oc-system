@@ -1,18 +1,23 @@
-// ✅ src/pages/Requerimientos.jsx
 import React, { useState, useEffect } from "react";
 import { agregarRequerimiento, obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import { PlusCircle } from "lucide-react";
+import { generarCodigoRequerimiento } from "../firebase/requerimientosHelpers";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { useUsuario } from "../context/UserContext"; // Usamos el contexto
 
 const Requerimientos = () => {
-  const userEmail = localStorage.getItem("userEmail") || "";
+  const { usuario, loading } = useUsuario(); // obtenemos usuario desde contexto
 
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroCentro, setFiltroCentro] = useState("");
   const [centros, setCentros] = useState([]);
   const [requerimientos, setRequerimientos] = useState([]);
   const [form, setForm] = useState({
     codigo: "",
     fecha: new Date().toISOString().split("T")[0],
-    solicitante: userEmail,
+    solicitante: "",
     centroCosto: "",
     detalle: "",
     items: [],
@@ -21,13 +26,60 @@ const Requerimientos = () => {
 
   useEffect(() => {
     const cargarDatos = async () => {
+      if (!usuario) return;
       const centros = await obtenerCentrosCosto();
-      const requerimientos = await obtenerRequerimientosPorUsuario(userEmail);
+      const requerimientos = await obtenerRequerimientosPorUsuario(usuario.email);
+      const codigoGenerado = await generarCodigoRequerimiento();
+
       setCentros(centros.map((c) => c.nombre));
       setRequerimientos(requerimientos);
+      setForm((prev) => ({
+        ...prev,
+        codigo: codigoGenerado,
+        solicitante: usuario.email,
+      }));
     };
-    cargarDatos();
-  }, [userEmail]);
+
+    if (!loading) {
+      cargarDatos();
+    }
+  }, [usuario, loading]);
+
+  const requerimientosFiltrados = requerimientos.filter((r) => {
+    const coincideBusqueda =
+      r.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
+      r.detalle.toLowerCase().includes(busqueda.toLowerCase());
+
+    const coincideCentro = filtroCentro ? r.centroCosto === filtroCentro : true;
+    return coincideBusqueda && coincideCentro;
+  });
+
+  const exportarExcel = () => {
+    if (!requerimientosFiltrados.length) {
+      alert("No hay datos para exportar");
+      return;
+    }
+
+    const data = requerimientosFiltrados.map((r) => ({
+      Código: r.codigo,
+      Fecha: r.fecha,
+      "Centro de Costo": r.centroCosto,
+      Detalle: r.detalle,
+      "Cantidad de Ítems": r.items.length,
+      Estado: r.estado,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Requerimientos");
+
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(blob, `Requerimientos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const agregarItem = () => {
     if (!itemActual.nombre || !itemActual.unidad || itemActual.cantidad <= 0) {
@@ -43,34 +95,34 @@ const Requerimientos = () => {
       alert("Completa todos los campos y agrega al menos un ítem.");
       return;
     }
+
     const nuevo = { ...form, estado: "Pendiente" };
     await agregarRequerimiento(nuevo);
     alert("Requerimiento guardado ✅");
+
+    const nuevoCodigo = await generarCodigoRequerimiento();
+    const lista = await obtenerRequerimientosPorUsuario(usuario.email);
+
+    setRequerimientos(lista);
     setForm({
-      codigo: "",
+      codigo: nuevoCodigo,
       fecha: new Date().toISOString().split("T")[0],
-      solicitante: userEmail,
+      solicitante: usuario.email,
       centroCosto: "",
       detalle: "",
       items: [],
     });
-    const lista = await obtenerRequerimientosPorUsuario(userEmail);
-    setRequerimientos(lista);
   };
+
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">No autorizado</div>;
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">📝 Requerimientos de Compra</h2>
+      <h2 className="text-2xl font-bold mb-6">Requerimientos de Compra</h2>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input
-          type="text"
-          placeholder="Código (ej: REQ-001)"
-          value={form.codigo}
-          onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-          className="border p-2 rounded"
-        />
         <input type="date" disabled value={form.fecha} className="border p-2 rounded" />
 
         <select
@@ -93,7 +145,7 @@ const Requerimientos = () => {
         />
 
         <div className="col-span-1 md:col-span-2">
-          <p className="font-bold mb-2">➕ Agregar ítems</p>
+          <p className="font-bold mb-2">Agregar ítems</p>
           <div className="flex flex-col md:flex-row gap-2 mb-2">
             <input
               type="text"
@@ -133,14 +185,45 @@ const Requerimientos = () => {
 
         <button
           onClick={guardar}
-          className="col-span-1 md:col-span-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          className="self-end text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
         >
-          Guardar Requerimiento
+          Guardar
         </button>
       </div>
 
-      {/* Lista */}
-      <h3 className="text-lg font-semibold mb-2">📋 Requerimientos Registrados</h3>
+      {/* Filtro + export */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <input
+          type="text"
+          placeholder="🔎 Buscar por código o detalle..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="border p-2 rounded w-full md:w-1/3"
+        />
+
+        <select
+          value={filtroCentro}
+          onChange={(e) => setFiltroCentro(e.target.value)}
+          className="border p-2 rounded w-full md:w-1/4"
+        >
+          <option value="">Todos los centros</option>
+          {centros.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+
+        <button
+          onClick={exportarExcel}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
+        >
+          Exportar a Excel
+        </button>
+      </div>
+
+      {/* Tabla */}
+      <h3 className="text-lg font-semibold mb-2">Requerimientos Registrados</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
@@ -154,7 +237,7 @@ const Requerimientos = () => {
             </tr>
           </thead>
           <tbody>
-            {requerimientos.map((r, i) => (
+            {requerimientosFiltrados.map((r, i) => (
               <tr key={i} className="border-t">
                 <td className="p-2">{r.codigo}</td>
                 <td className="p-2">{r.fecha}</td>

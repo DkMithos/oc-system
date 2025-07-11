@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
 import Logo from "../assets/logo-navbar.png";
+import { useUsuario } from "../context/UserContext";
 
 const FirmarOC = () => {
   const navigate = useNavigate();
@@ -13,14 +14,15 @@ const FirmarOC = () => {
 
   const [orden, setOrden] = useState(null);
   const [sigPad, setSigPad] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const currentUserEmail = localStorage.getItem("userEmail");
+  const [loadingOC, setLoadingOC] = useState(true);
+
+  const { usuario, loading } = useUsuario();
 
   useEffect(() => {
     const cargarOrden = async () => {
       const data = await obtenerOCporId(ocId);
       setOrden(data);
-      setLoading(false);
+      setLoadingOC(false);
     };
     cargarOrden();
   }, [ocId]);
@@ -39,7 +41,7 @@ const FirmarOC = () => {
       return;
     }
 
-    if (!orden) return;
+    if (!orden || !usuario) return;
 
     const canvasRecortado = getTrimmedCanvas(sigPad.getCanvas());
     const firma = canvasRecortado.toDataURL("image/png");
@@ -48,16 +50,14 @@ const FirmarOC = () => {
     let campoFirma = "";
     let nuevoEstado = orden.estado;
 
-    if (currentUserEmail === "mchuman@memphis.pe") {
+    if (usuario.rol === "operaciones") {
       if (orden.firmaOperaciones) {
         alert("Ya firmaste esta orden previamente.");
         return;
       }
       campoFirma = "firmaOperaciones";
-      nuevoEstado = necesitaGerencia
-        ? "Aprobado por Operaciones"
-        : "Aprobado por Gerencia";
-    } else if (currentUserEmail === "gmacher@memphis.pe") {
+      nuevoEstado = necesitaGerencia ? "Aprobado por Operaciones" : "Aprobado por Gerencia";
+    } else if (usuario.rol === "gerencia") {
       if (orden.firmaGerencia) {
         alert("Ya firmaste esta orden previamente.");
         return;
@@ -73,7 +73,7 @@ const FirmarOC = () => {
       orden.fechaEmision,
       orden.fechaEntrega,
       orden.comprador,
-      orden.proveedorRuc,
+      orden.proveedor?.ruc,
       orden.centroCosto,
       orden.condicionPago,
       orden.lugarEntrega,
@@ -95,7 +95,7 @@ const FirmarOC = () => {
         ...(orden.historial || []),
         {
           accion: "Aprobado",
-          por: currentUserEmail,
+          por: usuario.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],
@@ -103,10 +103,11 @@ const FirmarOC = () => {
 
     await actualizarOC(orden.id, nuevaData);
     alert("Orden firmada correctamente ✅");
-    navigate("/");
+    navigate("/historial");
   };
 
   const rechazarOC = async () => {
+    if (!usuario || !orden) return;
     const razon = prompt("¿Por qué rechazas esta OC?");
     if (!razon) return;
 
@@ -117,7 +118,7 @@ const FirmarOC = () => {
         ...(orden.historial || []),
         {
           accion: "Rechazado",
-          por: currentUserEmail,
+          por: usuario.email,
           fecha: new Date().toLocaleString("es-PE"),
           motivo: razon,
         },
@@ -126,10 +127,11 @@ const FirmarOC = () => {
 
     await actualizarOC(orden.id, nuevaData);
     alert("Orden rechazada ❌");
-    navigate("/");
+    navigate("/historial");
   };
 
-  if (loading) return <div className="p-6">Cargando orden...</div>;
+  if (loading || loadingOC) return <div className="p-6">Cargando datos...</div>;
+  if (!usuario) return <div className="p-6 text-red-600">No tienes permiso para firmar.</div>;
   if (!orden) return <div className="p-6 text-red-600">No se encontró la OC.</div>;
 
   return (
@@ -138,9 +140,7 @@ const FirmarOC = () => {
       <div className="flex items-center justify-between mb-6 border-b pb-4">
         <img src={Logo} alt="Logo Memphis" className="h-12" />
         <div>
-          <h2 className="text-xl font-bold text-[#004990]">
-            Firmar Orden de Compra
-          </h2>
+          <h2 className="text-xl font-bold text-[#004990]">Firmar Orden de Compra</h2>
           <p className="text-sm text-gray-600">Orden #{orden.id}</p>
         </div>
       </div>
@@ -159,14 +159,15 @@ const FirmarOC = () => {
         <p className="mb-2 text-sm font-medium">Firma digital:</p>
         <SignatureCanvas
           penColor="black"
-          canvasProps={{ width: 450, height: 180, className: "border rounded bg-white shadow" }}
+          canvasProps={{
+            width: 450,
+            height: 180,
+            className: "border rounded bg-white shadow",
+          }}
           ref={(ref) => setSigPad(ref)}
         />
         <div className="mt-2">
-          <button
-            onClick={() => sigPad.clear()}
-            className="text-sm text-blue-600 underline"
-          >
+          <button onClick={() => sigPad.clear()} className="text-sm text-blue-600 underline">
             Limpiar firma
           </button>
         </div>
@@ -192,5 +193,3 @@ const FirmarOC = () => {
 };
 
 export default FirmarOC;
-
-

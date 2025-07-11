@@ -32,3 +32,12 @@ export const obtenerRequerimientosPorUsuario = async (email) => {
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
+
+
+// Genera el siguiente código de requerimiento
+export const generarCodigoRequerimiento = async () => {
+  const snapshot = await getDocs(collection(db, "requerimientos"));
+  const total = snapshot.size;
+  const siguienteNumero = total + 1;
+  return `RQ-${siguienteNumero.toString().padStart(5, "0")}`;
+};

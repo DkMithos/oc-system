@@ -3,13 +3,17 @@ import {
   obtenerProveedores,
   agregarProveedor,
   actualizarProveedor,
-  eliminarProveedor,
 } from "../firebase/proveedoresHelpers";
 import { consultarSunat } from "../utils/consultaSunat";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import CuentaBancariaForm from "../components/CuentaBancariaForm";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { useUsuario } from "../context/UserContext"; // Contexto
 
 const Proveedores = () => {
+  const { usuario, loading } = useUsuario();
+
   const [proveedores, setProveedores] = useState([]);
   const [form, setForm] = useState({
     ruc: "",
@@ -19,23 +23,18 @@ const Proveedores = () => {
     email: "",
     contacto: "",
     bancos: [],
+    estado: "Activo",
+    motivoCambio: "",
   });
   const [editandoId, setEditandoId] = useState(null);
-
-  const [cuenta, setCuenta] = useState({
-    nombre: "",
-    cuenta: "",
-    cci: "",
-    moneda: "",
-  });
-
+  const [cuenta, setCuenta] = useState({ nombre: "", cuenta: "", cci: "", moneda: "" });
   const [busqueda, setBusqueda] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
   const porPagina = 10;
 
   useEffect(() => {
-    cargarProveedores();
-  }, []);
+    if (!loading && usuario) cargarProveedores();
+  }, [usuario, loading]);
 
   useEffect(() => {
     const buscarProveedor = async () => {
@@ -53,13 +52,16 @@ const Proveedores = () => {
         }
       }
     };
-
     buscarProveedor();
   }, [form.ruc]);
 
   const cargarProveedores = async () => {
     const lista = await obtenerProveedores();
-    setProveedores(lista);
+    const normalizados = lista.map((p) => ({
+      ...p,
+      estado: p.estado || "Activo",
+    }));
+    setProveedores(normalizados);
   };
 
   const guardar = async () => {
@@ -70,6 +72,10 @@ const Proveedores = () => {
 
     try {
       if (editandoId) {
+        if (form.estado !== "Activo" && !form.motivoCambio.trim()) {
+          alert("Debes ingresar el motivo del cambio de estado");
+          return;
+        }
         await actualizarProveedor(editandoId, form);
         alert("Proveedor actualizado ✅");
       } else {
@@ -77,17 +83,7 @@ const Proveedores = () => {
         alert("Proveedor agregado ✅");
       }
 
-      setForm({
-        ruc: "",
-        razonSocial: "",
-        direccion: "",
-        telefono: "",
-        email: "",
-        contacto: "",
-        bancos: [],
-      });
-      setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
-      setEditandoId(null);
+      limpiarFormulario();
       cargarProveedores();
     } catch (e) {
       console.error("Error al guardar:", e);
@@ -95,18 +91,27 @@ const Proveedores = () => {
     }
   };
 
-  const eliminarRegistro = async (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar este proveedor?")) return;
-    await eliminarProveedor(id);
-    cargarProveedores();
+  const limpiarFormulario = () => {
+    setForm({
+      ruc: "",
+      razonSocial: "",
+      direccion: "",
+      telefono: "",
+      email: "",
+      contacto: "",
+      bancos: [],
+      estado: "Activo",
+      motivoCambio: "",
+    });
+    setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
+    setEditandoId(null);
   };
 
   const cargarParaEditar = (prov) => {
-    setForm(prov);
+    setForm({ ...prov, motivoCambio: "" });
     setEditandoId(prov.id);
   };
 
-  // FILTRO + PAGINACIÓN
   const proveedoresFiltrados = proveedores.filter((p) =>
     `${p.ruc} ${p.razonSocial}`.toLowerCase().includes(busqueda.toLowerCase())
   );
@@ -116,89 +121,89 @@ const Proveedores = () => {
   const fin = inicio + porPagina;
   const proveedoresPaginados = proveedoresFiltrados.slice(inicio, fin);
 
+  const exportarExcel = () => {
+    if (!proveedoresFiltrados.length) {
+      alert("No hay proveedores para exportar");
+      return;
+    }
+
+    const data = proveedoresFiltrados.map((p) => ({
+      RUC: p.ruc,
+      "Razón Social": p.razonSocial,
+      Dirección: p.direccion,
+      Teléfono: p.telefono,
+      Email: p.email,
+      Contacto: p.contacto,
+      Estado: p.estado || "Activo",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
+
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(blob, `Proveedores_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">📦 Gestión de Proveedores</h2>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input
-          type="text"
-          placeholder="RUC"
-          value={form.ruc}
-          onChange={(e) => setForm({ ...form, ruc: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Razón Social"
-          value={form.razonSocial}
-          onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Dirección"
-          value={form.direccion}
-          onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Teléfono"
-          value={form.telefono}
-          onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="email"
-          placeholder="Correo"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Contacto"
-          value={form.contacto}
-          onChange={(e) => setForm({ ...form, contacto: e.target.value })}
-          className="border p-2 rounded"
-        />
+        <input type="text" placeholder="RUC" value={form.ruc} onChange={(e) => setForm({ ...form, ruc: e.target.value })} className="border p-2 rounded" />
+        <input type="text" placeholder="Razón Social" value={form.razonSocial} onChange={(e) => setForm({ ...form, razonSocial: e.target.value })} className="border p-2 rounded" />
+        <input type="text" placeholder="Dirección" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} className="border p-2 rounded" />
+        <input type="text" placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className="border p-2 rounded" />
+        <input type="email" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="border p-2 rounded" />
+        <input type="text" placeholder="Contacto" value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} className="border p-2 rounded" />
 
-        {/* Reutilización del componente de Cuentas */}
+        {/* Estado + Motivo */}
+        {editandoId && (
+          <>
+            <select
+              value={form.estado}
+              onChange={(e) => setForm({ ...form, estado: e.target.value })}
+              className="border p-2 rounded"
+            >
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+            {form.estado === "Inactivo" && (
+              <input
+                type="text"
+                placeholder="Motivo de inactivación"
+                value={form.motivoCambio}
+                onChange={(e) => setForm({ ...form, motivoCambio: e.target.value })}
+                className="border p-2 rounded"
+              />
+            )}
+          </>
+        )}
+
+        {/* Cuentas */}
         <CuentaBancariaForm
           cuenta={cuenta}
           setCuenta={setCuenta}
           cuentas={form.bancos}
-          setCuentas={(nuevasCuentas) =>
-            setForm((prev) => ({ ...prev, bancos: nuevasCuentas }))
-          }
+          setCuentas={(bancos) => setForm((prev) => ({ ...prev, bancos }))}
         />
 
-        {/* Botones */}
         <div className="col-span-2 flex gap-4 mt-4">
-          <button
-            onClick={guardar}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
+          <button onClick={guardar} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
             {editandoId ? "Actualizar" : "Agregar"}
           </button>
           {editandoId && (
             <button
               className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded"
-              onClick={() => {
-                setForm({
-                  ruc: "",
-                  razonSocial: "",
-                  direccion: "",
-                  telefono: "",
-                  email: "",
-                  contacto: "",
-                  bancos: [],
-                });
-                setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
-                setEditandoId(null);
-              }}
+              onClick={limpiarFormulario}
             >
               Cancelar
             </button>
@@ -206,21 +211,27 @@ const Proveedores = () => {
         </div>
       </div>
 
-      {/* Buscador */}
-      <div className="mb-4 max-w-sm">
+      {/* Filtro y export */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
         <input
           type="text"
-          placeholder="Buscar por RUC o razón social..."
+          placeholder="🔍 Buscar por RUC o razón social..."
           value={busqueda}
           onChange={(e) => {
             setBusqueda(e.target.value);
             setPaginaActual(1);
           }}
-          className="border px-3 py-2 rounded w-full"
+          className="border px-3 py-2 rounded w-full md:w-1/2"
         />
+        <button
+          onClick={exportarExcel}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
+        >
+          📤 Exportar a Excel
+        </button>
       </div>
 
-      {/* Tabla de Proveedores */}
+      {/* Tabla */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
@@ -229,7 +240,7 @@ const Proveedores = () => {
               <th className="p-2 text-left">Razón Social</th>
               <th className="p-2 text-left">Contacto</th>
               <th className="p-2 text-left">Correo</th>
-              <th className="p-2 text-left">Teléfono</th>
+              <th className="p-2 text-left">Estado</th>
               <th className="p-2 text-left">Acciones</th>
             </tr>
           </thead>
@@ -247,21 +258,14 @@ const Proveedores = () => {
                   <td className="p-2">{p.razonSocial}</td>
                   <td className="p-2">{p.contacto}</td>
                   <td className="p-2">{p.email}</td>
-                  <td className="p-2">{p.telefono}</td>
-                  <td className="p-2 flex gap-2">
+                  <td className="p-2">{p.estado || "Activo"}</td>
+                  <td className="p-2">
                     <button
                       className="text-blue-600 hover:text-blue-800"
                       title="Editar"
                       onClick={() => cargarParaEditar(p)}
                     >
                       <Pencil size={18} />
-                    </button>
-                    <button
-                      className="text-red-600 hover:text-red-800"
-                      title="Eliminar"
-                      onClick={() => eliminarRegistro(p.id)}
-                    >
-                      <Trash2 size={18} />
                     </button>
                   </td>
                 </tr>
