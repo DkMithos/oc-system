@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import Historial from "../pages/Historial";
 import VerOC from "../pages/VerOC";
@@ -16,60 +16,57 @@ import CargarMaestros from "../pages/CargarMaestros";
 import CajaChica from "../pages/CajaChica";
 import Requerimientos from "../pages/Requerimientos";
 
-
 function AppRoutes({ userRole }) {
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        {userRole === "finanzas" && (
-          <>
-            <Route index element={<HistorialPagos />} />
-            <Route path="/pago" element={<RegistrarPago />} />
-            <Route path="/pagos" element={<HistorialPagos />} />
-          </>
-        )}
+    <Route element={<Layout />}>
+      {userRole === "finanzas" && (
+        <>
+          <Route index element={<HistorialPagos />} />
+          <Route path="/pago" element={<RegistrarPago />} />
+          <Route path="/pagos" element={<HistorialPagos />} />
+        </>
+      )}
 
-        {["admin", "comprador", "gerencia", "operaciones"].includes(userRole) && (
-          <>
-            <Route path="/" element={<Historial />} />
-            <Route path="/ver" element={<VerOC />} />
-          </>
-        )}
+      {["admin", "comprador", "gerencia", "operaciones"].includes(userRole) && (
+        <>
+          <Route path="/" element={<Historial />} />
+          <Route path="/ver" element={<VerOC />} />
+        </>
+      )}
 
-        {["gerencia", "operaciones"].includes(userRole) && (
-          <>
-            <Route path="/firmar" element={<FirmarOC />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/caja" element={<CajaChica />} />
-          </>
-        )}
+      {["gerencia", "operaciones"].includes(userRole) && (
+        <>
+          <Route path="/firmar" element={<FirmarOC />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/caja" element={<CajaChica />} />
+        </>
+      )}
 
-        {userRole === "comprador" && (
-          <>
-            <Route path="/crear" element={<CrearOC />} />
-            <Route path="/cotizaciones" element={<Cotizaciones />} />
-            <Route path="/proveedores" element={<Proveedores />} />
-            <Route path="/editar" element={<EditarOC />} />
-            <Route path="/requerimientos" element={<Requerimientos />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-          </>
-        )}
+      {userRole === "comprador" && (
+        <>
+          <Route path="/crear" element={<CrearOC />} />
+          <Route path="/cotizaciones" element={<Cotizaciones />} />
+          <Route path="/proveedores" element={<Proveedores />} />
+          <Route path="/editar" element={<EditarOC />} />
+          <Route path="/requerimientos" element={<Requerimientos />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </>
+      )}
 
-        {userRole === "admin" && (
-          <>
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/crear" element={<CrearOC />} />
-            <Route path="/cotizaciones" element={<Cotizaciones />} />
-            <Route path="/proveedores" element={<Proveedores />} />
-            <Route path="/editar" element={<EditarOC />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/cargar-maestros" element={<CargarMaestros />} />
-            <Route path="/requerimientos" element={<Requerimientos />} />
-          </>
-        )}
-      </Route>
-    </Routes>
+      {userRole === "admin" && (
+        <>
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/crear" element={<CrearOC />} />
+          <Route path="/cotizaciones" element={<Cotizaciones />} />
+          <Route path="/proveedores" element={<Proveedores />} />
+          <Route path="/editar" element={<EditarOC />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/cargar-maestros" element={<CargarMaestros />} />
+          <Route path="/requerimientos" element={<Requerimientos />} />
+        </>
+      )}
+    </Route>
   );
 }
 

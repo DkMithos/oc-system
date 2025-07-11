@@ -5,7 +5,7 @@ import { PlusCircle } from "lucide-react";
 import { generarCodigoRequerimiento } from "../firebase/requerimientosHelpers";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useUsuario } from "../context/UserContext"; // Usamos el contexto
+import { useUsuario } from "../context/UsuarioContext"; // Usamos el contexto
 
 const Requerimientos = () => {
   const { usuario, loading } = useUsuario(); // obtenemos usuario desde contexto

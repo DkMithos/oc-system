@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
 import Logo from "../assets/logo-navbar.png";
-import { useUsuario } from "../context/UserContext";
+import { useUsuario } from "../context/UsuarioContext";
+
 
 const FirmarOC = () => {
   const navigate = useNavigate();

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { useNavigate } from "react-router-dom";
-import { useUsuario } from "../context/UserContext";
+import { useUsuario } from "../context/UsuarioContext";
+
 
 const Historial = () => {
   const { usuario, loading } = useUsuario();

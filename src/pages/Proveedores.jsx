@@ -9,7 +9,7 @@ import { Pencil } from "lucide-react";
 import CuentaBancariaForm from "../components/CuentaBancariaForm";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useUsuario } from "../context/UserContext"; // Contexto
+import { useUsuario } from "../context/UsuarioContext";
 
 const Proveedores = () => {
   const { usuario, loading } = useUsuario();

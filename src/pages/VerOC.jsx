@@ -4,7 +4,7 @@ import html2pdf from "html2pdf.js";
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
-import { useUsuario } from "../context/UserContext";
+import { useUsuario } from "../context/UsuarioContext";
 
 const VerOC = () => {
   const location = useLocation();

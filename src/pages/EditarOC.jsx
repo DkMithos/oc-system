@@ -12,7 +12,8 @@ import {
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import Select from "react-select";
-import { useUsuario } from "../context/UserContext";
+import { useUsuario } from "../context/UsuarioContext";
+
 
 const EditarOC = () => {
   const navigate = useNavigate();

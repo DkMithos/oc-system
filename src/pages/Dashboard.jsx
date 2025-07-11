@@ -15,7 +15,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format, parseISO, subMonths } from "date-fns";
-import { useUsuario } from "../context/UserContext";
+import { useUsuario } from "../context/UsuarioContext";
 
 const Dashboard = () => {
   const { usuario, loading } = useUsuario();
