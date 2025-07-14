@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import Login from "./pages/Login";
 import { ToastContainer } from "react-toastify";
@@ -16,13 +15,11 @@ function App() {
   return (
     <>
       <ToastContainer />
-      <Routes>
-        {!userRole ? (
-          <Route path="*" element={<Login setUserRole={setUserRole} />} />
-        ) : (
-          <Route path="*" element={<AppRoutes userRole={userRole} />} />
-        )}
-      </Routes>
+      {userRole ? (
+        <AppRoutes userRole={userRole} />
+      ) : (
+        <Login setUserRole={setUserRole} />
+      )}
     </>
   );
 }
