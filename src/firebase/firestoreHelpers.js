@@ -20,12 +20,38 @@ const PROVEEDORES_COLLECTION = "proveedores";
 
 // ✅ Usuarios
 export const obtenerUsuarios = async () => {
-  const snapshot = await getDocs(collection(db, USUARIOS_COLLECTION));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const snapshot = await getDocs(collection(db, "usuarios"));
+
+  const usuarios = [];
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    // Validación: solo incluye usuarios con email y rol definidos
+    if (data.email && data.rol) {
+      usuarios.push({
+        id: doc.id,
+        email: data.email,
+        rol: data.rol,
+        estado: data.estado || "Activo", // default si no existe
+      });
+    } else {
+      console.warn("⚠️ Usuario omitido por datos incompletos:", doc.id, data);
+    }
+  });
+
+  return usuarios;
 };
 
-export const guardarUsuario = async (usuario) => {
-  await setDoc(doc(db, USUARIOS_COLLECTION, usuario.email), usuario);
+export const guardarUsuario = async ({ email, rol }) => {
+  if (!email || !rol) {
+    throw new Error("El usuario debe tener correo y rol.");
+  }
+
+  const userRef = doc(db, "usuarios", email);
+  await setDoc(userRef, {
+    email,
+    rol,
+    estado: "Activo",
+  });
 };
 
 export const eliminarUsuario = async (email) => {
@@ -128,11 +154,11 @@ export const guardarOC = async (ocData) => {
   const correlativoRef = doc(db, "correlativos", "ordenesCompra");
   const correlativoSnap = await getDoc(correlativoRef);
 
-  let nuevoNumero = 350;
+  let nuevoNumero = 356;
 
   if (correlativoSnap.exists()) {
     const data = correlativoSnap.data();
-    nuevoNumero = (data.ultimo || 349) + 1;
+    nuevoNumero = (data.ultimo || 355) + 1;
   }
 
   // Formato final
@@ -149,4 +175,15 @@ export const guardarOC = async (ocData) => {
   await setDoc(correlativoRef, { ultimo: nuevoNumero }, { merge: true });
 
   return docRef.id;
+};
+
+export const guardarFirmaUsuario = async (email, firmaBase64) => {
+  const docRef = doc(db, "firmas", email);
+  await setDoc(docRef, { firma: firmaBase64 }, { merge: true });
+};
+
+export const obtenerFirmaUsuario = async (email) => {
+  const docRef = doc(db, "firmas", email);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? docSnap.data().firma : null;
 };

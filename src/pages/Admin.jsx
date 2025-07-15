@@ -15,6 +15,9 @@ import {
   eliminarCondicionPago,
   registrarLog,
 } from "../firebase/firestoreHelpers";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase/config";
+import { auth } from "../firebase/config";
 
 import ResumenCards from "../components/admin/ResumenCards";
 import GestorUsuarios from "../components/admin/GestorUsuarios";
@@ -53,7 +56,7 @@ const Admin = () => {
     cargarDatos();
   }, []);
 
-  // ACCIONES CENTROS DE COSTO
+  // CENTROS DE COSTO
   const agregarCentroCosto = async (nombre) => {
     await guardarCentroCosto({ nombre });
     setCentros(await obtenerCentrosCosto());
@@ -75,7 +78,7 @@ const Admin = () => {
     });
   };
 
-  // ACCIONES CONDICIONES DE PAGO
+  // CONDICIONES DE PAGO
   const agregarCondicionPago = async (nombre) => {
     await guardarCondicionPago({ nombre });
     setCondiciones(await obtenerCondicionesPago());
@@ -97,7 +100,7 @@ const Admin = () => {
     });
   };
 
-  // ACCIONES USUARIOS
+  // USUARIOS
   const agregarUsuario = async (usuario) => {
     await guardarUsuario(usuario);
     setUsuarios(await obtenerUsuarios());
@@ -128,6 +131,19 @@ const Admin = () => {
     });
   };
 
+  const cambiarEstadoUsuario = async (email, nuevoEstado, motivo) => {
+    const ref = doc(db, "usuarios", email);
+    await updateDoc(ref, { estado: nuevoEstado });
+
+    await registrarLog({
+      accion: "Cambio de Estado de Usuario",
+      descripcion: `Usuario: ${email}, nuevo estado: ${nuevoEstado}, motivo: ${motivo}`,
+      hechoPor: currentUserEmail,
+    });
+
+    setUsuarios(await obtenerUsuarios());
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Panel de Administración</h2>
@@ -152,9 +168,10 @@ const Admin = () => {
 
       <GestorUsuarios
         usuarios={usuarios}
-        agregar={agregarUsuario}
-        eliminar={eliminarUsuarioLocal}
+        agregarUsuario={agregarUsuario}
         cambiarRol={actualizarRol}
+        cambiarEstadoUsuario={cambiarEstadoUsuario}
+        roles={["admin", "comprador", "finanzas", "gerencia", "operaciones"]}
       />
     </div>
   );

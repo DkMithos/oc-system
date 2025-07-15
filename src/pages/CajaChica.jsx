@@ -127,6 +127,9 @@ const CajaChica = () => {
     return matchBusqueda && matchCentro && matchTipo;
   });
 
+  if (loading) return <div className="p-6">Cargando usuario.</div>;
+  if (!usuario || !["gerencia", "operaciones"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">💵 Control de Caja Chica</h2>

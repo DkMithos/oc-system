@@ -1,3 +1,4 @@
+// src/components/admin/GestorUsuarios.jsx
 import React, { useState } from "react";
 import { UserRoundPlus, RefreshCcw } from "lucide-react";
 
@@ -13,7 +14,7 @@ const GestorUsuarios = ({
   const [filtroRol, setFiltroRol] = useState("");
 
   const usuariosFiltrados = usuarios
-    .filter((u) => u.email.toLowerCase().includes(filtroCorreo.toLowerCase()))
+    .filter((u) => (u.email || "").toLowerCase().includes(filtroCorreo.toLowerCase()))
     .filter((u) => (filtroRol ? u.rol === filtroRol : true));
 
   const pagSize = 5;
@@ -27,6 +28,10 @@ const GestorUsuarios = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!nuevoUsuario.email || !nuevoUsuario.rol) {
+      alert("Por favor completa el correo y selecciona un rol.");
+      return;
+    }
     await agregarUsuario(nuevoUsuario);
     setNuevoUsuario({ email: "", rol: "" });
   };

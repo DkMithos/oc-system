@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { useNavigate, useLocation } from "react-router-dom";
 import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
+import { obtenerFirmaUsuario, guardarFirmaUsuario } from "../firebase/firestoreHelpers";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
-
 
 const FirmarOC = () => {
   const navigate = useNavigate();
@@ -14,19 +14,27 @@ const FirmarOC = () => {
   const ocId = queryParams.get("id");
 
   const [orden, setOrden] = useState(null);
-  const [sigPad, setSigPad] = useState(null);
   const [loadingOC, setLoadingOC] = useState(true);
+  const [firmaGuardada, setFirmaGuardada] = useState(null);
 
   const { usuario, loading } = useUsuario();
+  const sigPadRef = useRef(null);
 
   useEffect(() => {
-    const cargarOrden = async () => {
+    const cargarDatos = async () => {
       const data = await obtenerOCporId(ocId);
       setOrden(data);
       setLoadingOC(false);
+
+      // Intentar obtener la firma guardada del usuario
+      if (usuario?.email) {
+        const firmaExistente = await obtenerFirmaUsuario(usuario.email);
+        setFirmaGuardada(firmaExistente);
+      }
     };
-    cargarOrden();
-  }, [ocId]);
+
+    cargarDatos();
+  }, [ocId, usuario]);
 
   const requiereFirmaGerencia = (orden) => {
     const monto = orden.resumen?.total || 0;
@@ -37,39 +45,39 @@ const FirmarOC = () => {
   };
 
   const guardarFirma = async () => {
-    if (!sigPad || sigPad.isEmpty()) {
-      alert("Por favor firma antes de aprobar.");
-      return;
-    }
-
     if (!orden || !usuario) return;
 
-    const canvasRecortado = getTrimmedCanvas(sigPad.getCanvas());
-    const firma = canvasRecortado.toDataURL("image/png");
-    const necesitaGerencia = requiereFirmaGerencia(orden);
-
+    // Determinar qué campo de firma actualizar según rol
     let campoFirma = "";
     let nuevoEstado = orden.estado;
 
-    if (usuario.rol === "operaciones") {
+    if (usuario.rol === "comprador") {
+      if (orden.firmaComprador) {
+        alert("Ya firmaste como comprador.");
+        return;
+      }
+      campoFirma = "firmaComprador";
+      nuevoEstado = orden.estado; // no cambia el estado aún
+    } else if (usuario.rol === "operaciones") {
       if (orden.firmaOperaciones) {
-        alert("Ya firmaste esta orden previamente.");
+        alert("Ya firmaste como operaciones.");
         return;
       }
       campoFirma = "firmaOperaciones";
-      nuevoEstado = necesitaGerencia ? "Aprobado por Operaciones" : "Aprobado por Gerencia";
+      nuevoEstado = requiereFirmaGerencia(orden) ? "Aprobado por Operaciones" : "Aprobado por Gerencia";
     } else if (usuario.rol === "gerencia") {
       if (orden.firmaGerencia) {
-        alert("Ya firmaste esta orden previamente.");
+        alert("Ya firmaste como gerencia.");
         return;
       }
       campoFirma = "firmaGerencia";
       nuevoEstado = "Aprobado por Gerencia";
     } else {
-      alert("No tienes permiso para firmar esta orden.");
+      alert("No tienes permiso para firmar esta OC.");
       return;
     }
 
+    // Verificar campos obligatorios
     const camposFaltantes = [
       orden.fechaEmision,
       orden.fechaEntrega,
@@ -89,8 +97,23 @@ const FirmarOC = () => {
       return;
     }
 
+    let firmaFinal = firmaGuardada;
+
+    if (!firmaFinal) {
+      if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
+        alert("Por favor firma antes de aprobar.");
+        return;
+      }
+
+      const canvasRecortado = getTrimmedCanvas(sigPadRef.current.getCanvas());
+      firmaFinal = canvasRecortado.toDataURL("image/png");
+
+      // Guardar firma en la colección de firmas del usuario
+      await guardarFirmaUsuario(usuario.email, firmaFinal);
+    }
+
     const nuevaData = {
-      [campoFirma]: firma,
+      [campoFirma]: firmaFinal,
       estado: nuevoEstado,
       historial: [
         ...(orden.historial || []),
@@ -104,7 +127,7 @@ const FirmarOC = () => {
 
     await actualizarOC(orden.id, nuevaData);
     alert("Orden firmada correctamente ✅");
-    navigate("/historial");
+    navigate("/ver?id=" + orden.id); // Redirige a ver OC firmada
   };
 
   const rechazarOC = async () => {
@@ -128,7 +151,7 @@ const FirmarOC = () => {
 
     await actualizarOC(orden.id, nuevaData);
     alert("Orden rechazada ❌");
-    navigate("/historial");
+    navigate("/ver?id=" + orden.id);
   };
 
   if (loading || loadingOC) return <div className="p-6">Cargando datos...</div>;
@@ -137,44 +160,42 @@ const FirmarOC = () => {
 
   return (
     <div className="p-6 max-w-3xl mx-auto bg-white rounded shadow">
-      {/* Encabezado con Logo */}
       <div className="flex items-center justify-between mb-6 border-b pb-4">
         <img src={Logo} alt="Logo Memphis" className="h-12" />
         <div>
           <h2 className="text-xl font-bold text-[#004990]">Firmar Orden de Compra</h2>
-          <p className="text-sm text-gray-600">Orden #{orden.id}</p>
+          <p className="text-sm text-gray-600">Orden #{orden.numeroOC}</p>
         </div>
       </div>
 
-      {/* Resumen de la OC */}
       <div className="grid grid-cols-2 gap-4 text-sm mb-6">
         <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial}</p>
         <p><strong>Fecha de Emisión:</strong> {orden.fechaEmision}</p>
         <p><strong>Estado actual:</strong> {orden.estado}</p>
         <p><strong>Moneda:</strong> {orden.monedaSeleccionada}</p>
-        <p><strong>Total:</strong> {orden.resumen?.total?.toFixed(2)}</p>
+        <p><strong>Total:</strong> S/ {orden.resumen?.total?.toFixed(2)}</p>
       </div>
 
-      {/* Área de firma */}
-      <div className="bg-[#f4f4f4] p-4 rounded shadow mb-6">
-        <p className="mb-2 text-sm font-medium">Firma digital:</p>
-        <SignatureCanvas
-          penColor="black"
-          canvasProps={{
-            width: 450,
-            height: 180,
-            className: "border rounded bg-white shadow",
-          }}
-          ref={(ref) => setSigPad(ref)}
-        />
-        <div className="mt-2">
-          <button onClick={() => sigPad.clear()} className="text-sm text-blue-600 underline">
-            Limpiar firma
-          </button>
+      {!firmaGuardada && (
+        <div className="bg-[#f4f4f4] p-4 rounded shadow mb-6">
+          <p className="mb-2 text-sm font-medium">Firma digital:</p>
+          <SignatureCanvas
+            penColor="black"
+            canvasProps={{
+              width: 450,
+              height: 180,
+              className: "border rounded bg-white shadow",
+            }}
+            ref={sigPadRef}
+          />
+          <div className="mt-2">
+            <button onClick={() => sigPadRef.current.clear()} className="text-sm text-blue-600 underline">
+              Limpiar firma
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Botones de acción */}
       <div className="flex flex-wrap gap-4 justify-end">
         <button
           onClick={rechazarOC}

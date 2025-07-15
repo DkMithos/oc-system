@@ -88,6 +88,9 @@ const Dashboard = () => {
 
   const colores = ["#34D399", "#F87171"];
 
+  if (loading) return <div className="p-6">Cargando usuario.</div>;
+  if (!usuario || !["admin", "gerencia", "operaciones", "comprador"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">📊 Dashboard de Indicadores</h2>

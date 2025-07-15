@@ -114,8 +114,8 @@ const Requerimientos = () => {
     });
   };
 
-  if (loading) return <div className="p-6">Cargando usuario...</div>;
-  if (!usuario) return <div className="p-6">No autorizado</div>;
+  if (loading) return <div className="p-6">Cargando usuario.</div>;
+  if (!usuario || !["admin", "comprador"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">

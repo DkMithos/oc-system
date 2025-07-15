@@ -25,9 +25,9 @@ const Historial = () => {
     if (rol === "gerencia" && oc.estado === "Aprobado por Operaciones") return true;
     return false;
   };
-
-  if (loading) return <div className="p-6">Cargando usuario...</div>;
-  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
+  
+  if (loading) return <div className="p-6">Cargando usuario.</div>;
+  if (!usuario || !["admin", "gerencia", "operaciones", "comprador"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -51,7 +51,7 @@ const Historial = () => {
             <tbody>
               {ordenes.map((oc) => (
                 <tr key={oc.id} className="text-center border-t">
-                  <td className="border px-3 py-2 font-semibold">{oc.id}</td>
+                  <td className="border px-3 py-2 font-semibold">{oc.numeroOC}</td>
                   <td className="border px-3 py-2">{oc.proveedor?.razonSocial || "—"}</td>
                   <td className="border px-3 py-2">{oc.fechaEmision}</td>
                   <td className="border px-3 py-2">
