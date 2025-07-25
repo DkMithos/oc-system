@@ -128,7 +128,7 @@ const CajaChica = () => {
   });
 
   if (loading) return <div className="p-6">Cargando usuario.</div>;
-  if (!usuario || !["gerencia", "operaciones"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario || !["gerencia", "operaciones", "admin"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">

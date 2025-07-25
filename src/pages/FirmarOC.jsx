@@ -3,7 +3,7 @@ import SignatureCanvas from "react-signature-canvas";
 import { useNavigate, useLocation } from "react-router-dom";
 import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
-import { obtenerFirmaUsuario, guardarFirmaUsuario } from "../firebase/firestoreHelpers";
+import { obtenerFirmaGuardada, guardarFirmaUsuario } from "../firebase/firmasHelpers";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 
@@ -17,24 +17,38 @@ const FirmarOC = () => {
   const [loadingOC, setLoadingOC] = useState(true);
   const [firmaGuardada, setFirmaGuardada] = useState(null);
 
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando } = useUsuario();
   const sigPadRef = useRef(null);
 
+  // Cargar orden y firma guardada
   useEffect(() => {
     const cargarDatos = async () => {
-      const data = await obtenerOCporId(ocId);
-      setOrden(data);
+      if (!usuario?.email) return;
+
+      const [ocData, firma] = await Promise.all([
+        obtenerOCporId(ocId),
+        obtenerFirmaGuardada(usuario.email),
+      ]);
+
+      setOrden(ocData);
+      setFirmaGuardada(firma);
       setLoadingOC(false);
 
-      // Intentar obtener la firma guardada del usuario
-      if (usuario?.email) {
-        const firmaExistente = await obtenerFirmaUsuario(usuario.email);
-        setFirmaGuardada(firmaExistente);
+      // Mostrar firma en canvas (opcional si quieres mostrarla aunque no sea editable)
+      if (firma && sigPadRef.current) {
+        const image = new Image();
+        image.src = firma;
+        image.onload = () => {
+          const canvas = sigPadRef.current.getCanvas();
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        };
       }
     };
 
     cargarDatos();
-  }, [ocId, usuario]);
+  }, [usuario, ocId]);
 
   const requiereFirmaGerencia = (orden) => {
     const monto = orden.resumen?.total || 0;
@@ -47,38 +61,27 @@ const FirmarOC = () => {
   const guardarFirma = async () => {
     if (!orden || !usuario) return;
 
-    // Determinar qué campo de firma actualizar según rol
     let campoFirma = "";
     let nuevoEstado = orden.estado;
 
     if (usuario.rol === "comprador") {
-      if (orden.firmaComprador) {
-        alert("Ya firmaste como comprador.");
-        return;
-      }
+      if (orden.firmaComprador) return alert("Ya firmaste como comprador.");
       campoFirma = "firmaComprador";
-      nuevoEstado = orden.estado; // no cambia el estado aún
     } else if (usuario.rol === "operaciones") {
-      if (orden.firmaOperaciones) {
-        alert("Ya firmaste como operaciones.");
-        return;
-      }
+      if (orden.firmaOperaciones) return alert("Ya firmaste como operaciones.");
       campoFirma = "firmaOperaciones";
-      nuevoEstado = requiereFirmaGerencia(orden) ? "Aprobado por Operaciones" : "Aprobado por Gerencia";
+      nuevoEstado = requiereFirmaGerencia(orden)
+        ? "Aprobado por Operaciones"
+        : "Aprobado por Gerencia";
     } else if (usuario.rol === "gerencia") {
-      if (orden.firmaGerencia) {
-        alert("Ya firmaste como gerencia.");
-        return;
-      }
+      if (orden.firmaGerencia) return alert("Ya firmaste como gerencia.");
       campoFirma = "firmaGerencia";
       nuevoEstado = "Aprobado por Gerencia";
     } else {
-      alert("No tienes permiso para firmar esta OC.");
-      return;
+      return alert("No tienes permiso para firmar esta OC.");
     }
 
-    // Verificar campos obligatorios
-    const camposFaltantes = [
+    const camposObligatorios = [
       orden.fechaEmision,
       orden.fechaEntrega,
       orden.comprador,
@@ -92,23 +95,21 @@ const FirmarOC = () => {
       orden.items?.length,
     ].some((c) => !c);
 
-    if (camposFaltantes) {
-      alert("Faltan datos obligatorios en esta OC. No se puede firmar.");
-      return;
+    if (camposObligatorios) {
+      return alert("Faltan datos obligatorios. No se puede firmar.");
     }
 
     let firmaFinal = firmaGuardada;
 
     if (!firmaFinal) {
       if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
-        alert("Por favor firma antes de aprobar.");
-        return;
+        return alert("Por favor firma antes de aprobar.");
       }
 
       const canvasRecortado = getTrimmedCanvas(sigPadRef.current.getCanvas());
       firmaFinal = canvasRecortado.toDataURL("image/png");
 
-      // Guardar firma en la colección de firmas del usuario
+      // Guardar firma del usuario si aún no existe
       await guardarFirmaUsuario(usuario.email, firmaFinal);
     }
 
@@ -127,7 +128,7 @@ const FirmarOC = () => {
 
     await actualizarOC(orden.id, nuevaData);
     alert("Orden firmada correctamente ✅");
-    navigate("/ver?id=" + orden.id); // Redirige a ver OC firmada
+    navigate("/ver?id=" + orden.id);
   };
 
   const rechazarOC = async () => {
@@ -154,7 +155,7 @@ const FirmarOC = () => {
     navigate("/ver?id=" + orden.id);
   };
 
-  if (loading || loadingOC) return <div className="p-6">Cargando datos...</div>;
+  if (cargando || loadingOC) return <div className="p-6">Cargando datos...</div>;
   if (!usuario) return <div className="p-6 text-red-600">No tienes permiso para firmar.</div>;
   if (!orden) return <div className="p-6 text-red-600">No se encontró la OC.</div>;
 
@@ -189,7 +190,10 @@ const FirmarOC = () => {
             ref={sigPadRef}
           />
           <div className="mt-2">
-            <button onClick={() => sigPadRef.current.clear()} className="text-sm text-blue-600 underline">
+            <button
+              onClick={() => sigPadRef.current?.clear()}
+              className="text-sm text-blue-600 underline"
+            >
               Limpiar firma
             </button>
           </div>

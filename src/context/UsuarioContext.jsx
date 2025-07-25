@@ -13,11 +13,27 @@ export const UsuarioProvider = ({ children }) => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const data = await obtenerUsuarioActual();
-        setUsuario(data);
+        try {
+          const data = await obtenerUsuarioActual();
+          if (data?.email && data?.rol) {
+            setUsuario(data);
+            localStorage.setItem("userEmail", data.email);
+            localStorage.setItem("userRole", data.rol);
+            localStorage.setItem("userName", data.nombre || "");
+          } else {
+            setUsuario(null);
+            localStorage.clear();
+          }
+        } catch (error) {
+          console.error("Error cargando usuario:", error);
+          setUsuario(null);
+          localStorage.clear();
+        }
       } else {
         setUsuario(null);
+        localStorage.clear();
       }
+
       setCargando(false);
     });
 

@@ -1,24 +1,23 @@
-import { useState, useEffect } from "react";
-import AppRoutes from "./routes/AppRoutes";
-import Login from "./pages/Login";
+// ✅ App.jsx
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-function App() {
-  const [userRole, setUserRole] = useState(localStorage.getItem("userRole"));
+import AppRoutes from "./routes/AppRoutes";
+import Login from "./pages/Login";
+import { useUsuario } from "./context/UsuarioContext";
 
-  useEffect(() => {
-    const savedRole = localStorage.getItem("userRole");
-    if (savedRole) setUserRole(savedRole);
-  }, []);
+function App() {
+  const { usuario, cargando } = useUsuario();
+
+  if (cargando) return <div className="p-6">Cargando sesión...</div>;
 
   return (
     <>
       <ToastContainer />
-      {userRole ? (
-        <AppRoutes userRole={userRole} />
+      {usuario?.rol ? (
+        <AppRoutes userRole={usuario.rol} />
       ) : (
-        <Login setUserRole={setUserRole} />
+        <Login />
       )}
     </>
   );

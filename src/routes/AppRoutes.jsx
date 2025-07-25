@@ -1,5 +1,8 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+// ✅ AppRoutes.jsx
+import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
+import RutaProtegida from "../components/RutaProtegida";
+
 import Historial from "../pages/Historial";
 import VerOC from "../pages/VerOC";
 import CrearOC from "../pages/CrearOC";
@@ -16,74 +19,134 @@ import CargarMaestros from "../pages/CargarMaestros";
 import CajaChica from "../pages/CajaChica";
 import Requerimientos from "../pages/Requerimientos";
 
-const NoAutorizado = () => <div className="p-6 text-red-600">Acceso no autorizado</div>;
-
-function AppRoutes({ userRole }) {
+const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        {/* Rutas para Finanzas */}
-        {userRole === "finanzas" && (
-          <>
-            <Route index element={<HistorialPagos />} />
-            <Route path="pago" element={<RegistrarPago />} />
-            <Route path="pagos" element={<HistorialPagos />} />
-          </>
-        )}
-
-        {/* Rutas comunes */}
-        {["admin", "comprador", "gerencia", "operaciones"].includes(userRole) && (
-          <>
-            <Route index element={<Historial />} />
-            <Route path="ver" element={<VerOC />} />
-          </>
-        )}
-
-        {/* Gerencia y Operaciones */}
-        {["gerencia", "operaciones"].includes(userRole) && (
-          <>
-            <Route path="firmar" element={<FirmarOC />} />
-            <Route path="dashboard" element={<Dashboard />} />
-          </>
-        )}
-
-        {/* Solo Operaciones */}
-        {userRole === "operaciones" && (
-          <Route path="caja" element={<CajaChica />} />
-        )}
-
-        {/* Comprador */}
-        {userRole === "comprador" && (
-          <>
-            <Route path="crear" element={<CrearOC />} />
-            <Route path="cotizaciones" element={<Cotizaciones />} />
-            <Route path="proveedores" element={<Proveedores />} />
-            <Route path="editar" element={<EditarOC />} />
-            <Route path="requerimientos" element={<Requerimientos />} />
-            <Route path="dashboard" element={<Dashboard />} />
-          </>
-        )}
-
-        {/* Admin */}
-        {userRole === "admin" && (
-          <>
-            <Route path="admin" element={<Admin />} />
-            <Route path="crear" element={<CrearOC />} />
-            <Route path="cotizaciones" element={<Cotizaciones />} />
-            <Route path="proveedores" element={<Proveedores />} />
-            <Route path="editar" element={<EditarOC />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="logs" element={<Logs />} />
-            <Route path="cargar-maestros" element={<CargarMaestros />} />
-            <Route path="requerimientos" element={<Requerimientos />} />
-          </>
-        )}
-
-        {/* Ruta no autorizada */}
-        <Route path="*" element={<NoAutorizado />} />
+        <Route
+          index
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia"]}>
+              <Historial />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="ver"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas"]}>
+              <VerOC />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="crear"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
+              <CrearOC />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="cotizaciones"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
+              <Cotizaciones />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="proveedores"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
+              <Proveedores />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="editar"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
+              <EditarOC />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="firmar"
+          element={
+            <RutaProtegida rolesPermitidos={["operaciones", "gerencia", "comprador"]}>
+              <FirmarOC />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="dashboard"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia"]}>
+              <Dashboard />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="logs"
+          element={
+            <RutaProtegida rolesPermitidos={["admin"]}>
+              <Logs />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="admin"
+          element={
+            <RutaProtegida rolesPermitidos={["admin"]}>
+              <Admin />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="cargar-maestros"
+          element={
+            <RutaProtegida rolesPermitidos={["admin"]}>
+              <CargarMaestros />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="requerimientos"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
+              <Requerimientos />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="caja"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas"]}>
+              <CajaChica />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="pago"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas"]}>
+              <RegistrarPago />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="pagos"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas"]}>
+              <HistorialPagos />
+            </RutaProtegida>
+          }
+        />
+        <Route path="*" element={<div className="p-6 text-red-600">⛔ Ruta no autorizada</div>} />
       </Route>
     </Routes>
   );
-}
+};
 
 export default AppRoutes;

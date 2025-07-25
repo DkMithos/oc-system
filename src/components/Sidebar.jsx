@@ -4,14 +4,17 @@ import { useState, useEffect } from "react";
 import logo from "../assets/logo-navbar.png";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
-
+import permisosPorRol from "../utils/permisosPorRol";
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [userRole, setUserRole] = useState("");
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
     const storedRole = localStorage.getItem("userRole");
+    const storedEmail = localStorage.getItem("userEmail");
     if (storedRole) setUserRole(storedRole.toLowerCase());
+    if (storedEmail) setUserEmail(storedEmail);
   }, []);
 
   const handleLogout = () => {
@@ -20,6 +23,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       window.location.href = "/";
     });
   };
+
+  const puede = (ruta) => permisosPorRol[userRole]?.includes(ruta);
 
   const linkBase = "block px-4 py-2 rounded transition-colors duration-200 font-medium";
   const activeStyle = "bg-yellow-300 text-blue-900";
@@ -39,48 +44,43 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <h2 className="text-xl font-bold">Gestión de OC</h2>
           </div>
 
-          {/* Navegación */}
+          {/* Navegación dinámica */}
           <nav className="space-y-1">
-            {userRole === "finanzas" && (
-              <>
-                <NavLink to="/pagos" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial de Pagos</NavLink>
-                <NavLink to="/pago" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Registrar Pago</NavLink>
-              </>
-            )}
-
-            {["comprador", "admin", "operaciones", "gerencia"].includes(userRole) && (
+            {puede("/") && (
               <NavLink to="/" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial</NavLink>
             )}
-
-            {(userRole === "comprador" || userRole === "admin") && (
-              <>
-                <NavLink to="/crear" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Crear OC</NavLink>
-                <NavLink to="/cotizaciones" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cotizaciones</NavLink>
-                <NavLink to="/proveedores" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Proveedores</NavLink>
-                <NavLink to="/requerimientos" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Requerimientos</NavLink>
-              </>
+            {puede("/crear") && (
+              <NavLink to="/crear" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Crear OC</NavLink>
             )}
-
-            {userRole === "operaciones" && (
-              <NavLink
-                to="/caja"
-                className={({ isActive }) =>
-                  `${linkBase} ${isActive ? activeStyle : inactiveStyle}`
-                }
-              >
-                Caja Chica
-              </NavLink>
+            {puede("/cotizaciones") && (
+              <NavLink to="/cotizaciones" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cotizaciones</NavLink>
             )}
-
-            {userRole === "admin" && (
-              <>
-                <NavLink to="/admin" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Panel Administrativo</NavLink>
-                <NavLink to="/cargar-maestros" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cargar Maestros</NavLink>
-              </>
+            {puede("/proveedores") && (
+              <NavLink to="/proveedores" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Proveedores</NavLink>
             )}
-
-            {["comprador", "admin", "gerencia", "operaciones"].includes(userRole) && (
-              <NavLink to="/dashboard" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>📊 Dashboard</NavLink>
+            {puede("/firmar") && (
+              <NavLink to="/firmar" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Firmar OC</NavLink>
+            )}
+            {puede("/requerimientos") && (
+              <NavLink to="/requerimientos" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Requerimientos</NavLink>
+            )}
+            {puede("/caja") && (
+              <NavLink to="/caja" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Caja Chica</NavLink>
+            )}
+            {puede("/dashboard") && (
+              <NavLink to="/dashboard" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Dashboard</NavLink>
+            )}
+            {puede("/pagos") && (
+              <NavLink to="/pagos" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial de Pagos</NavLink>
+            )}
+            {puede("/pago") && (
+              <NavLink to="/pago" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Registrar Pago</NavLink>
+            )}
+            {puede("/admin") && (
+              <NavLink to="/admin" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Panel Administrativo</NavLink>
+            )}
+            {puede("/cargar-maestros") && (
+              <NavLink to="/cargar-maestros" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cargar Maestros</NavLink>
             )}
           </nav>
         </div>
@@ -88,13 +88,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* Footer */}
         <div className="text-sm mt-4">
           <p className="mb-2 text-gray-300">
-            {localStorage.getItem("userEmail")} ({userRole})
+            {userEmail} ({userRole})
           </p>
           <button
             onClick={handleLogout}
             className="text-white underline hover:text-yellow-300 transition-all"
           >
-            🚪 Cerrar sesión
+            Cerrar sesión
           </button>
         </div>
       </div>

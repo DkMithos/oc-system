@@ -34,18 +34,23 @@ const CrearOC = () => {
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [firmaComprador, setFirmaComprador] = useState(null);
 
   useEffect(() => {
     const cargarDatosMaestros = async () => {
       const centros = await obtenerCentrosCosto();
       const condiciones = await obtenerCondicionesPago();
       const listaProveedores = await obtenerProveedores();
+      const firma = await obtenerFirmaUsuario(userEmail);
+
       setCentrosCosto(centros.map((c) => c.nombre));
       setCondicionesPago(condiciones.map((c) => c.nombre));
       setProveedores(listaProveedores);
+      setFirmaComprador(firma || null); // 👈 nuevo estado
     };
     cargarDatosMaestros();
   }, []);
+
 
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
@@ -99,10 +104,23 @@ const CrearOC = () => {
         otros: parseFloat(otros),
         total: totalFinal,
       },
-      historial: [],
+      firmaComprador: firmaComprador || null, // 👈 firma automática
+      historial: [
+        {
+          accion: "Creación OC",
+          por: userEmail,
+          fecha: new Date().toLocaleString("es-PE"),
+        },
+        ...(firmaComprador ? [{
+          accion: "Firma automática comprador",
+          por: userEmail,
+          fecha: new Date().toLocaleString("es-PE"),
+        }] : [])
+      ],
       creadoPor: userName,
       fechaCreacion: new Date().toISOString(),
     };
+
 
     try {
       const newId = await guardarOC(nuevaOC);

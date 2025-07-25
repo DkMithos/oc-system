@@ -1,33 +1,43 @@
+// ✅ src/pages/Login.jsx
 import React, { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase/config";
 import { useNavigate } from "react-router-dom";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase/config";
 import logo from "../assets/Logo_Login.png";
 
-const Login = ({ setUserRole }) => {
+const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
     try {
       const normalizedEmail = email.trim().toLowerCase();
+
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
-      let role = "comprador";
-      if (normalizedEmail === "mchuman@memphis.pe") role = "operaciones";
-      else if (normalizedEmail === "gmacher@memphis.pe") role = "gerencia";
-      else if (normalizedEmail === "kcastillo@memphis.pe") role = "admin";
-      else if (normalizedEmail === "gomontero@memphis.pe") role = "comprador";
-      else if (normalizedEmail === "admin@memphis.pe") role = "admin";
-      else if (normalizedEmail === "jaliaga@memphis.pe") role = "finanzas";
-      else if (normalizedEmail === "dmendez@memphis.pe") role = "finanzas";
+      // Validar que el usuario tenga un rol en Firestore
+      const userDocRef = doc(db, "usuarios", normalizedEmail);
+      const userDoc = await getDoc(userDocRef);
 
-      localStorage.setItem("userRole", role);
+      if (!userDoc.exists()) {
+        alert("Tu cuenta no tiene un rol asignado. Contacta al administrador.");
+        return;
+      }
+
+      // Si existe, se guarda en localStorage como caché temporal
+      const userData = userDoc.data();
+      const { rol } = userData;
+
+      localStorage.setItem("userRole", rol); // ya no es crítico, pero sigue siendo útil
       localStorage.setItem("userEmail", normalizedEmail);
-      setUserRole(role);
+
+      // ✅ El UsuarioContext se actualizará automáticamente por `onAuthStateChanged`
       navigate("/");
     } catch (error) {
       alert("Error al iniciar sesión: " + error.message);

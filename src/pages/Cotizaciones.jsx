@@ -131,7 +131,7 @@ const Cotizaciones = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">📑 Registro de Cotizaciones</h2>
+      <h2 className="text-2xl font-bold mb-6">Registro de Cotizaciones</h2>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
