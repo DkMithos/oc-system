@@ -82,6 +82,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             {puede("/cargar-maestros") && (
               <NavLink to="/cargar-maestros" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cargar Maestros</NavLink>
             )}
+            {puede("/logs") && (
+              <NavLink to="/logs" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Bitácora</NavLink>
+            )}
           </nav>
         </div>
 

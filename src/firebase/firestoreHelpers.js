@@ -9,6 +9,8 @@ import {
   serverTimestamp,
   increment,
   setDoc,
+  query,
+  orderBy
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -64,18 +66,31 @@ export const actualizarRolUsuario = async (email, nuevoRol) => {
 };
 
 // ✅ Logs
-export const registrarLog = async ({ accion, descripcion, hechoPor }) => {
-  await addDoc(collection(db, LOGS_COLLECTION), {
-    accion,
-    descripcion,
-    hechoPor,
-    fecha: serverTimestamp(),
-  });
+export const registrarLog = async ({ accion, ocId, usuario, rol, comentario = "" }) => {
+  try {
+    await addDoc(collection(db, "logs"), {
+      accion,
+      ocId,
+      usuario,
+      rol,
+      comentario,
+      fecha: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error registrando log:", error);
+  }
 };
 
 export const obtenerLogs = async () => {
-  const snapshot = await getDocs(collection(db, LOGS_COLLECTION));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const logsRef = collection(db, "logs");
+  const q = query(logsRef, orderBy("fecha", "desc"));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+    fecha: doc.data().fecha?.toDate().toLocaleString("es-PE") || "",
+  }));
 };
 
 
@@ -177,13 +192,13 @@ export const guardarOC = async (ocData) => {
   return docRef.id;
 };
 
-export const guardarFirmaUsuario = async (email, firmaBase64) => {
-  const docRef = doc(db, "firmas", email);
-  await setDoc(docRef, { firma: firmaBase64 }, { merge: true });
-};
-
 export const obtenerFirmaUsuario = async (email) => {
   const docRef = doc(db, "firmas", email);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? docSnap.data().firma : null;
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data().firma : null;
+};
+
+export const guardarFirmaUsuario = async (email, firmaDataUrl) => {
+  const docRef = doc(db, "firmas", email);
+  await setDoc(docRef, { firma: firmaDataUrl });
 };

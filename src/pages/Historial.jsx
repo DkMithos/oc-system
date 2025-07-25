@@ -117,7 +117,6 @@ const Historial = () => {
         </button>
       </div>
 
-
       {/* Tabla */}
       {ordenesFiltradas.length === 0 ? (
         <p className="text-gray-600">No hay órdenes disponibles.</p>

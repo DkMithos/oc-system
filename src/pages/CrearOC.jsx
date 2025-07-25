@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
-import { guardarOC, obtenerCentrosCosto, obtenerCondicionesPago, obtenerProveedores } from "../firebase/firestoreHelpers";
-import { consultarSunat } from "../utils/consultaSunat";
+import {
+  guardarOC,
+  obtenerCentrosCosto,
+  obtenerCondicionesPago,
+  obtenerProveedores,
+  registrarLog,
+} from "../firebase/firestoreHelpers";
+import { obtenerFirmaUsuario } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/Logo_OC.png";
 import Select from "react-select";
+import { useUsuario } from "../context/UsuarioContext";
 
 const CrearOC = () => {
   const navigate = useNavigate();
-  const userEmail = localStorage.getItem("userEmail") || "";
-  const userName = localStorage.getItem("userName") || "";
+  const { usuario } = useUsuario();
 
   const [formData, setFormData] = useState({
     fechaEmision: new Date().toISOString().split("T")[0],
     cotizacion: "",
     fechaEntrega: "",
-    comprador: userEmail,
+    comprador: usuario?.email || "",
     proveedorRuc: "",
     proveedor: {},
     bancoSeleccionado: "",
@@ -41,16 +47,18 @@ const CrearOC = () => {
       const centros = await obtenerCentrosCosto();
       const condiciones = await obtenerCondicionesPago();
       const listaProveedores = await obtenerProveedores();
-      const firma = await obtenerFirmaUsuario(userEmail);
+      const firma = await obtenerFirmaUsuario(usuario?.email);
 
       setCentrosCosto(centros.map((c) => c.nombre));
       setCondicionesPago(condiciones.map((c) => c.nombre));
       setProveedores(listaProveedores);
-      setFirmaComprador(firma || null); // 👈 nuevo estado
+      setFirmaComprador(firma || null);
     };
-    cargarDatosMaestros();
-  }, []);
-
+    if (usuario?.email) {
+      setFormData((prev) => ({ ...prev, comprador: usuario.email }));
+      cargarDatosMaestros();
+    }
+  }, [usuario]);
 
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
@@ -104,26 +112,38 @@ const CrearOC = () => {
         otros: parseFloat(otros),
         total: totalFinal,
       },
-      firmaComprador: firmaComprador || null, // 👈 firma automática
+      firmaComprador: firmaComprador || null,
       historial: [
         {
           accion: "Creación OC",
-          por: userEmail,
+          por: usuario?.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
-        ...(firmaComprador ? [{
-          accion: "Firma automática comprador",
-          por: userEmail,
-          fecha: new Date().toLocaleString("es-PE"),
-        }] : [])
+        ...(firmaComprador
+          ? [
+              {
+                accion: "Firma automática comprador",
+                por: usuario?.email,
+                fecha: new Date().toLocaleString("es-PE"),
+              },
+            ]
+          : []),
       ],
-      creadoPor: userName,
+      creadoPor: usuario?.nombre || usuario?.email,
       fechaCreacion: new Date().toISOString(),
     };
 
-
     try {
       const newId = await guardarOC(nuevaOC);
+
+      await registrarLog({
+        accion: "Creación de OC",
+        ocId: newId,
+        usuario: usuario?.nombre || usuario?.email,
+        rol: usuario?.rol,
+        comentario: `Total: ${formatearMoneda(totalFinal, formData.monedaSeleccionada)}`,
+      });
+
       alert("Orden guardada correctamente ✅");
       navigate("/ver?id=" + newId);
     } catch (error) {
@@ -154,7 +174,6 @@ const CrearOC = () => {
           onChange={(e) => setFormData({ ...formData, fechaEntrega: e.target.value })}
           className="border p-2 rounded"
         />
-
         <input type="text" disabled value={formData.comprador} className="border p-2 rounded" />
 
         {/* Select con búsqueda de proveedor */}

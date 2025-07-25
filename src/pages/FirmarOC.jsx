@@ -129,6 +129,14 @@ const FirmarOC = () => {
     await actualizarOC(orden.id, nuevaData);
     alert("Orden firmada correctamente ✅");
     navigate("/ver?id=" + orden.id);
+
+    await registrarLog({
+      accion: "Firma por Gerencia",
+      ocId: oc.id,
+      usuario: usuario?.nombre || usuario?.email,
+      rol: usuario?.rol,
+      comentario: observacion || "",
+    });
   };
 
   const rechazarOC = async () => {
