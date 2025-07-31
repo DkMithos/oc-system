@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { obtenerOCs, actualizarOC } from "../firebase/firestoreHelpers";
+import { obtenerOCs, actualizarOC, registrarLog, obtenerOCporId } from "../firebase/firestoreHelpers";
 import { subirArchivosPago } from "../firebase/storageHelpers";
 import { useNavigate } from "react-router-dom";
 
@@ -47,34 +47,39 @@ const RegistrarPago = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      !form.ocId ||
-      !form.numeroFactura ||
-      !form.numeroComprobante ||
-      !form.montoPagado ||
-      !form.fechaPago
-    ) {
+    const { ocId, numeroFactura, numeroComprobante, montoPagado, fechaPago } = form;
+    if (!ocId || !numeroFactura || !numeroComprobante || !montoPagado || !fechaPago) {
       alert("Completa todos los campos.");
       return;
     }
 
     try {
-      const urls = await subirArchivosPago(form.ocId, form.archivos);
+      const archivosSubidos = await subirArchivosPago(ocId, form.archivos);
+      const ocActual = await obtenerOCporId(ocId);
 
-      await actualizarOC(form.ocId, {
+      await actualizarOC(ocId, {
         estado: "Pagado",
-        numeroFactura: form.numeroFactura,
-        numeroComprobante: form.numeroComprobante,
-        montoPagado: parseFloat(form.montoPagado),
-        fechaPago: form.fechaPago,
-        archivosPago: urls,
+        numeroFactura,
+        numeroComprobante,
+        montoPagado: parseFloat(montoPagado),
+        fechaPago,
+        archivosPago: archivosSubidos,
         historial: [
+          ...(ocActual.historial || []),
           {
             accion: "Pago registrado",
             por: localStorage.getItem("userEmail"),
             fecha: new Date().toLocaleString("es-PE"),
           },
         ],
+      });
+
+      await registrarLog({
+        accion: "Registro de Pago",
+        ocId,
+        usuario: localStorage.getItem("userEmail"),
+        rol: "finanzas",
+        comentario: `Factura ${numeroFactura} por S/${montoPagado}`,
       });
 
       alert("Pago registrado correctamente ✅");
@@ -110,42 +115,32 @@ const RegistrarPago = () => {
           type="text"
           placeholder="N° de Factura"
           value={form.numeroFactura}
-          onChange={(e) =>
-            setForm({ ...form, numeroFactura: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, numeroFactura: e.target.value })}
           className="border px-3 py-2 rounded"
         />
         <input
           type="text"
           placeholder="N° de Comprobante de Pago"
           value={form.numeroComprobante}
-          onChange={(e) =>
-            setForm({ ...form, numeroComprobante: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, numeroComprobante: e.target.value })}
           className="border px-3 py-2 rounded"
         />
         <input
           type="number"
           placeholder="Monto Pagado"
           value={form.montoPagado}
-          onChange={(e) =>
-            setForm({ ...form, montoPagado: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, montoPagado: e.target.value })}
           className="border px-3 py-2 rounded"
         />
         <input
           type="date"
           value={form.fechaPago}
-          onChange={(e) =>
-            setForm({ ...form, fechaPago: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, fechaPago: e.target.value })}
           className="border px-3 py-2 rounded"
         />
 
         <div className="col-span-2">
-          <label className="block mb-1 font-medium">
-            Adjuntar archivos PDF
-          </label>
+          <label className="block mb-1 font-medium">Adjuntar archivos PDF</label>
           <input
             type="file"
             accept="application/pdf"

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { oc } from "date-fns/locale";
 
 const exportarExcel = (ordenes) => {
   const data = ordenes.map((oc) => ({
@@ -42,6 +43,12 @@ const Historial = () => {
       cargarOCs();
     }
   }, [usuario, loading]);
+
+  const debeFirmar = (oc) => {
+    const rol = usuario?.rol;
+    if (rol === "comprador" && oc.estado === "Pendiente de Firma del Comprador") return true;
+    return false;
+  }
 
   const puedeFirmar = (oc) => {
     const rol = usuario?.rol;
@@ -167,12 +174,21 @@ const Historial = () => {
                           Ver
                         </button>
 
-                        {oc.estado === "Rechazado" && usuario.rol === "admin" && (
+                        {oc.estado === "Rechazado" && ["admin", "comprador"].includes(usuario.rol) && (
                           <button
                             onClick={() => navigate(`/editar?id=${oc.id}`)}
                             className="text-orange-600 underline"
                           >
                             Editar
+                          </button>
+                        )}
+
+                        {debeFirmar(oc) && (
+                          <button
+                            onClick={() => navigate(`/firmar?id=${oc.id}`)}
+                            className="text-green-600 underline"
+                          >
+                            Firmar
                           </button>
                         )}
 

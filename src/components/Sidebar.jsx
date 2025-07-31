@@ -1,28 +1,25 @@
 // src/components/Sidebar.jsx
 import { NavLink } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import logo from "../assets/logo-navbar.png";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase/config";
 import permisosPorRol from "../utils/permisosPorRol";
+import { useUsuario } from "../context/UsuarioContext";
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
+  const { usuario, cerrarSesion } = useUsuario();
   const [userRole, setUserRole] = useState("");
   const [userEmail, setUserEmail] = useState("");
 
+  // Sincroniza con context siempre (no solo localStorage)
   useEffect(() => {
-    const storedRole = localStorage.getItem("userRole");
-    const storedEmail = localStorage.getItem("userEmail");
-    if (storedRole) setUserRole(storedRole.toLowerCase());
-    if (storedEmail) setUserEmail(storedEmail);
-  }, []);
-
-  const handleLogout = () => {
-    signOut(auth).then(() => {
-      localStorage.clear();
-      window.location.href = "/";
-    });
-  };
+    if (usuario) {
+      setUserRole((usuario.rol || "").toLowerCase());
+      setUserEmail(usuario.email || "");
+    } else {
+      setUserRole("");
+      setUserEmail("");
+    }
+  }, [usuario]);
 
   const puede = (ruta) => permisosPorRol[userRole]?.includes(ruta);
 
@@ -47,8 +44,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           {/* Navegación dinámica */}
           <nav className="space-y-1">
             {puede("/") && (
-              <NavLink to="/" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial</NavLink>
+              <NavLink to="/" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Home</NavLink>
             )}
+            {puede("/historial") && (
+              <NavLink to="/historial" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial</NavLink>
+            )}            
             {puede("/crear") && (
               <NavLink to="/crear" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Crear OC</NavLink>
             )}
@@ -85,16 +85,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             {puede("/logs") && (
               <NavLink to="/logs" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Bitácora</NavLink>
             )}
+            {puede("/indicadores") && (
+              <NavLink to="/indicadores" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Indicadores</NavLink>
+            )}
+            {puede("/resumen") && (
+              <NavLink to="/resumen" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Resumen General</NavLink>
+            )}            
           </nav>
         </div>
 
         {/* Footer */}
         <div className="text-sm mt-4">
-          <p className="mb-2 text-gray-300">
+          <p className="mb-2 text-gray-300 truncate">
             {userEmail} ({userRole})
           </p>
           <button
-            onClick={handleLogout}
+            onClick={cerrarSesion}
             className="text-white underline hover:text-yellow-300 transition-all"
           >
             Cerrar sesión

@@ -11,12 +11,15 @@ import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
+import { useUsuario } from "../context/UsuarioContext";
+
 
 const CajaChica = () => {
+  const { usuario, loading } = useUsuario();
   const [centros, setCentros] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [resumen, setResumen] = useState({ ingresos: 0, egresos: 0 });
-  const [loading, setLoading] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroCentro, setFiltroCentro] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
@@ -132,7 +135,7 @@ const CajaChica = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">💵 Control de Caja Chica</h2>
+      <h2 className="text-2xl font-bold mb-6">Control de Caja Chica</h2>
 
       <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
         <div className="bg-green-100 p-4 rounded shadow">

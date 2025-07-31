@@ -64,16 +64,18 @@ const FirmarOC = () => {
     let campoFirma = "";
     let nuevoEstado = orden.estado;
 
-    if (usuario.rol === "comprador") {
+    if (usuario.rol === "comprador" && orden.estado === "Pendiente de Firma del Comprador") {
       if (orden.firmaComprador) return alert("Ya firmaste como comprador.");
       campoFirma = "firmaComprador";
-    } else if (usuario.rol === "operaciones") {
+      nuevoEstado = "Pendiente de Operaciones";
+    } else if (usuario.rol === "operaciones" && orden.estado === "Pendiente de Operaciones") {
       if (orden.firmaOperaciones) return alert("Ya firmaste como operaciones.");
       campoFirma = "firmaOperaciones";
+      // Validación para gerencia...
       nuevoEstado = requiereFirmaGerencia(orden)
         ? "Aprobado por Operaciones"
         : "Aprobado por Gerencia";
-    } else if (usuario.rol === "gerencia") {
+    } else if (usuario.rol === "gerencia" && orden.estado === "Aprobado por Operaciones") {
       if (orden.firmaGerencia) return alert("Ya firmaste como gerencia.");
       campoFirma = "firmaGerencia";
       nuevoEstado = "Aprobado por Gerencia";

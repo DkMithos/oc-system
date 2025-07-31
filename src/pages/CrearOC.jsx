@@ -7,8 +7,8 @@ import {
   obtenerCondicionesPago,
   obtenerProveedores,
   registrarLog,
+  obtenerFirmaUsuario,
 } from "../firebase/firestoreHelpers";
-import { obtenerFirmaUsuario } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/Logo_OC.png";
 import Select from "react-select";
@@ -40,19 +40,16 @@ const CrearOC = () => {
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
   const [proveedores, setProveedores] = useState([]);
-  const [firmaComprador, setFirmaComprador] = useState(null);
 
   useEffect(() => {
     const cargarDatosMaestros = async () => {
       const centros = await obtenerCentrosCosto();
       const condiciones = await obtenerCondicionesPago();
       const listaProveedores = await obtenerProveedores();
-      const firma = await obtenerFirmaUsuario(usuario?.email);
 
       setCentrosCosto(centros.map((c) => c.nombre));
       setCondicionesPago(condiciones.map((c) => c.nombre));
       setProveedores(listaProveedores);
-      setFirmaComprador(firma || null);
     };
     if (usuario?.email) {
       setFormData((prev) => ({ ...prev, comprador: usuario.email }));
@@ -100,7 +97,7 @@ const CrearOC = () => {
     if (!validarFormulario()) return;
 
     const nuevaOC = {
-      estado: "Pendiente de Operaciones",
+      estado: "Pendiente de Firma del Comprador", // Cambiado
       ...formData,
       proveedor: formData.proveedor,
       cuenta: cuentaSeleccionada,
@@ -112,22 +109,13 @@ const CrearOC = () => {
         otros: parseFloat(otros),
         total: totalFinal,
       },
-      firmaComprador: firmaComprador || null,
+      // No debe tener firmaComprador hasta que firme
       historial: [
         {
           accion: "Creación OC",
           por: usuario?.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
-        ...(firmaComprador
-          ? [
-              {
-                accion: "Firma automática comprador",
-                por: usuario?.email,
-                fecha: new Date().toLocaleString("es-PE"),
-              },
-            ]
-          : []),
       ],
       creadoPor: usuario?.nombre || usuario?.email,
       fechaCreacion: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 
 const HistorialPagos = () => {
   const [ordenes, setOrdenes] = useState([]);
@@ -18,9 +19,42 @@ const HistorialPagos = () => {
     cargarOCsConPagos();
   }, []);
 
+  const exportarExcel = () => {
+    const datos = ordenes.map((oc) => ({
+      "N° OC": oc.id,
+      "Proveedor": oc.proveedor?.razonSocial || "-",
+      "Factura": oc.numeroFactura || "-",
+      "Comprobante": oc.numeroComprobante || "-",
+      "F. Emisión": oc.fechaEmision || "-",
+      "F. Pago": oc.fechaPago || "-",
+      "Moneda": oc.monedaSeleccionada || "-",
+      "Monto Pagado":
+        (oc.monedaSeleccionada === "Dólares" ? "$" : "S/") +
+        " " +
+        (oc.montoPagado?.toFixed(2) || "0.00"),
+      "Archivos": oc.archivosPago.map((a) => a.name).join(", "),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datos);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "HistorialPagos");
+
+    XLSX.writeFile(workbook, "HistorialPagos_OC.xlsx");
+  };
+
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4 text-[#004990]">Historial de Pagos</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-[#004990]">Historial de Pagos</h2>
+        {ordenes.length > 0 && (
+          <button
+            onClick={exportarExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+          >
+            Exportar a Excel
+          </button>
+        )}
+      </div>
 
       {ordenes.length === 0 ? (
         <p className="text-gray-500">No hay pagos registrados aún.</p>

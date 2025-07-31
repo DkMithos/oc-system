@@ -2,7 +2,6 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import RutaProtegida from "../components/RutaProtegida";
-
 import Home from "../pages/Home";
 import Historial from "../pages/Historial";
 import VerOC from "../pages/VerOC";
@@ -19,7 +18,8 @@ import HistorialPagos from "../pages/HistorialPagos";
 import CargarMaestros from "../pages/CargarMaestros";
 import CajaChica from "../pages/CajaChica";
 import Requerimientos from "../pages/Requerimientos";
-import ResumenGeneral from "../pages/ResumenGeneral"; // ✅ Corregido
+import ResumenGeneral from "../pages/ResumenGeneral";
+import Indicadores from "../pages/Indicadores";
 
 const AppRoutes = () => {
   return (
@@ -133,7 +133,7 @@ const AppRoutes = () => {
         <Route
           path="caja"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "finanzas"]}>
+            <RutaProtegida rolesPermitidos={["admin", "operaciones"]}>
               <CajaChica />
             </RutaProtegida>
           }
@@ -151,6 +151,14 @@ const AppRoutes = () => {
           element={
             <RutaProtegida rolesPermitidos={["admin", "gerencia", "operaciones"]}>
               <ResumenGeneral />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="indicadores"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "gerencia", "operaciones"]}>
+              <Indicadores />
             </RutaProtegida>
           }
         />

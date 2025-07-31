@@ -169,11 +169,11 @@ export const guardarOC = async (ocData) => {
   const correlativoRef = doc(db, "correlativos", "ordenesCompra");
   const correlativoSnap = await getDoc(correlativoRef);
 
-  let nuevoNumero = 356;
+  let nuevoNumero = 375;
 
   if (correlativoSnap.exists()) {
     const data = correlativoSnap.data();
-    nuevoNumero = (data.ultimo || 355) + 1;
+    nuevoNumero = (data.ultimo || 374) + 1;
   }
 
   // Formato final

@@ -2,6 +2,7 @@
 const permisosPorRol = {
   admin: [
     "/",
+    "/historial",
     "/admin",
     "/crear",
     "/cotizaciones",
@@ -12,20 +13,24 @@ const permisosPorRol = {
     "/cargar-maestros",
     "/requerimientos",
     "/caja",
+    "/resumen",
+    "/indicadores",
     "/ver",
   ],
   comprador: [
     "/",
+    "/historial",
     "/crear",
+    "/firmar",
     "/cotizaciones",
     "/proveedores",
     "/editar",
-    "/dashboard",
     "/requerimientos",
     "/ver",
   ],
   operaciones: [
     "/",
+    "/historial",
     "/firmar",
     "/dashboard",
     "/caja",
@@ -33,6 +38,7 @@ const permisosPorRol = {
   ],
   gerencia: [
     "/",
+    "/historial",
     "/firmar",
     "/dashboard",
     "/ver",

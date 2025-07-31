@@ -58,10 +58,10 @@ const VerOC = () => {
     }
 
     const opciones = {
-      margin: [0.3, 0.3, 0.3, 0.3],
-      filename: `OC-${oc.id}.pdf`,
+      margin: [0.4, 0.4, 0.4, 0.4],
+      filename: `OC-${oc.numeroOC}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: { scale: 3, scrollY: 0 },
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["avoid-all"] },
     };
@@ -76,7 +76,6 @@ const VerOC = () => {
         className="text-xs leading-tight max-w-[794px] mx-auto p-4 bg-white text-black"
         style={{ fontSize: "10px", fontFamily: "Arial, sans-serif" }}
       >
-        {/* LOGO + INFORMACIÓN DE EMPRESA + TÍTULO */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-start gap-4">
             <img src={Logo} alt="Logo Memphis" className="h-14" />
@@ -96,7 +95,7 @@ const VerOC = () => {
 
         {/* DATOS GENERALES */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DATOS GENERALES</h3>
-        <div className="grid grid-cols-2 gap-2 mb-2 border p-2 rounded">
+        <div className="grid grid-cols-2 gap-3 mb-3 border p-3 rounded">
           <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision}</div>
           {oc.requerimiento && <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>}
           <div><strong>N° Cotización:</strong> {oc.cotizacion}</div>
@@ -105,7 +104,7 @@ const VerOC = () => {
 
         {/* PROVEEDOR */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">PROVEEDOR</h3>
-        <div className="grid grid-cols-2 gap-2 mb-4 border p-2 rounded">
+        <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
           <div><strong>Proveedor:</strong> {oc.proveedor?.razonSocial}</div>
           <div><strong>RUC:</strong> {oc.proveedor?.ruc}</div>
           <div><strong>Dirección:</strong> {oc.proveedor?.direccion}</div>
@@ -120,16 +119,16 @@ const VerOC = () => {
 
         {/* ÍTEMS */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE DE COMPRA</h3>
-        <table className="w-full text-[9px] border border-collapse mb-3">
+        <table className="w-full text-[9px] border border-collapse mb-3" style={{ borderSpacing: "0" }}>
           <thead className="bg-gray-200 text-[9px]">
             <tr>
-              <th className="border p-1">#</th>
-              <th className="border p-1">Descripción</th>
-              <th className="border p-1">Cantidad</th>
-              <th className="border p-1">P. Unit</th>
-              <th className="border p-1">Descuento</th>
-              <th className="border p-1">Neto</th>
-              <th className="border p-1">Total</th>
+              <th className="border px-2 py-1">#</th>
+              <th className="border px-2 py-1">Descripción</th>
+              <th className="border px-2 py-1">Cantidad</th>
+              <th className="border px-2 py-1">P. Unit</th>
+              <th className="border px-2 py-1">Descuento</th>
+              <th className="border px-2 py-1">Neto</th>
+              <th className="border px-2 py-1">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -138,13 +137,13 @@ const VerOC = () => {
               const totalItem = neto * item.cantidad;
               return (
                 <tr key={i} className="text-center">
-                  <td className="border p-1">{i + 1}</td>
-                  <td className="border p-1">{item.nombre}</td>
-                  <td className="border p-1">{item.cantidad}</td>
-                  <td className="border p-1">{formatearMoneda(item.precioUnitario, simbolo)}</td>
-                  <td className="border p-1">{formatearMoneda(item.descuento, simbolo)}</td>
-                  <td className="border p-1">{formatearMoneda(neto, simbolo)}</td>
-                  <td className="border p-1">{formatearMoneda(totalItem, simbolo)}</td>
+                  <td className="border px-2 py-1">{i + 1}</td>
+                  <td className="border px-2 py-1">{item.nombre}</td>
+                  <td className="border px-2 py-1">{item.cantidad}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(item.precioUnitario, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(item.descuento, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(neto, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(totalItem, simbolo)}</td>
                 </tr>
               );
             })}
@@ -153,7 +152,7 @@ const VerOC = () => {
 
         {/* TOTALES */}
         <h3 className="text-right text-sm font-semibold mb-1 text-blue-900">RESUMEN</h3>
-        <div className="text-right mb-4 pr-2">
+        <div className="text-right mb-4 pr-2 space-y-0.5">
           <p><strong>Subtotal:</strong> {formatearMoneda(subtotal, simbolo)}</p>
           <p><strong>IGV (18%):</strong> {formatearMoneda(igv, simbolo)}</p>
           <p><strong>Otros:</strong> {formatearMoneda(otros, simbolo)}</p>
@@ -162,7 +161,7 @@ const VerOC = () => {
 
         {/* CONDICIONES DE ENTREGA */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
-        <div className="grid grid-cols-2 gap-2 mb-4 border p-2 rounded">
+        <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
           <div><span className="font-semibold">Lugar de entrega:</span><p>{oc.lugarEntrega}</p></div>
           <div><span className="font-semibold">Fecha de entrega:</span><p>{oc.fechaEntrega}</p></div>
           <div><span className="font-semibold">Condición de pago:</span><p>{oc.condicionPago}</p></div>
@@ -170,37 +169,24 @@ const VerOC = () => {
         </div>
 
         {/* FIRMAS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-sm">
-          <div>
-            <p className="border-t border-gray-600 pt-2 font-semibold">{oc.comprador}</p>
-            <p>Solicitante / Comprador</p>
-          </div>
-          <div>
-            {oc.firmaOperaciones ? (
-              <>
-                <p className="font-semibold">Aprobado por Operaciones</p>
-                <img src={oc.firmaOperaciones} alt="Firma Operaciones" className="h-20 mx-auto mt-1" />
-              </>
-            ) : (
-              <>
-                <p className="border-t border-gray-600 pt-2 font-semibold">______________________</p>
-                <p>Operaciones</p>
-              </>
-            )}
-          </div>
-          <div>
-            {oc.firmaGerencia ? (
-              <>
-                <p className="font-semibold">Aprobado por Gerencia</p>
-                <img src={oc.firmaGerencia} alt="Firma Gerencia" className="h-20 mx-auto mt-1" />
-              </>
-            ) : (
-              <>
-                <p className="border-t border-gray-600 pt-2 font-semibold">______________________</p>
-                <p>Gerencia</p>
-              </>
-            )}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-[11px] font-sans">
+          {["Comprador", "Operaciones", "Gerencia"].map((rol, i) => {
+            const firmas = {
+              "Comprador": oc.firmaComprador,
+              "Operaciones": oc.firmaOperaciones,
+              "Gerencia": oc.firmaGerencia
+            };
+            return (
+              <div key={rol} className="flex flex-col items-center justify-end">
+                {firmas[rol] ? (
+                  <img src={firmas[rol]} alt={`Firma ${rol}`} className="h-20 object-contain mb-2" />
+                ) : (
+                  <div className="h-20 mb-2"></div>
+                )}
+                <p className="font-semibold">{rol}</p>
+              </div>
+            );
+          })}
         </div>
 
         {/* PIE DE DOCUMENTO */}
