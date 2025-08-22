@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// ✅ src/pages/CrearOC.jsx
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
 import {
@@ -7,12 +8,34 @@ import {
   obtenerCondicionesPago,
   obtenerProveedores,
   registrarLog,
-  obtenerFirmaUsuario,
 } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/Logo_OC.png";
 import Select from "react-select";
 import { useUsuario } from "../context/UsuarioContext";
+
+const selectStyles = {
+  control: (base) => ({
+    ...base,
+    minHeight: 36,
+    borderColor: "#d1d5db",
+    boxShadow: "none",
+    ":hover": { borderColor: "#9ca3af" },
+    fontSize: 14,
+  }),
+  valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
+  indicatorsContainer: (base) => ({ ...base, height: 32 }),
+  menu: (base) => ({ ...base, zIndex: 30, fontSize: 14 }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? "#E5F0FF"
+      : state.isFocused
+      ? "#F3F4F6"
+      : "white",
+    color: "#111827",
+  }),
+};
 
 const CrearOC = () => {
   const navigate = useNavigate();
@@ -37,26 +60,62 @@ const CrearOC = () => {
     { id: 1, nombre: "", cantidad: 0, precioUnitario: 0, descuento: 0 },
   ]);
   const [otros, setOtros] = useState(0);
-  const [centrosCosto, setCentrosCosto] = useState([]);
-  const [condicionesPago, setCondicionesPago] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
+
+  // Guardamos los OBJETOS completos
+  const [centrosCosto, setCentrosCosto] = useState([]); // [{ nombre, ... }]
+  const [condicionesPago, setCondicionesPago] = useState([]); // [{ nombre, ... }]
+  const [proveedores, setProveedores] = useState([]); // [{ ruc, razonSocial, ... }]
 
   useEffect(() => {
     const cargarDatosMaestros = async () => {
-      const centros = await obtenerCentrosCosto();
-      const condiciones = await obtenerCondicionesPago();
-      const listaProveedores = await obtenerProveedores();
-
-      setCentrosCosto(centros.map((c) => c.nombre));
-      setCondicionesPago(condiciones.map((c) => c.nombre));
-      setProveedores(listaProveedores);
+      const [centros, condiciones, listaProveedores] = await Promise.all([
+        obtenerCentrosCosto(),        // => objetos
+        obtenerCondicionesPago(),     // => objetos
+        obtenerProveedores(),         // => objetos
+      ]);
+      setCentrosCosto(centros || []);
+      setCondicionesPago(condiciones || []);
+      setProveedores(listaProveedores || []);
     };
+
     if (usuario?.email) {
       setFormData((prev) => ({ ...prev, comprador: usuario.email }));
       cargarDatosMaestros();
     }
   }, [usuario]);
 
+  // Opciones para react-select
+  const opcionesProveedores = useMemo(
+    () =>
+      proveedores.map((p) => ({
+        label: `${p.ruc} - ${p.razonSocial}`,
+        value: p.ruc,
+        data: p,
+      })),
+    [proveedores]
+  );
+
+  const opcionesCentroCosto = useMemo(
+    () =>
+      centrosCosto.map((c) => ({
+        label: c.nombre,
+        value: c.nombre,
+        data: c,
+      })),
+    [centrosCosto]
+  );
+
+  const opcionesCondicionPago = useMemo(
+    () =>
+      condicionesPago.map((c) => ({
+        label: c.nombre,
+        value: c.nombre,
+        data: c,
+      })),
+    [condicionesPago]
+  );
+
+  // Bancos/Monedas del proveedor seleccionado
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
     .filter((b) => b.nombre === formData.bancoSeleccionado)
@@ -68,22 +127,31 @@ const CrearOC = () => {
       b.moneda === formData.monedaSeleccionada
   );
 
-  const subtotal = items.reduce(
-    (acc, item) => acc + (item.precioUnitario - item.descuento) * item.cantidad,
-    0
-  );
+  // Totales
+  const subtotal = items.reduce((acc, item) => {
+    const pu = parseFloat(item.precioUnitario) || 0;
+    const ds = parseFloat(item.descuento) || 0;
+    const ct = parseFloat(item.cantidad) || 0;
+    return acc + (pu - ds) * ct;
+  }, 0);
   const igv = subtotal * 0.18;
   const valorVenta = subtotal;
-  const totalFinal = subtotal + igv + parseFloat(otros || 0);
+  const totalFinal = subtotal + igv + (parseFloat(otros) || 0);
 
   const validarFormulario = () => {
-    if (!formData.fechaEntrega || !formData.comprador || !formData.proveedorRuc) {
-      alert("Completa todos los campos obligatorios.");
+    if (
+      !formData.fechaEntrega ||
+      !formData.comprador ||
+      !formData.proveedorRuc ||
+      !formData.centroCosto ||
+      !formData.condicionPago
+    ) {
+      alert("Completa los campos obligatorios (proveedor, entrega, centro de costo y condición de pago).");
       return false;
     }
 
     const tieneItemsValidos = items.some(
-      (item) => item.nombre && item.cantidad > 0
+      (item) => item.nombre && Number(item.cantidad) > 0
     );
     if (!tieneItemsValidos) {
       alert("Agrega al menos un ítem válido.");
@@ -97,19 +165,18 @@ const CrearOC = () => {
     if (!validarFormulario()) return;
 
     const nuevaOC = {
-      estado: "Pendiente de Firma del Comprador", // Cambiado
+      estado: "Pendiente de Firma del Comprador",
       ...formData,
       proveedor: formData.proveedor,
-      cuenta: cuentaSeleccionada,
+      cuenta: cuentaSeleccionada || null,
       items,
       resumen: {
         subtotal,
         igv,
         valorVenta,
-        otros: parseFloat(otros),
+        otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
-      // No debe tener firmaComprador hasta que firme
       historial: [
         {
           accion: "Creación OC",
@@ -140,6 +207,26 @@ const CrearOC = () => {
     }
   };
 
+  // Valores controlados para react-select
+  const valorProveedor =
+    formData.proveedorRuc
+      ? {
+          label: `${formData.proveedorRuc} - ${formData.proveedor?.razonSocial || ""}`,
+          value: formData.proveedorRuc,
+          data: formData.proveedor,
+        }
+      : null;
+
+  const valorCentroCosto =
+    formData.centroCosto
+      ? { label: formData.centroCosto, value: formData.centroCosto }
+      : null;
+
+  const valorCondicionPago =
+    formData.condicionPago
+      ? { label: formData.condicionPago, value: formData.condicionPago }
+      : null;
+
   return (
     <div className="min-h-[calc(100vh-8rem)] px-6 py-4">
       <div className="flex items-center justify-between mb-4">
@@ -147,8 +234,10 @@ const CrearOC = () => {
         <h2 className="text-2xl font-bold text-[#032f53]">Nueva Orden de Compra</h2>
       </div>
 
+      {/* Datos generales + proveedor */}
       <div className="bg-white border shadow rounded p-6 grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <input type="date" disabled value={formData.fechaEmision} className="border p-2 rounded" />
+
         <input
           type="text"
           placeholder="N° Cotización"
@@ -158,41 +247,41 @@ const CrearOC = () => {
         />
         <input
           type="date"
+          placeholder="Fecha de entrega"
           value={formData.fechaEntrega}
           onChange={(e) => setFormData({ ...formData, fechaEntrega: e.target.value })}
           className="border p-2 rounded"
         />
         <input type="text" disabled value={formData.comprador} className="border p-2 rounded" />
 
-        {/* Select con búsqueda de proveedor */}
+        {/* Proveedor - react-select (con búsqueda) */}
         <div className="col-span-2 md:col-span-3">
           <Select
             placeholder="Selecciona proveedor por RUC o Razón Social"
-            options={proveedores.map((p) => ({
-              label: `${p.ruc} - ${p.razonSocial}`,
-              value: p.ruc,
-              data: p,
-            }))}
+            options={opcionesProveedores}
+            value={valorProveedor}
             onChange={(opcion) => {
               setFormData((prev) => ({
                 ...prev,
-                proveedor: opcion.data,
-                proveedorRuc: opcion.data.ruc,
+                proveedor: opcion?.data || {},
+                proveedorRuc: opcion?.data?.ruc || "",
                 bancoSeleccionado: "",
                 monedaSeleccionada: "",
               }));
             }}
             isSearchable
+            styles={selectStyles}
+            noOptionsMessage={() => "Sin resultados"}
           />
         </div>
 
         {formData.proveedor?.razonSocial && (
           <>
-            <input disabled value={formData.proveedor.razonSocial} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.direccion} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.email} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.telefono} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.contacto} className="border p-2 rounded" />
+            <input disabled value={formData.proveedor.razonSocial || ""} className="border p-2 rounded" />
+            <input disabled value={formData.proveedor.direccion || ""} className="border p-2 rounded" />
+            <input disabled value={formData.proveedor.email || ""} className="border p-2 rounded" />
+            <input disabled value={formData.proveedor.telefono || ""} className="border p-2 rounded" />
+            <input disabled value={formData.proveedor.contacto || ""} className="border p-2 rounded" />
 
             <select
               value={formData.bancoSeleccionado}
@@ -207,7 +296,7 @@ const CrearOC = () => {
             >
               <option value="">Selecciona banco</option>
               {bancosDisponibles.map((b, i) => (
-                <option key={i} value={b.nombre}>
+                <option key={`${b.nombre}-${i}`} value={b.nombre}>
                   {b.nombre}
                 </option>
               ))}
@@ -225,7 +314,7 @@ const CrearOC = () => {
             >
               <option value="">Selecciona moneda</option>
               {monedasDisponibles.map((m, i) => (
-                <option key={i} value={m}>
+                <option key={`${m}-${i}`} value={m}>
                   {m}
                 </option>
               ))}
@@ -233,8 +322,8 @@ const CrearOC = () => {
 
             {cuentaSeleccionada && (
               <>
-                <input disabled value={cuentaSeleccionada.cuenta} className="border p-2 rounded" />
-                <input disabled value={cuentaSeleccionada.cci} className="border p-2 rounded" />
+                <input disabled value={cuentaSeleccionada.cuenta || ""} className="border p-2 rounded" />
+                <input disabled value={cuentaSeleccionada.cci || ""} className="border p-2 rounded" />
               </>
             )}
           </>
@@ -249,43 +338,56 @@ const CrearOC = () => {
         />
       </div>
 
+      {/* Detalle de ítems */}
       <ItemTable items={items} setItems={setItems} moneda={formData.monedaSeleccionada} />
 
-      <div className="bg-white border shadow rounded p-6 grid grid-cols-2 gap-4 mt-6">
-        <select
-          value={formData.centroCosto}
-          onChange={(e) => setFormData({ ...formData, centroCosto: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="">Centro de Costo</option>
-          {centrosCosto.map((cc) => (
-            <option key={cc} value={cc}>
-              {cc}
-            </option>
-          ))}
-        </select>
+      {/* Centro de costo / Condición de pago / Observaciones */}
+      <div className="bg-white border shadow rounded p-6 grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
+        {/* Centro de Costo - react-select */}
+        <div className="col-span-2 md:col-span-1">
+          <Select
+            placeholder="Centro de Costo"
+            options={opcionesCentroCosto}
+            value={valorCentroCosto}
+            onChange={(opcion) =>
+              setFormData((prev) => ({
+                ...prev,
+                centroCosto: opcion?.value || "",
+              }))
+            }
+            isSearchable
+            styles={selectStyles}
+            noOptionsMessage={() => "Sin resultados"}
+          />
+        </div>
 
-        <select
-          value={formData.condicionPago}
-          onChange={(e) => setFormData({ ...formData, condicionPago: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="">Condición de Pago</option>
-          {condicionesPago.map((cp) => (
-            <option key={cp} value={cp}>
-              {cp}
-            </option>
-          ))}
-        </select>
+        {/* Condición de Pago - react-select */}
+        <div className="col-span-2 md:col-span-1">
+          <Select
+            placeholder="Condición de Pago"
+            options={opcionesCondicionPago}
+            value={valorCondicionPago}
+            onChange={(opcion) =>
+              setFormData((prev) => ({
+                ...prev,
+                condicionPago: opcion?.value || "",
+              }))
+            }
+            isSearchable
+            styles={selectStyles}
+            noOptionsMessage={() => "Sin resultados"}
+          />
+        </div>
 
         <textarea
           placeholder="Observaciones"
           value={formData.observaciones}
           onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-          className="col-span-2 border p-2 rounded"
-        ></textarea>
+          className="col-span-2 md:col-span-3 border p-2 rounded"
+        />
       </div>
 
+      {/* Totales */}
       <div className="bg-white border shadow rounded p-6 w-full max-w-md mt-6">
         <p className="flex justify-between text-sm">
           <span>Subtotal:</span>
@@ -315,6 +417,7 @@ const CrearOC = () => {
         </p>
       </div>
 
+      {/* Guardar */}
       <div className="mt-6 text-center">
         <button
           onClick={handleGuardarOC}

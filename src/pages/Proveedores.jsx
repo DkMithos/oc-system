@@ -1,3 +1,4 @@
+// ✅ src/pages/Proveedores.jsx
 import React, { useEffect, useState } from "react";
 import {
   obtenerProveedores,
@@ -22,7 +23,7 @@ const Proveedores = () => {
     telefono: "",
     email: "",
     contacto: "",
-    bancos: [],
+    bancos: [], // [{nombre, cuenta, cci, moneda}]
     estado: "Activo",
     motivoCambio: "",
   });
@@ -57,9 +58,10 @@ const Proveedores = () => {
 
   const cargarProveedores = async () => {
     const lista = await obtenerProveedores();
-    const normalizados = lista.map((p) => ({
+    const normalizados = (lista || []).map((p) => ({
       ...p,
       estado: p.estado || "Activo",
+      bancos: Array.isArray(p.bancos) ? p.bancos : [], // seguridad
     }));
     setProveedores(normalizados);
   };
@@ -121,13 +123,15 @@ const Proveedores = () => {
   const fin = inicio + porPagina;
   const proveedoresPaginados = proveedoresFiltrados.slice(inicio, fin);
 
+  // ✅ Exportación en 2 hojas: "Proveedores" y "Cuentas"
   const exportarExcel = () => {
     if (!proveedoresFiltrados.length) {
       alert("No hay proveedores para exportar");
       return;
     }
 
-    const data = proveedoresFiltrados.map((p) => ({
+    // Hoja 1: Proveedores (datos generales)
+    const dataProveedores = proveedoresFiltrados.map((p) => ({
       RUC: p.ruc,
       "Razón Social": p.razonSocial,
       Dirección: p.direccion,
@@ -135,11 +139,50 @@ const Proveedores = () => {
       Email: p.email,
       Contacto: p.contacto,
       Estado: p.estado || "Activo",
+      // Opcional: conteo de cuentas
+      "Nº Cuentas": Array.isArray(p.bancos) ? p.bancos.length : 0,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Hoja 2: Cuentas (una fila por cada cuenta)
+    const dataCuentas = [];
+    proveedoresFiltrados.forEach((p) => {
+      (p.bancos || []).forEach((b) => {
+        dataCuentas.push({
+          RUC: p.ruc,
+          "Razón Social": p.razonSocial,
+          Banco: b.nombre || "",
+          Moneda: b.moneda || "",
+          Cuenta: b.cuenta || "",
+          CCI: b.cci || "",
+          Contacto: p.contacto || "",
+          Email: p.email || "",
+          EstadoProveedor: p.estado || "Activo",
+        });
+      });
+      // Si un proveedor no tiene cuentas y quieres que aparezca igual en la hoja Cuentas,
+      // descomenta esto:
+      // if (!(p.bancos || []).length) {
+      //   dataCuentas.push({
+      //     RUC: p.ruc,
+      //     "Razón Social": p.razonSocial,
+      //     Banco: "",
+      //     Moneda: "",
+      //     Cuenta: "",
+      //     CCI: "",
+      //     Contacto: p.contacto || "",
+      //     Email: p.email || "",
+      //     EstadoProveedor: p.estado || "Activo",
+      //   });
+      // }
+    });
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
+
+    const wsProv = XLSX.utils.json_to_sheet(dataProveedores);
+    XLSX.utils.book_append_sheet(wb, wsProv, "Proveedores");
+
+    const wsCtas = XLSX.utils.json_to_sheet(dataCuentas);
+    XLSX.utils.book_append_sheet(wb, wsCtas, "Cuentas");
 
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], {
@@ -150,20 +193,57 @@ const Proveedores = () => {
   };
 
   if (loading) return <div className="p-6">Cargando usuario.</div>;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
+    return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">📦 Gestión de Proveedores</h2>
+      <h2 className="text-2xl font-bold mb-6">Gestión de Proveedores</h2>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input type="text" placeholder="RUC" value={form.ruc} onChange={(e) => setForm({ ...form, ruc: e.target.value })} className="border p-2 rounded" />
-        <input type="text" placeholder="Razón Social" value={form.razonSocial} onChange={(e) => setForm({ ...form, razonSocial: e.target.value })} className="border p-2 rounded" />
-        <input type="text" placeholder="Dirección" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} className="border p-2 rounded" />
-        <input type="text" placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className="border p-2 rounded" />
-        <input type="email" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="border p-2 rounded" />
-        <input type="text" placeholder="Contacto" value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} className="border p-2 rounded" />
+        <input
+          type="text"
+          placeholder="RUC"
+          value={form.ruc}
+          onChange={(e) => setForm({ ...form, ruc: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Razón Social"
+          value={form.razonSocial}
+          onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Dirección"
+          value={form.direccion}
+          onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Teléfono"
+          value={form.telefono}
+          onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="email"
+          placeholder="Correo"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          placeholder="Contacto"
+          value={form.contacto}
+          onChange={(e) => setForm({ ...form, contacto: e.target.value })}
+          className="border p-2 rounded"
+        />
 
         {/* Estado + Motivo */}
         {editandoId && (
@@ -197,7 +277,10 @@ const Proveedores = () => {
         />
 
         <div className="col-span-2 flex gap-4 mt-4">
-          <button onClick={guardar} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+          <button
+            onClick={guardar}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
             {editandoId ? "Actualizar" : "Agregar"}
           </button>
           {editandoId && (
@@ -215,7 +298,7 @@ const Proveedores = () => {
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
         <input
           type="text"
-          placeholder="🔍 Buscar por RUC o razón social..."
+          placeholder="Buscar por RUC o razón social..."
           value={busqueda}
           onChange={(e) => {
             setBusqueda(e.target.value);
@@ -227,7 +310,7 @@ const Proveedores = () => {
           onClick={exportarExcel}
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
         >
-          📤 Exportar a Excel
+          Exportar a Excel
         </button>
       </div>
 

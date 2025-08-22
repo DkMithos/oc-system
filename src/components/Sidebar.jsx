@@ -58,9 +58,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             {puede("/proveedores") && (
               <NavLink to="/proveedores" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Proveedores</NavLink>
             )}
-            {puede("/firmar") && (
-              <NavLink to="/firmar" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Firmar OC</NavLink>
-            )}
             {puede("/requerimientos") && (
               <NavLink to="/requerimientos" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Requerimientos</NavLink>
             )}

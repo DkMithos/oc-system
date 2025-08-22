@@ -5,7 +5,6 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import { UsuarioProvider } from "./context/UsuarioContext";
 
-
 import "@fontsource/roboto";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -17,4 +16,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </BrowserRouter>
   </React.StrictMode>
 );
-

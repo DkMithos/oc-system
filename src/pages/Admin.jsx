@@ -9,15 +9,12 @@ import {
   obtenerProveedores,
   obtenerCentrosCosto,
   guardarCentroCosto,
-  eliminarCentroCosto,
   obtenerCondicionesPago,
   guardarCondicionPago,
-  eliminarCondicionPago,
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { auth } from "../firebase/config";
 
 import ResumenCards from "../components/admin/ResumenCards";
 import GestorUsuarios from "../components/admin/GestorUsuarios";
@@ -45,21 +42,25 @@ const Admin = () => {
         obtenerCondicionesPago(),
       ]);
 
-      setUsuarios(usuariosDB);
-      setOrdenes(ocs);
-      setCotizaciones(cotis);
-      setProveedores(provs);
-      setCentros(cc);
-      setCondiciones(cp);
+      // Normaliza estado por si faltara
+      setCentros((cc || []).map((c) => ({ ...c, estado: c.estado || "Activo" })));
+      setCondiciones((cp || []).map((c) => ({ ...c, estado: c.estado || "Activo" })));
+
+      setUsuarios(usuariosDB || []);
+      setOrdenes(ocs || []);
+      setCotizaciones(cotis || []);
+      setProveedores(provs || []);
     };
 
     cargarDatos();
   }, []);
 
+  // -----------------------------
   // CENTROS DE COSTO
+  // -----------------------------
   const agregarCentroCosto = async (nombre) => {
-    await guardarCentroCosto({ nombre });
-    setCentros(await obtenerCentrosCosto());
+    await guardarCentroCosto({ nombre, estado: "Activo", creadoEn: new Date().toISOString() });
+    setCentros((await obtenerCentrosCosto()).map((c) => ({ ...c, estado: c.estado || "Activo" })));
     await registrarLog({
       accion: "Agregar Centro de Costo",
       descripcion: `Centro creado: ${nombre}`,
@@ -67,21 +68,26 @@ const Admin = () => {
     });
   };
 
-  const eliminarCentro = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar centro de costo "${nombre}"?`)) return;
-    await eliminarCentroCosto(id);
-    setCentros(await obtenerCentrosCosto());
+  const cambiarEstadoCentro = async (centroId, nombre, nuevoEstado) => {
+    const ref = doc(db, "centrosCosto", centroId);
+    await updateDoc(ref, {
+      estado: nuevoEstado,
+      actualizadoEn: new Date().toISOString(),
+    });
+    setCentros((await obtenerCentrosCosto()).map((c) => ({ ...c, estado: c.estado || "Activo" })));
     await registrarLog({
-      accion: "Eliminar Centro de Costo",
-      descripcion: `Centro eliminado: ${nombre}`,
+      accion: "Cambio de estado - Centro de Costo",
+      descripcion: `Centro: ${nombre} → ${nuevoEstado}`,
       hechoPor: currentUserEmail,
     });
   };
 
+  // -----------------------------
   // CONDICIONES DE PAGO
+  // -----------------------------
   const agregarCondicionPago = async (nombre) => {
-    await guardarCondicionPago({ nombre });
-    setCondiciones(await obtenerCondicionesPago());
+    await guardarCondicionPago({ nombre, estado: "Activo", creadoEn: new Date().toISOString() });
+    setCondiciones((await obtenerCondicionesPago()).map((c) => ({ ...c, estado: c.estado || "Activo" })));
     await registrarLog({
       accion: "Agregar Condición de Pago",
       descripcion: `Condición creada: ${nombre}`,
@@ -89,18 +95,23 @@ const Admin = () => {
     });
   };
 
-  const eliminarCondicion = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar condición de pago "${nombre}"?`)) return;
-    await eliminarCondicionPago(id);
-    setCondiciones(await obtenerCondicionesPago());
+  const cambiarEstadoCondicion = async (condicionId, nombre, nuevoEstado) => {
+    const ref = doc(db, "condicionesPago", condicionId);
+    await updateDoc(ref, {
+      estado: nuevoEstado,
+      actualizadoEn: new Date().toISOString(),
+    });
+    setCondiciones((await obtenerCondicionesPago()).map((c) => ({ ...c, estado: c.estado || "Activo" })));
     await registrarLog({
-      accion: "Eliminar Condición de Pago",
-      descripcion: `Condición eliminada: ${nombre}`,
+      accion: "Cambio de estado - Condición de Pago",
+      descripcion: `Condición: ${nombre} → ${nuevoEstado}`,
       hechoPor: currentUserEmail,
     });
   };
 
+  // -----------------------------
   // USUARIOS
+  // -----------------------------
   const agregarUsuario = async (usuario) => {
     await guardarUsuario(usuario);
     setUsuarios(await obtenerUsuarios());
@@ -133,11 +144,11 @@ const Admin = () => {
 
   const cambiarEstadoUsuario = async (email, nuevoEstado, motivo) => {
     const ref = doc(db, "usuarios", email);
-    await updateDoc(ref, { estado: nuevoEstado });
+    await updateDoc(ref, { estado: nuevoEstado, motivoEstado: motivo || "", actualizadoEn: new Date().toISOString() });
 
     await registrarLog({
       accion: "Cambio de Estado de Usuario",
-      descripcion: `Usuario: ${email}, nuevo estado: ${nuevoEstado}, motivo: ${motivo}`,
+      descripcion: `Usuario: ${email}, nuevo estado: ${nuevoEstado}${motivo ? `, motivo: ${motivo}` : ""}`,
       hechoPor: currentUserEmail,
     });
 
@@ -157,18 +168,19 @@ const Admin = () => {
       <GestorCentrosCosto
         centros={centros}
         agregar={agregarCentroCosto}
-        eliminar={eliminarCentro}
+        cambiarEstado={cambiarEstadoCentro}
       />
 
       <GestorCondicionesPago
         condiciones={condiciones}
         agregar={agregarCondicionPago}
-        eliminar={eliminarCondicion}
+        cambiarEstado={cambiarEstadoCondicion}
       />
 
       <GestorUsuarios
         usuarios={usuarios}
         agregarUsuario={agregarUsuario}
+        eliminarUsuario={eliminarUsuarioLocal}
         cambiarRol={actualizarRol}
         cambiarEstadoUsuario={cambiarEstadoUsuario}
         roles={["admin", "comprador", "finanzas", "gerencia", "operaciones"]}

@@ -1,7 +1,9 @@
+// ✅ src/pages/Cotizaciones.jsx
 import React, { useEffect, useState } from "react";
 import {
   obtenerCotizaciones,
   agregarCotizacion,
+  actualizarCotizacion, // <-- asegúrate de tener este helper (updateDoc)
 } from "../firebase/cotizacionesHelpers";
 import { obtenerProveedores } from "../firebase/proveedoresHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
@@ -10,13 +12,16 @@ import Select from "react-select";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useUsuario } from "../context/UsuarioContext";
-
+import { storage } from "../firebase/config";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const Cotizaciones = () => {
   const { usuario, loading } = useUsuario();
   const [cotizaciones, setCotizaciones] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [archivoCotizacion, setArchivoCotizacion] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+
   const [busqueda, setBusqueda] = useState("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
 
@@ -43,20 +48,20 @@ const Cotizaciones = () => {
 
   const cargarCotizaciones = async () => {
     const lista = await obtenerCotizaciones();
-    setCotizaciones(lista);
+    setCotizaciones(lista || []);
   };
 
   const cargarProveedores = async () => {
     const lista = await obtenerProveedores();
-    setProveedores(lista);
+    setProveedores(lista || []);
   };
 
   const agregarItem = () => {
-    if (!itemActual.nombre || itemActual.precioUnitario <= 0) {
+    if (!itemActual.nombre || Number(itemActual.precioUnitario) <= 0) {
       alert("Completa los datos del ítem");
       return;
     }
-    setForm({ ...form, items: [...form.items, itemActual] });
+    setForm((prev) => ({ ...prev, items: [...prev.items, itemActual] }));
     setItemActual({ nombre: "", cantidad: 1, precioUnitario: 0 });
   };
 
@@ -66,31 +71,64 @@ const Cotizaciones = () => {
       return;
     }
 
-    const cotizacion = { ...form };
+    setGuardando(true);
+    try {
+      // 1) Crea la cotización sin archivo para obtener el ID
+      const base = {
+        codigo: form.codigo.trim(),
+        fecha: form.fecha,
+        proveedorId: form.proveedorId,
+        detalle: form.detalle || "",
+        items: form.items.map((i) => ({
+          nombre: i.nombre,
+          cantidad: Number(i.cantidad || 0),
+          precioUnitario: Number(i.precioUnitario || 0),
+        })),
+        archivoUrl: "", // se actualizará si hay archivo
+        creadoPor: usuario?.email || "",
+        creadoEn: new Date().toISOString(),
+      };
 
-    if (archivoCotizacion) {
-      const urlTemporal = URL.createObjectURL(archivoCotizacion);
-      cotizacion.archivoUrl = urlTemporal;
+      const newId = await agregarCotizacion(base); // <-- tu helper debe devolver el id del doc creado
+
+      // 2) Si hay archivo, súbelo a Storage y actualiza el doc con el downloadURL
+      if (archivoCotizacion) {
+        const fileExt = archivoCotizacion.name.split(".").pop();
+        const fileNameSafe =
+          (form.codigo || newId).replace(/[^\w\-]+/g, "_") + "." + fileExt;
+        const storageRef = ref(storage, `cotizaciones/${newId}/${fileNameSafe}`);
+        await uploadBytes(storageRef, archivoCotizacion);
+        const url = await getDownloadURL(storageRef);
+
+        await actualizarCotizacion(newId, { archivoUrl: url });
+      }
+
+      alert("Cotización guardada ✅");
+
+      // Limpieza
+      setForm({
+        codigo: "",
+        fecha: new Date().toISOString().split("T")[0],
+        proveedorId: "",
+        detalle: "",
+        items: [],
+      });
+      setArchivoCotizacion(null);
+
+      // Recargar listado
+      cargarCotizaciones();
+    } catch (e) {
+      console.error("Error guardando cotización:", e);
+      alert("Ocurrió un error al guardar la cotización.");
+    } finally {
+      setGuardando(false);
     }
-
-    await agregarCotizacion(cotizacion);
-    alert("Cotización guardada ✅");
-
-    setForm({
-      codigo: "",
-      fecha: new Date().toISOString().split("T")[0],
-      proveedorId: "",
-      detalle: "",
-      items: [],
-    });
-    setArchivoCotizacion(null);
-    cargarCotizaciones();
   };
 
   const cotizacionesFiltradas = cotizaciones.filter((cot) => {
-    const matchBusqueda =
-      cot.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cot.detalle.toLowerCase().includes(busqueda.toLowerCase());
+    const texto =
+      `${cot.codigo || ""} ${cot.detalle || ""}`.toLowerCase();
+    const matchBusqueda = texto.includes(busqueda.toLowerCase());
     const matchProveedor = filtroProveedor ? cot.proveedorId === filtroProveedor : true;
     return matchBusqueda && matchProveedor;
   });
@@ -103,12 +141,18 @@ const Cotizaciones = () => {
 
     const data = cotizacionesFiltradas.map((cot) => {
       const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
+      const total = (cot.items || []).reduce(
+        (acc, it) => acc + Number(it.cantidad || 0) * Number(it.precioUnitario || 0),
+        0
+      );
       return {
         Código: cot.codigo,
         Fecha: cot.fecha,
         Proveedor: proveedor?.razonSocial || "—",
-        Detalle: cot.detalle,
-        "N° Ítems": cot.items.length,
+        Detalle: cot.detalle || "",
+        "N° Ítems": cot.items?.length || 0,
+        "Total Items": formatearMoneda(total),
+        "Tiene Archivo": cot.archivoUrl ? "Sí" : "No",
       };
     });
 
@@ -127,7 +171,8 @@ const Cotizaciones = () => {
   const proveedorSeleccionado = proveedores.find((p) => p.id === form.proveedorId);
 
   if (loading) return <div className="p-6">Cargando usuario.</div>;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
+    return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -184,10 +229,13 @@ const Cotizaciones = () => {
         <div className="col-span-1 md:col-span-2">
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={(e) => setArchivoCotizacion(e.target.files[0])}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+            onChange={(e) => setArchivoCotizacion(e.target.files?.[0] || null)}
             className="border p-2 rounded w-full"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            (Subir archivos no escaneados en formato docx o pdf)
+          </p>
         </div>
 
         {/* Ítems */}
@@ -204,20 +252,22 @@ const Cotizaciones = () => {
             <input
               type="number"
               placeholder="Cantidad"
+              min={1}
               value={itemActual.cantidad}
               onChange={(e) =>
-                setItemActual({ ...itemActual, cantidad: parseInt(e.target.value) })
+                setItemActual({ ...itemActual, cantidad: parseInt(e.target.value || "0") })
               }
               className="border p-2 rounded w-32"
             />
             <input
               type="number"
               placeholder="Precio Unitario"
+              step="0.01"
               value={itemActual.precioUnitario}
               onChange={(e) =>
                 setItemActual({
                   ...itemActual,
-                  precioUnitario: parseFloat(e.target.value),
+                  precioUnitario: parseFloat(e.target.value || "0"),
                 })
               }
               className="border p-2 rounded w-48"
@@ -233,8 +283,7 @@ const Cotizaciones = () => {
           <ul className="text-sm list-disc ml-6">
             {form.items.map((item, i) => (
               <li key={i}>
-                {item.nombre} - {item.cantidad} x{" "}
-                {formatearMoneda(item.precioUnitario)}
+                {item.nombre} — {item.cantidad} x {formatearMoneda(item.precioUnitario)}
               </li>
             ))}
           </ul>
@@ -242,9 +291,10 @@ const Cotizaciones = () => {
 
         <button
           onClick={guardar}
-          className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-fit"
+          disabled={guardando}
+          className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-fit disabled:opacity-60"
         >
-          Guardar Cotización
+          {guardando ? "Guardando..." : "Guardar Cotización"}
         </button>
       </div>
 
@@ -252,7 +302,7 @@ const Cotizaciones = () => {
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
         <input
           type="text"
-          placeholder="🔍 Buscar por código o detalle..."
+          placeholder="Buscar por código o detalle..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           className="border p-2 rounded w-full md:w-1/2"
