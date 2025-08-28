@@ -7,10 +7,10 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
-  increment,
   setDoc,
   query,
-  orderBy
+  orderBy,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -20,23 +20,24 @@ const LOGS_COLLECTION = "logs";
 const COTIZACIONES_COLLECTION = "cotizaciones";
 const PROVEEDORES_COLLECTION = "proveedores";
 
-// ✅ Usuarios
+/* =========================
+ *  USUARIOS
+ * ========================= */
 export const obtenerUsuarios = async () => {
   const snapshot = await getDocs(collection(db, "usuarios"));
 
   const usuarios = [];
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    // Validación: solo incluye usuarios con email y rol definidos
+  snapshot.forEach((docu) => {
+    const data = docu.data();
     if (data.email && data.rol) {
       usuarios.push({
-        id: doc.id,
+        id: docu.id,
         email: data.email,
         rol: data.rol,
-        estado: data.estado || "Activo", // default si no existe
+        estado: data.estado || "Activo",
       });
     } else {
-      console.warn("⚠️ Usuario omitido por datos incompletos:", doc.id, data);
+      console.warn("⚠️ Usuario omitido por datos incompletos:", docu.id, data);
     }
   });
 
@@ -47,7 +48,6 @@ export const guardarUsuario = async ({ email, rol }) => {
   if (!email || !rol) {
     throw new Error("El usuario debe tener correo y rol.");
   }
-
   const userRef = doc(db, "usuarios", email);
   await setDoc(userRef, {
     email,
@@ -65,10 +65,12 @@ export const actualizarRolUsuario = async (email, nuevoRol) => {
   await updateDoc(ref, { rol: nuevoRol });
 };
 
-// ✅ Logs
+/* =========================
+ *  LOGS
+ * ========================= */
 export const registrarLog = async ({ accion, ocId, usuario, rol, comentario = "" }) => {
   try {
-    await addDoc(collection(db, "logs"), {
+    await addDoc(collection(db, LOGS_COLLECTION), {
       accion,
       ocId,
       usuario,
@@ -82,21 +84,23 @@ export const registrarLog = async ({ accion, ocId, usuario, rol, comentario = ""
 };
 
 export const obtenerLogs = async () => {
-  const logsRef = collection(db, "logs");
+  const logsRef = collection(db, LOGS_COLLECTION);
   const q = query(logsRef, orderBy("fecha", "desc"));
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    fecha: doc.data().fecha?.toDate().toLocaleString("es-PE") || "",
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    fecha: d.data().fecha?.toDate().toLocaleString("es-PE") || "",
   }));
 };
 
-
+/* =========================
+ *  OCs
+ * ========================= */
 export const obtenerOCs = async () => {
   const snapshot = await getDocs(collection(db, OC_COLLECTION));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
 export const obtenerOCporId = async (id) => {
@@ -110,88 +114,103 @@ export const actualizarOC = async (id, nuevaData) => {
   await updateDoc(ref, nuevaData);
 };
 
-// ✅ Cotizaciones
+/**
+ * Lee el correlativo actual y devuelve el siguiente número formateado (sin consumirlo).
+ * Si no existe el documento de correlativos, asume último = 414 para que el siguiente sea 415.
+ * Devuelve, por ejemplo: "MM-000415"
+ */
+export const obtenerSiguienteNumeroOC = async () => {
+  const correlativoRef = doc(db, "correlativos", "ordenesCompra");
+  const snap = await getDoc(correlativoRef);
+  const ultimo = snap.exists() ? Number(snap.data().ultimo || 0) : 416;
+  const siguiente = ultimo + 1;
+  return `MM-${String(siguiente).padStart(6, "0")}`;
+};
+
+/**
+ * Guarda una OC asignando número correlativo con transacción atómica.
+ * Genera: MM-000XYZ y actualiza correlativos/ordenesCompra.ultimo
+ * Retorna el id del documento creado.
+ */
+export const guardarOC = async (ocData) => {
+  const correlativoRef = doc(db, "correlativos", "ordenesCompra");
+
+  // Transacción para evitar colisiones de correlativo
+  const { id: newId } = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(correlativoRef);
+    const ultimo = snap.exists() ? Number(snap.data().ultimo || 0) : 416;
+    const siguiente = ultimo + 1;
+    const numeroOC = `MM-${String(siguiente).padStart(6, "0")}`;
+
+    // Prepara el doc de la OC con el número asignado
+    const ocRef = doc(collection(db, OC_COLLECTION));
+    transaction.set(ocRef, { ...ocData, numeroOC });
+
+    // Actualiza el correlativo
+    transaction.set(correlativoRef, { ultimo: siguiente }, { merge: true });
+
+    return { id: ocRef.id, numeroOC };
+  });
+
+  return newId;
+};
+
+/* =========================
+ *  COTIZACIONES
+ * ========================= */
 export const obtenerCotizaciones = async () => {
   const snapshot = await getDocs(collection(db, COTIZACIONES_COLLECTION));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// ✅ Proveedores
+/* =========================
+ *  PROVEEDORES
+ * ========================= */
 export const obtenerProveedores = async () => {
-  const snapshot = await getDocs(collection(db, "proveedores"));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const snapshot = await getDocs(collection(db, PROVEEDORES_COLLECTION));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// Obtener centros de costo
+/* =========================
+ *  MAESTROS: Centros de Costo / Condiciones de Pago
+ * ========================= */
 export const obtenerCentrosCosto = async () => {
   const snapshot = await getDocs(collection(db, "centrosCosto"));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// Guardar nuevo centro de costo
 export const guardarCentroCosto = async (centro) => {
   await addDoc(collection(db, "centrosCosto"), centro);
 };
 
-// Editar centro de costo
 export const editarCentroCosto = async (id, nombre) => {
   await updateDoc(doc(db, "centrosCosto", id), { nombre });
 };
 
-// Eliminar centro de costo
 export const eliminarCentroCosto = async (id) => {
   await deleteDoc(doc(db, "centrosCosto", id));
 };
 
-// Guardar nueva condición de pago
 export const guardarCondicionPago = async (condicion) => {
   await addDoc(collection(db, "condicionesPago"), condicion);
 };
 
-// Obtener condiciones de pago
 export const obtenerCondicionesPago = async () => {
   const snapshot = await getDocs(collection(db, "condicionesPago"));
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// Editar condiciones de pago
 export const editarCondicionPago = async (id, nombre) => {
   await updateDoc(doc(db, "condicionesPago", id), { nombre });
 };
 
-// Eliminar condición de pago
 export const eliminarCondicionPago = async (id) => {
   await deleteDoc(doc(db, "condicionesPago", id));
 };
 
-// Genera el número correlativo y guarda la OC
-export const guardarOC = async (ocData) => {
-  const correlativoRef = doc(db, "correlativos", "ordenesCompra");
-  const correlativoSnap = await getDoc(correlativoRef);
-
-  let nuevoNumero = 415;
-
-  if (correlativoSnap.exists()) {
-    const data = correlativoSnap.data();
-    nuevoNumero = (data.ultimo || 414) + 1;
-  }
-
-  // Formato final
-  const numeroOC = `MM-${String(nuevoNumero).padStart(6, "0")}`;
-
-  const nuevaOC = {
-    ...ocData,
-    numeroOC,
-  };
-
-  const docRef = await addDoc(collection(db, "ordenesCompra"), nuevaOC);
-
-  // Actualiza el último número usado
-  await setDoc(correlativoRef, { ultimo: nuevoNumero }, { merge: true });
-
-  return docRef.id;
-};
-
+/* =========================
+ *  FIRMAS
+ * ========================= */
 export const obtenerFirmaUsuario = async (email) => {
   const docRef = doc(db, "firmas", email);
   const snap = await getDoc(docRef);

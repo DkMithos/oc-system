@@ -6,6 +6,16 @@ import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 
+/** Busca cuenta de detracciones en arreglo de bancos del proveedor */
+const findDetraccion = (bancos = []) => {
+  if (!Array.isArray(bancos)) return null;
+  const nameMatches = (n = "") =>
+    n.toUpperCase().includes("DETRACC") ||
+    n.toUpperCase() === "BN" ||
+    n.toUpperCase().includes("BANCO DE LA NACION");
+  return bancos.find((b) => nameMatches(b?.nombre)) || null;
+};
+
 const VerOC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,6 +50,10 @@ const VerOC = () => {
   const otros = oc.resumen?.otros || 0;
   const total = subtotal + igv + otros;
   const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
+
+  // Detracciones (usa el guardado en la OC y si no existe lo deduce del proveedor)
+  const detraccionCuenta = oc.detraccion || findDetraccion(oc.proveedor?.bancos);
+
 
   const puedeExportar =
     oc.estado === "Aprobado por Gerencia" ||
@@ -115,6 +129,19 @@ const VerOC = () => {
           <div><strong>Moneda:</strong> {oc.monedaSeleccionada}</div>
           <div><strong>Cuenta:</strong> {oc.cuenta?.cuenta || "-"}</div>
           <div><strong>CCI:</strong> {oc.cuenta?.cci || "-"}</div>
+
+          {/* DETRACCIONES (BN) */}
+          {detraccionCuenta && (
+            <>
+              <div className="col-span-2 mt-2 pt-2 border-t">
+                <span className="text-red-700 font-semibold">
+                  Cuenta de Detracciones (BN)
+                </span>
+              </div>
+              <div><strong>Cuenta:</strong> {detraccionCuenta.cuenta || "—"}</div>
+              <div><strong>CCI:</strong> {detraccionCuenta.cci || "—"}</div>
+            </>
+          )}
         </div>
 
         {/* ÍTEMS */}
