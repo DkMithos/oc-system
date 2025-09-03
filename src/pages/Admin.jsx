@@ -4,6 +4,7 @@ import {
   guardarUsuario,
   eliminarUsuario,
   actualizarRolUsuario,
+  actualizarPasswordUsuario,
   obtenerOCs,
   obtenerCotizaciones,
   obtenerProveedores,
@@ -183,7 +184,8 @@ const Admin = () => {
         eliminarUsuario={eliminarUsuarioLocal}
         cambiarRol={actualizarRol}
         cambiarEstadoUsuario={cambiarEstadoUsuario}
-        roles={["admin", "comprador", "finanzas", "gerencia", "operaciones"]}
+        roles={["admin", "comprador", "finanzas", "gerencia", "operaciones", "administración", "legal"]}
+        actualizarPassword={actualizarPasswordUsuario}
       />
     </div>
   );

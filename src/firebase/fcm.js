@@ -1,21 +1,53 @@
 // src/firebase/fcm.js
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { db, firebaseConfig } from "./config";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
-import { auth } from "./config";
+import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  collection,
+  serverTimestamp
+} from "firebase/firestore";
+import { db, firebaseConfig, auth } from "./config";
 
+// Inicializa (evita doble init si ya existe en otras partes)
 const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
 
-const VAPID_KEY = "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU";
+// Algunas plataformas no soportan FCM (Safari macOS sin PWA, etc.)
+let messagingPromise = (async () => {
+  const ok = await isSupported().catch(() => false);
+  return ok ? getMessaging(app) : null;
+})();
 
-// 1. Obtener token FCM del navegador (y pedir permisos)
+// Registra/obtiene el service worker de FCM en la RAÍZ
+async function ensureMessagingSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  // Intenta recuperar un SW activo sobre la ruta del file
+  let reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+  if (!reg) {
+    reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+  }
+  // Espera a que esté activo
+  return navigator.serviceWorker.ready;
+}
+
+// Pide permiso con un gesto del usuario y devuelve el token (o null)
 export const solicitarPermisoYObtenerToken = async (email) => {
   try {
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    const messaging = await messagingPromise;
+    if (!messaging) {
+      console.warn("[FCM] Este navegador no soporta FCM.");
+      return null;
+    }
+
+    const reg = await ensureMessagingSW();
+    // Si el sitio está bloqueado, esto lanzará messaging/permission-blocked
+    const token = await getToken(messaging, {
+      vapidKey: "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU",
+      serviceWorkerRegistration: reg
+    });
+
     if (token && email) {
-      // Guarda el token en Firestore
       const tokenRef = doc(collection(db, "usuarios", email, "tokens"), token);
       await setDoc(tokenRef, {
         token,
@@ -31,18 +63,16 @@ export const solicitarPermisoYObtenerToken = async (email) => {
   }
 };
 
-// 2. Guardar el token en Firestore para el usuario (llama esto después de login)
+// Guarda/actualiza el token en una colección plana
 export const guardarTokenFCM = async (token) => {
   try {
-    // Usa localStorage o el usuario autenticado
     const email = localStorage.getItem("userEmail") || auth.currentUser?.email;
     if (!email || !token) return;
 
-    const db = getFirestore();
-    // Usar email como ID para evitar duplicados
-    await setDoc(doc(db, "tokensFCM", email), {
+    const _db = getFirestore();
+    await setDoc(doc(_db, "tokensFCM", email), {
       usuarioEmail: email,
-      token: token,
+      token,
       actualizado: new Date().toISOString(),
     });
     console.log("[FCM] Token guardado en Firestore");
@@ -51,10 +81,9 @@ export const guardarTokenFCM = async (token) => {
   }
 };
 
-// 3. Escuchar notificaciones en primer plano
-export const onMessageListener = () =>
-  new Promise((resolve) => {
-    onMessage(messaging, (payload) => {
-      resolve(payload);
-    });
-  });
+// Foreground messages
+export const onMessageListener = async (callback) => {
+  const messaging = await messagingPromise;
+  if (!messaging) return () => {};
+  return onMessage(messaging, callback);
+};

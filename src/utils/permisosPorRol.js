@@ -16,6 +16,8 @@ const permisosPorRol = {
     "/resumen",
     "/indicadores",
     "/ver",
+    "/soporte",
+    "/adminsoporte",
   ],
   comprador: [
     "/",
@@ -27,6 +29,8 @@ const permisosPorRol = {
     "/editar",
     "/requerimientos",
     "/ver",
+    "/soporte",
+    "/soporte/admin",    
   ],
   operaciones: [
     "/",
@@ -35,6 +39,8 @@ const permisosPorRol = {
     "/dashboard",
     "/caja",
     "/ver",
+    "/soporte",
+    "/soporte/admin",    
   ],
   gerencia: [
     "/",
@@ -42,10 +48,23 @@ const permisosPorRol = {
     "/firmar",
     "/dashboard",
     "/ver",
+    "/soporte",
+    "/soporte/admin",    
   ],
   finanzas: [
     "/pago",
     "/pagos",
+    "/soporte",
+    "/soporte/admin",
+  ],
+  legal: [
+    "/",
+  ],
+  administración: [
+    "/",
+    "/caja",
+    "/soporte",
+    "/soporte/admin",
   ],
 };
 export default permisosPorRol;

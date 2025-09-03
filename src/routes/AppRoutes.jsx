@@ -20,6 +20,9 @@ import CajaChica from "../pages/CajaChica";
 import Requerimientos from "../pages/Requerimientos";
 import ResumenGeneral from "../pages/ResumenGeneral";
 import Indicadores from "../pages/Indicadores";
+import Tickets from "../pages/Tickets";
+import AdminTickets from "../pages/AdminTickets";
+
 
 const AppRoutes = () => {
   return (
@@ -28,7 +31,7 @@ const AppRoutes = () => {
         <Route
           index
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas"]}>
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "legal", "administración"]}>
               <Home />
             </RutaProtegida>
           }
@@ -133,7 +136,7 @@ const AppRoutes = () => {
         <Route
           path="caja"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "operaciones"]}>
+            <RutaProtegida rolesPermitidos={["admin", "operaciones", "administración"]}>
               <CajaChica />
             </RutaProtegida>
           }
@@ -167,6 +170,22 @@ const AppRoutes = () => {
           element={
             <RutaProtegida rolesPermitidos={["admin", "finanzas"]}>
               <HistorialPagos />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="soporte"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administración", "operaciones", "comprador"]}>
+              <Tickets />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="adminsoporte"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administración", "operaciones", "comprador"]}>
+              <AdminTickets />
             </RutaProtegida>
           }
         />

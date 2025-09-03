@@ -220,8 +220,8 @@ const VerOC = () => {
         <div className="mt-4 text-[8px] leading-snug text-gray-700 border-t pt-2">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A LOS SIGUIENTES CORREOS:</p>
           <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe</li>
-            <li>CONSULTA DE PAGOS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe</li>
+            <li>FACTURAS ELECTRÓNICAS: jaliaga@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
+            <li>CONSULTA DE PAGOS: jaliaga@memphis.pe | dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 text-justify italic">
             El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.

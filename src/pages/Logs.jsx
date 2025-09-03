@@ -24,15 +24,7 @@ const Logs = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-[#004990] mb-4">📋 Bitácora del Sistema</h2>
-
-      <input
-        type="text"
-        placeholder="Buscar por OC ID, usuario o acción..."
-        value={filtro}
-        onChange={(e) => setFiltro(e.target.value)}
-        className="mb-4 p-2 border rounded w-full max-w-md focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-      />
+      <h2 className="text-2xl font-bold text-[#004990] mb-4">Bitácora del Sistema</h2>
 
       <div className="flex justify-between items-center mb-4">
         <input

@@ -12,7 +12,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useUsuario } from "../context/UsuarioContext";
 
-const ROLES_PERMITIDOS = ["admin", "gerencia", "operaciones", "administracion"];
+const ROLES_PERMITIDOS = ["admin", "gerencia", "operaciones", "administración"];
 
 const CajaChica = () => {
   const { usuario, cargando: loadingUser } = useUsuario();
@@ -44,7 +44,7 @@ const CajaChica = () => {
   // ▷ Caja por defecto según rol
   useEffect(() => {
     if (!usuario) return;
-    if (usuario.rol === "administracion") {
+    if (usuario.rol === "administración") {
       setCajaSeleccionada("administrativa");
     } else if (usuario.rol === "operaciones") {
       setCajaSeleccionada("operativa");

@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import logo from "../assets/logo-navbar.png";
 import Notificaciones from "./Notificaciones";
+import AdminTickets from "../pages/AdminTickets";
 
 const Topbar = ({ toggleSidebar }) => {
   return (

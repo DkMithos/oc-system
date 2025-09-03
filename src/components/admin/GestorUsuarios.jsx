@@ -1,73 +1,141 @@
-// src/components/admin/GestorUsuarios.jsx
-import React, { useState } from "react";
-import { UserRoundPlus, RefreshCcw } from "lucide-react";
+// ✅ src/components/admin/GestorUsuarios.jsx
+import React, { useMemo, useState } from "react";
+import {
+  UserRoundPlus,
+  ShieldCheck,
+  LockKeyhole,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  Search,
+} from "lucide-react";
 
+/**
+ * Props esperadas:
+ * - usuarios: [{ email, rol, estado }]
+ * - roles: string[]   (p.e. ["admin","comprador","finanzas","gerencia","operaciones","administración","legal"])
+ * - agregarUsuario({ email, rol, password })
+ * - cambiarRol(email, nuevoRol)
+ * - cambiarEstadoUsuario(email, nuevoEstado, motivo)
+ * - actualizarPassword(email, nuevaPassword)
+ * - eliminarUsuario (opcional) (email)
+ */
 const GestorUsuarios = ({
   usuarios = [],
   roles = [],
   agregarUsuario,
   cambiarRol,
-  cambiarEstadoUsuario, // nueva función para cambiar estado
+  cambiarEstadoUsuario,
+  actualizarPassword,
+  eliminarUsuario, // opcional
 }) => {
-  const [nuevoUsuario, setNuevoUsuario] = useState({ email: "", rol: "" });
-  const [filtroCorreo, setFiltroCorreo] = useState("");
-  const [filtroRol, setFiltroRol] = useState("");
+  const [nuevo, setNuevo] = useState({ email: "", rol: "", password: "" });
+  const [busqueda, setBusqueda] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 10;
 
-  const usuariosFiltrados = usuarios
-    .filter((u) => (u.email || "").toLowerCase().includes(filtroCorreo.toLowerCase()))
-    .filter((u) => (filtroRol ? u.rol === filtroRol : true));
+  const usuariosFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return usuarios;
+    return usuarios.filter(
+      (u) =>
+        (u.email || "").toLowerCase().includes(q) ||
+        (u.rol || "").toLowerCase().includes(q) ||
+        (u.estado || "").toLowerCase().includes(q)
+    );
+  }, [usuarios, busqueda]);
 
-  const pagSize = 5;
-  const [paginaActual, setPaginaActual] = useState(1);
-  const totalPaginas = Math.ceil(usuariosFiltrados.length / pagSize);
+  const totalPaginas = Math.max(1, Math.ceil(usuariosFiltrados.length / porPagina));
+  const visibles = usuariosFiltrados.slice((pagina - 1) * porPagina, pagina * porPagina);
 
-  const usuariosPagina = usuariosFiltrados.slice(
-    (paginaActual - 1) * pagSize,
-    paginaActual * pagSize
-  );
+  const resetForm = () => setNuevo({ email: "", rol: "", password: "" });
 
-  const handleSubmit = async (e) => {
+  const handleCrear = async (e) => {
     e.preventDefault();
-    if (!nuevoUsuario.email || !nuevoUsuario.rol) {
-      alert("Por favor completa el correo y selecciona un rol.");
+    if (!nuevo.email || !nuevo.rol || !nuevo.password) {
+      alert("Completa email, rol y contraseña.");
       return;
     }
-    await agregarUsuario(nuevoUsuario);
-    setNuevoUsuario({ email: "", rol: "" });
+    try {
+      await agregarUsuario({
+        email: nuevo.email.trim(),
+        rol: nuevo.rol,
+        password: nuevo.password,
+      });
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo crear el usuario.");
+    }
   };
 
-  const handleCambioEstado = async (usuario) => {
-    const nuevoEstado = usuario.estado === "Activo" ? "Inactivo" : "Activo";
-    const motivo = prompt(`¿Motivo del cambio de estado a "${nuevoEstado}"?`);
-    if (!motivo) return;
+  const handleCambioRol = async (email, nuevoRol) => {
+    try {
+      await cambiarRol(email, nuevoRol);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo cambiar el rol.");
+    }
+  };
 
-    await cambiarEstadoUsuario(usuario.email, nuevoEstado, motivo);
+  const handleToggleEstado = async (u) => {
+    const destino = u.estado === "Activo" ? "Suspendido" : "Activo";
+    let motivo = "";
+    if (destino !== "Activo") {
+      motivo = prompt(`Motivo para cambiar a "${destino}"`);
+      if (!motivo) return;
+    }
+    try {
+      await cambiarEstadoUsuario(u.email, destino, motivo || "");
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo cambiar el estado.");
+    }
+  };
+
+  const handleCambiarPassword = async (u) => {
+    const nueva = prompt(`Nueva contraseña para ${u.email}:`);
+    if (!nueva) return;
+    try {
+      await actualizarPassword(u.email, nueva);
+      alert("Contraseña actualizada ✅");
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo actualizar la contraseña.");
+    }
+  };
+
+  const handleEliminar = async (u) => {
+    if (!eliminarUsuario) return;
+    if (!window.confirm(`¿Eliminar al usuario ${u.email}?`)) return;
+    try {
+      await eliminarUsuario(u.email);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo eliminar.");
+    }
   };
 
   return (
-    <div className="bg-white p-6 rounded shadow mb-6">
-      <h3 className="text-lg font-bold mb-4">Gestión de Usuarios</h3>
+    <section className="bg-white p-6 rounded shadow">
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <ShieldCheck className="text-blue-700" size={18} />
+        Gestión de usuarios
+      </h3>
 
-      {/* Nuevo usuario */}
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-3 gap-4 mb-4 items-center"
-      >
+      {/* Crear nuevo usuario */}
+      <form onSubmit={handleCrear} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
         <input
           type="email"
-          placeholder="Correo electrónico"
-          value={nuevoUsuario.email}
-          onChange={(e) =>
-            setNuevoUsuario({ ...nuevoUsuario, email: e.target.value })
-          }
+          placeholder="Correo (ej: usuario@empresa.com)"
+          value={nuevo.email}
+          onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
           className="border p-2 rounded"
           required
         />
         <select
-          value={nuevoUsuario.rol}
-          onChange={(e) =>
-            setNuevoUsuario({ ...nuevoUsuario, rol: e.target.value })
-          }
+          value={nuevo.rol}
+          onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}
           className="border p-2 rounded"
           required
         >
@@ -78,121 +146,144 @@ const GestorUsuarios = ({
             </option>
           ))}
         </select>
+        <input
+          type="password"
+          placeholder="Contraseña inicial"
+          value={nuevo.password}
+          onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })}
+          className="border p-2 rounded"
+          required
+        />
         <button
           type="submit"
-          className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700 flex items-center justify-center gap-2"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2"
         >
           <UserRoundPlus size={18} />
           Agregar
         </button>
       </form>
 
-      {/* Filtros */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      {/* Buscador */}
+      <div className="flex items-center gap-2 mb-3">
+        <Search size={16} className="text-gray-500" />
         <input
           type="text"
-          placeholder="Buscar por correo"
-          value={filtroCorreo}
-          onChange={(e) => setFiltroCorreo(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <select
-          value={filtroRol}
-          onChange={(e) => setFiltroRol(e.target.value)}
-          className="border p-2 rounded"
-        >
-          <option value="">Todos los roles</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => {
-            setFiltroCorreo("");
-            setFiltroRol("");
+          placeholder="Buscar por email, rol o estado…"
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value);
+            setPagina(1);
           }}
-          className="bg-gray-300 px-4 rounded hover:bg-gray-400"
-        >
-          Limpiar filtros
-        </button>
+          className="border px-3 py-2 rounded w-full md:w-1/2"
+        />
       </div>
 
-      {/* Lista de usuarios */}
-      <table className="w-full text-sm border mb-4">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="text-left p-2">Correo</th>
-            <th className="text-left p-2">Rol</th>
-            <th className="text-left p-2">Estado</th>
-            <th className="text-left p-2">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {usuariosPagina.map((u, i) => (
-            <tr key={i} className="border-t">
-              <td className="p-2">{u.email}</td>
-              <td className="p-2">
-                <select
-                  value={u.rol}
-                  onChange={(e) => cambiarRol(u.email, e.target.value)}
-                  className="border rounded p-1"
-                >
-                  {roles.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="p-2">
-                <span
-                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                    u.estado === "Activo"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {u.estado}
-                </span>
-              </td>
-              <td className="p-2">
-                <button
-                  className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1"
-                  onClick={() => handleCambioEstado(u)}
-                  title={
-                    u.estado === "Activo" ? "Suspender usuario" : "Reactivar usuario"
-                  }
-                >
-                  <RefreshCcw size={14} />
-                  {u.estado === "Activo" ? "Suspender" : "Reactivar"}
-                </button>
-              </td>
+      {/* Tabla */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 text-left">Email</th>
+              <th className="p-2 text-left">Rol</th>
+              <th className="p-2 text-left">Estado</th>
+              <th className="p-2 text-left">Acciones</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visibles.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="p-4 text-center text-gray-500">
+                  No hay usuarios.
+                </td>
+              </tr>
+            ) : (
+              visibles.map((u) => (
+                <tr key={u.email} className="border-t">
+                  <td className="p-2">{u.email}</td>
+                  <td className="p-2">
+                    <select
+                      value={u.rol}
+                      onChange={(e) => handleCambioRol(u.email, e.target.value)}
+                      className="border p-1 rounded"
+                    >
+                      {roles.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="p-2">
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs ${
+                        u.estado === "Activo"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {u.estado || "Activo"}
+                    </span>
+                  </td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                        title="Cambiar contraseña"
+                        onClick={() => handleCambiarPassword(u)}
+                      >
+                        <LockKeyhole size={16} />
+                        <span className="text-xs">Contraseña</span>
+                      </button>
 
-      {/* Paginación */}
-      {totalPaginas > 1 && (
-        <div className="flex justify-center gap-2">
-          {[...Array(totalPaginas)].map((_, i) => (
+                      <button
+                        className="flex items-center gap-1 text-gray-700 hover:text-gray-900"
+                        title="Cambiar estado"
+                        onClick={() => handleToggleEstado(u)}
+                      >
+                        {u.estado === "Activo" ? (
+                          <>
+                            <ToggleRight size={18} className="text-green-600" />
+                            <span className="text-xs">Suspender</span>
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft size={18} className="text-yellow-600" />
+                            <span className="text-xs">Reactivar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* Paginación */}
+        {totalPaginas > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-4">
             <button
-              key={i}
-              onClick={() => setPaginaActual(i + 1)}
-              className={`px-3 py-1 rounded border ${
-                paginaActual === i + 1
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700"
-              }`}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              disabled={pagina === 1}
             >
-              {i + 1}
+              Anterior
             </button>
-          ))}
-        </div>
-      )}
-    </div>
+            <span className="text-sm">
+              Página {pagina} de {totalPaginas}
+            </span>
+            <button
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              disabled={pagina === totalPaginas}
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
   );
 };
 

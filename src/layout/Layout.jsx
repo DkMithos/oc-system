@@ -12,30 +12,43 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Guardar token FCM y escuchar notificaciones solo si hay usuario autenticado
+  // src/layout/Layout.jsx (dentro del useEffect)
   useEffect(() => {
-    if (usuario?.email) {
-      solicitarPermisoYObtenerToken()
-        .then((token) => {
-          if (token) {
-            guardarTokenFCM(token); // <--- ESTA ES LA CORRECCIÓN CLAVE
-            console.log("Token FCM guardado para", usuario.email);
-          } else {
-            console.warn("No se pudo obtener el token de FCM");
-          }
-        });
+    if (!usuario?.email) return;
 
-      // Notificaciones en primer plano (push visual, ejemplo: toast)
-      const unsubscribe = onMessageListener().then((payload) => {
-        alert(`🔔 Nueva notificación: ${payload.notification?.title}\n${payload.notification?.body}`);
-        // Puedes aquí reemplazar el alert por un toast, panel, sonido, etc.
-      });
+    solicitarPermisoYObtenerToken(usuario.email).then((token) => {
+      if (token) {
+        console.log("Token FCM listo para", usuario.email);
+      } else {
+        console.warn("No se pudo obtener el token de FCM");
+      }
+    });
 
-      // No es necesario cleanup porque onMessageListener es solo un wrapper de promesa
-      // Si necesitas más control, investiga con EventEmitter o Redux para centralizarlo
+    // Normalizador de payloads (notification || data)
+    const norm = (p) => ({
+      title:
+        p?.notification?.title ||
+        p?.data?.title ||
+        "Notificación",
+      body:
+        p?.notification?.body ||
+        p?.data?.body ||
+        "",
+      ocId: p?.data?.ocId || null,
+    });
 
-      // return undefined;
-    }
+    const unsub = onMessageListener().then((payload) => {
+      console.log("[FCM foreground payload]", payload);
+      const { title, body } = norm(payload);
+      alert(`🔔 Nueva notificación: ${title}\n${body}`);
+      // Si prefieres, en lugar de alert, delega a un sistema de toasts o a tu <Notificaciones/>
+    });
+
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
   }, [usuario]);
+
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 

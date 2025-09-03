@@ -87,7 +87,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             )}
             {puede("/resumen") && (
               <NavLink to="/resumen" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Resumen General</NavLink>
-            )}            
+            )}    
+            {puede("/soporte") && (
+              <NavLink to="/soporte" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Soporte</NavLink>
+            )}
+            {puede("/adminsoporte") && (
+              <NavLink to="/adminsoporte" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Admin de Tickets</NavLink>
+            )}          
           </nav>
         </div>
 

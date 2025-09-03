@@ -44,17 +44,30 @@ export const obtenerUsuarios = async () => {
   return usuarios;
 };
 
-export const guardarUsuario = async ({ email, rol }) => {
-  if (!email || !rol) {
-    throw new Error("El usuario debe tener correo y rol.");
-  }
+// ✅ Crear usuario con contraseña
+export const guardarUsuario = async ({ email, rol, password }) => {
+  if (!email || !rol) throw new Error("El usuario debe tener correo y rol.");
+
   const userRef = doc(db, "usuarios", email);
   await setDoc(userRef, {
     email,
     rol,
     estado: "Activo",
+    password: password || null, // 🔹 guardamos contraseña inicial
+    creadoEn: new Date().toISOString(),
   });
 };
+
+// ✅ Cambiar contraseña de usuario
+export const actualizarPasswordUsuario = async (email, nuevaPassword) => {
+  if (!email || !nuevaPassword) throw new Error("Datos incompletos.");
+  const ref = doc(db, "usuarios", email);
+  await updateDoc(ref, {
+    password: nuevaPassword,
+    actualizadoEn: new Date().toISOString(),
+  });
+};
+
 
 export const eliminarUsuario = async (email) => {
   await deleteDoc(doc(db, USUARIOS_COLLECTION, email));
