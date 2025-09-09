@@ -184,9 +184,10 @@ const Admin = () => {
         eliminarUsuario={eliminarUsuarioLocal}
         cambiarRol={actualizarRol}
         cambiarEstadoUsuario={cambiarEstadoUsuario}
-        roles={["admin", "comprador", "finanzas", "gerencia", "operaciones", "administración", "legal"]}
+        roles={["admin","comprador","finanzas","gerencia","operaciones","administracion","legal","soporte"]}
         actualizarPassword={actualizarPasswordUsuario}
       />
+
     </div>
   );
 };

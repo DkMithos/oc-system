@@ -31,7 +31,7 @@ const AppRoutes = () => {
         <Route
           index
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "legal", "administración"]}>
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "legal", "administracion"]}>
               <Home />
             </RutaProtegida>
           }
@@ -136,7 +136,7 @@ const AppRoutes = () => {
         <Route
           path="caja"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "operaciones", "administración"]}>
+            <RutaProtegida rolesPermitidos={["admin", "operaciones", "administracion"]}>
               <CajaChica />
             </RutaProtegida>
           }
@@ -176,7 +176,7 @@ const AppRoutes = () => {
         <Route
           path="soporte"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administración", "operaciones", "comprador"]}>
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administracion", "operaciones", "comprador"]}>
               <Tickets />
             </RutaProtegida>
           }
@@ -184,7 +184,7 @@ const AppRoutes = () => {
         <Route
           path="adminsoporte"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administración", "operaciones", "comprador"]}>
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administracion", "operaciones", "comprador"]}>
               <AdminTickets />
             </RutaProtegida>
           }

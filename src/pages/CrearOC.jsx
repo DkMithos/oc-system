@@ -167,26 +167,18 @@ const CrearOC = () => {
     if (!validarFormulario()) return;
 
     const nuevaOC = {
-      estado: "Pendiente de Firma del Comprador",
+      estado: "Pendiente de Operaciones",
       ...formData,
       proveedor: formData.proveedor,
       cuenta: cuentaSeleccionada || null,
-      detraccion: detraccionCuenta || null, // 🔹 guardamos la detracción
+      detraccion: detraccionCuenta || null,
       items,
-      resumen: {
-        subtotal,
-        igv,
-        valorVenta,
-        otros: parseFloat(otros) || 0,
-        total: totalFinal,
-      },
+      resumen: { subtotal, igv, valorVenta, otros: parseFloat(otros) || 0, total: totalFinal },
       historial: [
-        {
-          accion: "Creación OC",
-          por: usuario?.email,
-          fecha: new Date().toLocaleString("es-PE"),
-        },
+        { accion: "Creación OC", por: usuario?.email, fecha: new Date().toLocaleString("es-PE") },
+        ...(firmaComprador ? [{ accion: "Firma Comprador Automática", por: usuario?.email, fecha: new Date().toLocaleString("es-PE") }] : [])
       ],
+      firmaComprador: firmaComprador || null,
       creadoPor: usuario?.nombre || usuario?.email,
       fechaCreacion: new Date().toISOString(),
     };

@@ -1,133 +1,100 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { obtenerOCporId, actualizarOC } from "../firebase/firestoreHelpers";
-import { subirArchivosPago } from "../firebase/storageHelpers"; // Este helper sube archivos a Firebase Storage
+import { doc, getDoc, addDoc, collection } from "firebase/firestore";
+import { db, storage } from "../firebase/config";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-toastify";
+import { useUsuario } from "../context/UsuarioContext";
+import { scheduleCredit, scheduleCash, firstFridayOnOrAfter } from "../utils/fechas";
 
 const ActualizarPago = () => {
+  const { usuario, loading } = useUsuario();
   const navigate = useNavigate();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const ocId = queryParams.get("id");
-  const userEmail = localStorage.getItem("userEmail");
-  const userRole = localStorage.getItem("userRole");
+  const ocId = new URLSearchParams(useLocation().search).get("id");
 
   const [orden, setOrden] = useState(null);
-  const [loading, setLoading] = useState(true);
-
   const [numeroFactura, setNumeroFactura] = useState("");
-  const [numeroComprobante, setNumeroComprobante] = useState("");
-  const [fechaPago, setFechaPago] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split("T")[0]);
   const [archivos, setArchivos] = useState([]);
 
   useEffect(() => {
-    const cargarOC = async () => {
-      const data = await obtenerOCporId(ocId);
-      if (!data) return alert("OC no encontrada");
-      setOrden(data);
-      setLoading(false);
-    };
-    cargarOC();
+    (async () => {
+      const snap = await getDoc(doc(db, "ordenes", ocId));
+      if (!snap.exists()) { toast.error("Orden no encontrada"); return; }
+      setOrden({ id: snap.id, ...snap.data() });
+    })();
   }, [ocId]);
 
-  const handleArchivoChange = (e) => {
-    setArchivos([...e.target.files]);
-  };
+  const handleArchivoChange = (e) => setArchivos([...e.target.files]);
 
-  const registrarPago = async () => {
-    if (!numeroFactura || !numeroComprobante || archivos.length === 0) {
-      alert("Completa todos los campos y sube al menos un archivo PDF.");
-      return;
+  const registrar = async () => {
+    if (!numeroFactura || archivos.length === 0) {
+      toast.error("Completa N° factura y sube al menos un PDF."); return;
     }
+    if (!usuario || loading) { toast.error("Usuario no válido"); return; }
+    if (!orden) { toast.error("Orden no cargada"); return; }
+    if (archivos.some(f => f.type !== "application/pdf")) { toast.error("Solo PDF"); return; }
 
     try {
-      const urls = await subirArchivosPago(ocId, archivos);
+      const pdfUrls = [];
+      for (const f of archivos) {
+        const safeName = `${Date.now()}_${f.name.replace(/[^\w.\-]/g, "_")}`;
+        const r = ref(storage, `facturas/${ocId}/${safeName}`);
+        await uploadBytes(r, f);
+        pdfUrls.push(await getDownloadURL(r));
+      }
 
-      await actualizarOC(ocId, {
-        estadoPago: "Pagado",
-        pago: {
-          numeroFactura,
-          numeroComprobante,
-          fechaPago,
-          archivos: urls,
-        },
-        historial: [
-          ...(orden.historial || []),
-          {
-            accion: "Pago registrado",
-            por: userEmail,
-            fecha: new Date().toLocaleString("es-PE"),
-          },
-        ],
+      // Programación de pago
+      let programacion = { fechaVencimiento: fechaEmision, fechaPagoProgramada: fechaEmision };
+      const cond = (orden.condicionPago || "").toUpperCase();
+      if (cond.includes("CREDITO") || cond === "CRÉDITO") {
+        const dias = orden.plazoCreditoDias || 30;
+        programacion = scheduleCredit(fechaEmision, dias);
+      } else if (cond.includes("MULTIPAGO")) {
+        programacion = { fechaVencimiento: fechaEmision, fechaPagoProgramada: firstFridayOnOrAfter(fechaEmision) };
+      } else if (cond.includes("CONTADO")) {
+        programacion = scheduleCash(fechaEmision);
+      }
+
+      await addDoc(collection(db, "facturas"), {
+        ordenId: orden.id,
+        numero: numeroFactura,
+        monto: orden.resumen?.total || 0,
+        moneda: orden.monedaSeleccionada || "PEN",
+        fechaEmision,
+        pdfUrls,
+        estado: "PROGRAMADA",
+        ...programacion,
+        creadoPor: usuario.email,
+        creadoEn: new Date().toISOString(),
       });
 
-      alert("Pago registrado correctamente ✅");
-      navigate("/ver?id=" + ocId);
-    } catch (error) {
-      console.error("Error al subir archivo o guardar pago:", error);
-      alert("Error al registrar el pago.");
+      toast.success("Factura registrada y pago programado ✅");
+      navigate(`/ver?id=${ocId}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al registrar la factura");
     }
   };
 
-  if (userRole !== "finanzas") {
-    return <div className="p-6 text-red-600">No tienes acceso a esta sección.</div>;
-  }
-
-  if (loading) return <div className="p-6">Cargando orden...</div>;
+  if (loading || !orden) return <div className="p-6">Cargando...</div>;
+  if (!["finanzas","admin"].includes(usuario?.rol)) return <div className="p-6 text-red-600">No tienes acceso a esta sección.</div>;
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h2 className="text-2xl font-bold text-[#004990] mb-4">
-        Registrar Pago - OC #{ocId}
-      </h2>
-
+      <h2 className="text-2xl font-bold text-[#004990] mb-4">Registrar Factura - Orden #{ocId}</h2>
       <div className="bg-white p-6 rounded shadow space-y-4">
         <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial}</p>
-        <p><strong>Moneda:</strong> {orden.monedaSeleccionada}</p>
-        <p><strong>Total:</strong> {orden.resumen?.total?.toFixed(2)}</p>
+        <p><strong>Moneda:</strong> {orden.monedaSeleccionada || "PEN"}</p>
+        <p><strong>Total:</strong> {Number(orden.resumen?.total || 0).toFixed(2)}</p>
 
-        <input
-          type="text"
-          placeholder="N° de Factura"
-          value={numeroFactura}
-          onChange={(e) => setNumeroFactura(e.target.value)}
-          className="w-full border p-2 rounded"
-        />
+        <input className="w-full border p-2 rounded" placeholder="N° de Factura" value={numeroFactura} onChange={(e)=>setNumeroFactura(e.target.value)} />
+        <input className="w-full border p-2 rounded" type="date" value={fechaEmision} onChange={(e)=>setFechaEmision(e.target.value)} />
+        <input className="w-full border p-2 rounded" type="file" accept="application/pdf" multiple onChange={handleArchivoChange} />
 
-        <input
-          type="text"
-          placeholder="N° de Comprobante de Pago"
-          value={numeroComprobante}
-          onChange={(e) => setNumeroComprobante(e.target.value)}
-          className="w-full border p-2 rounded"
-        />
-
-        <input
-          type="date"
-          value={fechaPago}
-          onChange={(e) => setFechaPago(e.target.value)}
-          className="w-full border p-2 rounded"
-        />
-
-        <input
-          type="file"
-          accept="application/pdf"
-          multiple
-          onChange={handleArchivoChange}
-          className="w-full border p-2 rounded"
-        />
-
-        <button
-          onClick={registrarPago}
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-        >
-          Registrar Pago
-        </button>
-        toast.success("Pago actualizado ✅");
-        toast.error("Error al guardar");
+        <button onClick={registrar} className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">Registrar factura</button>
       </div>
     </div>
   );
 };
-
 export default ActualizarPago;

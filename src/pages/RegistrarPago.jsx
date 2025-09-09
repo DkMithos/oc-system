@@ -28,8 +28,8 @@ const RegistrarPago = () => {
         const aprobadoPorGerencia = oc.estado === "Aprobado por Gerencia";
         const aprobadoPorOperaciones =
           oc.estado === "Aprobado por Operaciones" &&
-          ((moneda === "Soles" && total <= 3500) ||
-            (moneda === "Dólares" && total <= 1000));
+          ((moneda === "Soles" && total <= 10000) ||
+            (moneda === "Dólares" && total <= 2850));
 
         return !tienePago && (aprobadoPorGerencia || aprobadoPorOperaciones);
       });

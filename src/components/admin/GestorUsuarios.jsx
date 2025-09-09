@@ -13,7 +13,7 @@ import {
 /**
  * Props esperadas:
  * - usuarios: [{ email, rol, estado }]
- * - roles: string[]   (p.e. ["admin","comprador","finanzas","gerencia","operaciones","administración","legal"])
+ * - roles: string[]   (p.e. ["admin","comprador","finanzas","gerencia","operaciones","administracion","legal"])
  * - agregarUsuario({ email, rol, password })
  * - cambiarRol(email, nuevoRol)
  * - cambiarEstadoUsuario(email, nuevoEstado, motivo)

@@ -53,8 +53,8 @@ const FirmarOC = () => {
   const requiereFirmaGerencia = (orden) => {
     const monto = orden.resumen?.total || 0;
     const moneda = orden.monedaSeleccionada;
-    if (moneda === "Soles") return monto > 3500;
-    if (moneda === "Dólares") return monto > 1000;
+    if (moneda === "Soles") return monto > 10000;
+    if (moneda === "Dólares") return monto > 2850;
     return true;
   };
 
