@@ -1,5 +1,5 @@
 // ✅ src/components/VerOCModal.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import html2pdf from "html2pdf.js";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import FirmarOCModal from "./FirmarOCModal";
@@ -10,56 +10,69 @@ import { useUsuario } from "../context/UsuarioContext";
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
   const up = (s = "") => s.toUpperCase();
-  return bancos.find(
-    (b) =>
-      up(b?.nombre).includes("DETRACC") ||
-      up(b?.nombre) === "BN" ||
-      up(b?.nombre).includes("BANCO DE LA NACION")
-  ) || null;
+  return (
+    bancos.find(
+      (b) =>
+        up(b?.nombre).includes("DETRACC") ||
+        up(b?.nombre) === "BN" ||
+        up(b?.nombre).includes("BANCO DE LA NACION")
+    ) || null
+  );
 };
 
 const ModalShell = ({ children, onClose, title }) => (
-  <div className="fixed inset-0 bg-black/40 z-[1000] flex items-center justify-center p-2">
+  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
     <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
-      <div className="flex items-center justify-between p-3 border-b">
+      <div className="sticky top-0 z-10 bg-white flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-lg">{title}</h3>
-        <button onClick={onClose} className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200">Cerrar</button>
+        <button onClick={onClose} className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200">
+          Cerrar
+        </button>
       </div>
       {children}
     </div>
   </div>
 );
 
-const VerOCModal = ({ oc, onClose }) => {
+const VerOCModal = ({ oc, onClose, onUpdated }) => {
   const { usuario } = useUsuario();
   const [firmarAbierto, setFirmarAbierto] = useState(false);
+  const [ocLocal, setOcLocal] = useState(oc);
 
-  const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
+  // sincroniza si prop cambia (p.ej. reabrir otra OC)
+  useEffect(() => setOcLocal(oc), [oc]);
+
+  const simbolo = ocLocal.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
   const subtotal = useMemo(
-    () => (oc.items || []).reduce((acc, it) => acc + (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0), 0),
-    [oc.items]
+    () =>
+      (ocLocal.items || []).reduce(
+        (acc, it) => acc + (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0),
+        0
+      ),
+    [ocLocal.items]
   );
   const igv = subtotal * 0.18;
-  const otros = Number(oc?.resumen?.otros || 0);
+  const otros = Number(ocLocal?.resumen?.otros || 0);
   const total = subtotal + igv + otros;
 
-  const detraccionCuenta = oc.detraccion || findDetraccion(oc.proveedor?.bancos);
+  const detraccionCuenta = ocLocal.detraccion || findDetraccion(ocLocal.proveedor?.bancos);
 
   const puedeExportar =
-    oc.estado === "Aprobado por Gerencia" ||
-    (oc.monedaSeleccionada === "Soles" && total <= 3500) ||
-    (oc.monedaSeleccionada === "Dólares" && total <= 1000);
+    ocLocal.estado === "Aprobado por Gerencia" ||
+    (ocLocal.monedaSeleccionada === "Soles" && total <= 3500) ||
+    (ocLocal.monedaSeleccionada === "Dólares" && total <= 1000);
 
   const puedeFirmar =
-    (usuario?.rol === "operaciones" && oc.estado === "Pendiente de Operaciones") ||
-    (usuario?.rol === "gerencia" && oc.estado === "Aprobado por Operaciones");
+    (usuario?.rol === "comprador" && ocLocal.estado === "Pendiente de Firma del Comprador") ||
+    (usuario?.rol === "operaciones" && ocLocal.estado === "Pendiente de Operaciones") ||
+    (usuario?.rol === "gerencia" && ocLocal.estado === "Aprobado por Operaciones");
 
   const exportarPDF = () => {
     const elemento = document.getElementById("modal-oc-print");
     if (!elemento) return;
     const opciones = {
       margin: [0.4, 0.4, 0.4, 0.4],
-      filename: `OC-${oc.numeroOC}.pdf`,
+      filename: `OC-${ocLocal.numeroOC}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 3, scrollY: 0 },
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
@@ -68,8 +81,15 @@ const VerOCModal = ({ oc, onClose }) => {
     html2pdf().set(opciones).from(elemento).save();
   };
 
+  // recibe del modal de firma la OC actualizada y propaga al padre
+  const handleFirmado = (ocActualizada) => {
+    setFirmarAbierto(false);
+    setOcLocal(ocActualizada);
+    onUpdated?.(ocActualizada);
+  };
+
   return (
-    <ModalShell title={`Orden de Compra ${oc.numeroOC || ""}`} onClose={onClose}>
+    <ModalShell title={`Orden de Compra ${ocLocal.numeroOC || ""}`} onClose={onClose}>
       <div id="modal-oc-print" className="p-4 text-[12px] leading-tight">
         {/* Encabezado */}
         <div className="flex justify-between items-start mb-4">
@@ -85,39 +105,37 @@ const VerOCModal = ({ oc, onClose }) => {
           </div>
           <div className="text-right">
             <h1 className="text-lg font-bold text-[#004990]">ORDEN DE COMPRA</h1>
-            <p className="text-sm font-semibold text-blue-800">N° {oc.numeroOC || oc.id}</p>
+            <p className="text-sm font-semibold text-blue-800">N° {ocLocal.numeroOC || ocLocal.id}</p>
           </div>
         </div>
 
         {/* Datos generales */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DATOS GENERALES</h3>
         <div className="grid grid-cols-2 gap-3 mb-3 border p-3 rounded">
-          <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision}</div>
-          {oc.requerimiento && <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>}
-          <div><strong>N° Cotización:</strong> {oc.cotizacion}</div>
-          <div><strong>Centro de Costo:</strong> {oc.centroCosto}</div>
+          <div><strong>Fecha de Emisión:</strong> {ocLocal.fechaEmision}</div>
+          {ocLocal.requerimiento && <div><strong>N° Requerimiento:</strong> {ocLocal.requerimiento}</div>}
+          <div><strong>N° Cotización:</strong> {ocLocal.cotizacion}</div>
+          <div><strong>Centro de Costo:</strong> {ocLocal.centroCosto}</div>
         </div>
 
         {/* Proveedor */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">PROVEEDOR</h3>
         <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
-          <div><strong>Proveedor:</strong> {oc.proveedor?.razonSocial}</div>
-          <div><strong>RUC:</strong> {oc.proveedor?.ruc}</div>
-          <div><strong>Dirección:</strong> {oc.proveedor?.direccion}</div>
-          <div><strong>Contacto:</strong> {oc.proveedor?.contacto}</div>
-          <div><strong>Teléfono:</strong> {oc.proveedor?.telefono}</div>
-          <div><strong>Correo:</strong> {oc.proveedor?.email}</div>
-          <div><strong>Banco:</strong> {oc.bancoSeleccionado}</div>
-          <div><strong>Moneda:</strong> {oc.monedaSeleccionada}</div>
-          <div><strong>Cuenta:</strong> {oc.cuenta?.cuenta || "-"}</div>
-          <div><strong>CCI:</strong> {oc.cuenta?.cci || "-"}</div>
+          <div><strong>Proveedor:</strong> {ocLocal.proveedor?.razonSocial}</div>
+          <div><strong>RUC:</strong> {ocLocal.proveedor?.ruc}</div>
+          <div><strong>Dirección:</strong> {ocLocal.proveedor?.direccion}</div>
+          <div><strong>Contacto:</strong> {ocLocal.proveedor?.contacto}</div>
+          <div><strong>Teléfono:</strong> {ocLocal.proveedor?.telefono}</div>
+          <div><strong>Correo:</strong> {ocLocal.proveedor?.email}</div>
+          <div><strong>Banco:</strong> {ocLocal.bancoSeleccionado}</div>
+          <div><strong>Moneda:</strong> {ocLocal.monedaSeleccionada}</div>
+          <div><strong>Cuenta:</strong> {ocLocal.cuenta?.cuenta || "-"}</div>
+          <div><strong>CCI:</strong> {ocLocal.cuenta?.cci || "-"}</div>
 
           {detraccionCuenta && (
             <>
               <div className="col-span-2 mt-2 pt-2 border-t">
-                <span className="text-red-700 font-semibold">
-                  Cuenta de Detracciones (BN)
-                </span>
+                <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN)</span>
               </div>
               <div><strong>Cuenta:</strong> {detraccionCuenta.cuenta || "—"}</div>
               <div><strong>CCI:</strong> {detraccionCuenta.cci || "—"}</div>
@@ -140,7 +158,7 @@ const VerOCModal = ({ oc, onClose }) => {
             </tr>
           </thead>
           <tbody>
-            {(oc.items || []).map((item, i) => {
+            {(ocLocal.items || []).map((item, i) => {
               const neto = Number(item.precioUnitario) - Number(item.descuento || 0);
               const totalItem = neto * Number(item.cantidad || 0);
               return (
@@ -170,19 +188,19 @@ const VerOCModal = ({ oc, onClose }) => {
         {/* Condiciones */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
         <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
-          <div><span className="font-semibold">Lugar de entrega:</span><p>{oc.lugarEntrega}</p></div>
-          <div><span className="font-semibold">Fecha de entrega:</span><p>{oc.fechaEntrega}</p></div>
-          <div><span className="font-semibold">Condición de pago:</span><p>{oc.condicionPago}</p></div>
-          <div><span className="font-semibold">Observaciones:</span><p>{oc.observaciones || "—"}</p></div>
+          <div><span className="font-semibold">Lugar de entrega:</span><p>{ocLocal.lugarEntrega}</p></div>
+          <div><span className="font-semibold">Fecha de entrega:</span><p>{ocLocal.fechaEntrega}</p></div>
+          <div><span className="font-semibold">Condición de pago:</span><p>{ocLocal.condicionPago}</p></div>
+          <div><span className="font-semibold">Observaciones:</span><p>{ocLocal.observaciones || "—"}</p></div>
         </div>
 
         {/* Firmas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-10 text-[11px]">
           {["Comprador", "Operaciones", "Gerencia"].map((rol) => {
             const firmas = {
-              Comprador: oc.firmaComprador,
-              Operaciones: oc.firmaOperaciones,
-              Gerencia: oc.firmaGerencia,
+              Comprador: ocLocal.firmaComprador,
+              Operaciones: ocLocal.firmaOperaciones,
+              Gerencia: ocLocal.firmaGerencia,
             };
             return (
               <div key={rol} className="flex flex-col items-center justify-end">
@@ -211,32 +229,28 @@ const VerOCModal = ({ oc, onClose }) => {
       </div>
 
       {/* Footer acciones del modal principal */}
-      <div className="flex items-center justify-between p-3 border-t">
-        <div className="text-xs text-gray-500">Estado: <b>{oc.estado}</b></div>
+      <div className="sticky bottom-0 bg-white flex items-center justify-between p-3 border-t">
+        <div className="text-xs text-gray-500">Estado: <b>{ocLocal.estado}</b></div>
         <div className="flex gap-2">
-          { // Solo muestra Aprobar/Rechazar si corresponde al rol/estado
-            ((usuario?.rol === "operaciones" && oc.estado === "Pendiente de Operaciones") ||
-             (usuario?.rol === "gerencia" && oc.estado === "Aprobado por Operaciones")) && (
-              <button
-                onClick={() => setFirmarAbierto(true)}
-                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-              >
-                Aprobar / Rechazar
-              </button>
-            )
-          }
+          {(puedeFirmar) && (
+            <button
+              onClick={() => setFirmarAbierto(true)}
+              className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+            >
+              Aprobar / Rechazar
+            </button>
+          )}
           {puedeExportar && (
             <button onClick={exportarPDF} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
               Exportar PDF
             </button>
           )}
-
         </div>
       </div>
 
       {/* Modal de firma */}
       {firmarAbierto && (
-        <FirmarOCModal oc={oc} onClose={() => setFirmarAbierto(false)} />
+        <FirmarOCModal oc={ocLocal} onClose={() => setFirmarAbierto(false)} onDone={handleFirmado} />
       )}
     </ModalShell>
   );

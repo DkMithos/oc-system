@@ -1,19 +1,23 @@
 // ✅ src/components/FirmarOCModal.jsx
 import React, { useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
-import {
-  actualizarOC,
-  obtenerFirmaUsuario,
-  registrarLog,
-} from "../firebase/firestoreHelpers";
+import { actualizarOC, registrarLog } from "../firebase/firestoreHelpers";
+import { obtenerFirmaGuardada } from "../firebase/firmasHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
+// Shell del modal – z-index alto para ir sobre topbar/footer
 const ModalShell = ({ children, onClose, title }) => (
-  <div className="fixed inset-0 bg-black/40 z-[1100] flex items-center justify-center p-2">
+  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
     <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-lg">{title}</h3>
-        <button onClick={onClose} className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200">Cerrar</button>
+        <button
+          onClick={onClose}
+          className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200"
+        >
+          Cerrar
+        </button>
       </div>
       {children}
     </div>
@@ -25,6 +29,7 @@ const FirmarOCModal = ({ oc, onClose }) => {
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  // Cálculo de totales (solo informativo)
   const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
   const subtotal = (oc.items || []).reduce(
     (acc, it) =>
@@ -37,34 +42,101 @@ const FirmarOCModal = ({ oc, onClose }) => {
   const otros = Number(oc?.resumen?.otros || 0);
   const total = subtotal + igv + otros;
 
+  // Cloud Function opcional para notificar por rol
+  const notifyRole = async (toRole, titulo, cuerpo, ocId) => {
+    try {
+      const functions = getFunctions();
+      const enviarNotificacionRol = httpsCallable(functions, "enviarNotificacionRol");
+      await enviarNotificacionRol({
+        toRole,
+        payload: {
+          title: titulo,
+          body: cuerpo,
+          ocId,
+        },
+      });
+    } catch (e) {
+      // No romper la UX si no existe la función
+      console.warn("[Notificación] No se pudo enviar notificación:", e?.message || e);
+    }
+  };
+
   const aprobarYFirmar = async () => {
     if (!usuario) return;
+
     setEnviando(true);
     try {
-      const firma = await obtenerFirmaUsuario(usuario.email);
-      const nueva = { ...oc };
+      let campoFirma = "";
+      let nuevoEstado = oc.estado;
+      let siguienteRolNotificar = null;
 
-      if (usuario.rol === "operaciones" && oc.estado === "Pendiente de Operaciones") {
-        nueva.firmaOperaciones = firma || nueva.firmaOperaciones || null;
-        nueva.estado = "Aprobado por Operaciones";
-        (nueva.historial ||= []).push({
-          accion: "Aprobación Operaciones",
-          por: usuario.email,
-          fecha: new Date().toLocaleString("es-PE"),
-        });
-      } else if (usuario.rol === "gerencia" && oc.estado === "Aprobado por Operaciones") {
-        nueva.firmaGerencia = firma || nueva.firmaGerencia || null;
-        nueva.estado = "Aprobado por Gerencia";
-        (nueva.historial ||= []).push({
-          accion: "Aprobación Gerencia",
-          por: usuario.email,
-          fecha: new Date().toLocaleString("es-PE"),
-        });
+      if (
+        usuario.rol === "comprador" &&
+        oc.estado === "Pendiente de Firma del Comprador"
+      ) {
+        if (oc.firmaComprador) {
+          alert("Ya firmaste como comprador.");
+          setEnviando(false);
+          return;
+        }
+        campoFirma = "firmaComprador";
+        // Flujo → pasa a Operaciones
+        nuevoEstado = "Pendiente de Operaciones";
+        siguienteRolNotificar = "operaciones";
+      } else if (
+        usuario.rol === "operaciones" &&
+        oc.estado === "Pendiente de Operaciones"
+      ) {
+        if (oc.firmaOperaciones) {
+          alert("Ya firmaste como operaciones.");
+          setEnviando(false);
+          return;
+        }
+        campoFirma = "firmaOperaciones";
+        // Si tu negocio requiere tope por monto para Gerencia, ajusta aquí
+        nuevoEstado = "Aprobado por Operaciones";
+        siguienteRolNotificar = "gerencia";
+      } else if (
+        usuario.rol === "gerencia" &&
+        oc.estado === "Aprobado por Operaciones"
+      ) {
+        if (oc.firmaGerencia) {
+          alert("Ya firmaste como gerencia.");
+          setEnviando(false);
+          return;
+        }
+        campoFirma = "firmaGerencia";
+        nuevoEstado = "Aprobado por Gerencia";
+        // Notificar a finanzas o al creador, según tu flujo
+        siguienteRolNotificar = "finanzas";
       } else {
         alert("No puedes firmar esta orden en su estado actual.");
         setEnviando(false);
         return;
       }
+
+      // Firma guardada del usuario
+      const firma = await obtenerFirmaGuardada(usuario.email);
+      if (!firma) {
+        alert("No tienes una firma guardada. Regístrala primero en la pantalla de firma.");
+        setEnviando(false);
+        return;
+      }
+
+      // Actualizar OC
+      const nueva = {
+        ...oc,
+        [campoFirma]: firma,
+        estado: nuevoEstado,
+        historial: [
+          ...(oc.historial || []),
+          {
+            accion: "Aprobación",
+            por: usuario.email,
+            fecha: new Date().toLocaleString("es-PE"),
+          },
+        ],
+      };
 
       await actualizarOC(oc.id, nueva);
       await registrarLog({
@@ -75,10 +147,22 @@ const FirmarOCModal = ({ oc, onClose }) => {
         comentario: `OC ${oc.numeroOC} aprobada. Total ${formatearMoneda(total, simbolo)}.`,
       });
 
+      // Notificar siguiente rol (si corresponde)
+      if (siguienteRolNotificar) {
+        await notifyRole(
+          siguienteRolNotificar,
+          `OC ${nueva.numeroOC} lista`,
+          `La OC pasó a estado: ${nueva.estado}`,
+          nueva.id
+        );
+      }
+
+      // Avisar a toda la app y cerrar
+      try {
+        window.dispatchEvent(new CustomEvent("oc-updated", { detail: { oc: nueva } }));
+      } catch {}
       alert("Orden aprobada y firmada ✅");
-      onClose();
-      // No se recarga la tabla para preservar filtros:
-      // El usuario puede cerrar el modal y seguir con su listado filtrado.
+      onClose?.();
     } catch (e) {
       console.error(e);
       alert("No se pudo aprobar la orden.");
@@ -88,21 +172,27 @@ const FirmarOCModal = ({ oc, onClose }) => {
   };
 
   const rechazar = async () => {
+    if (!usuario) return;
     if (!motivoRechazo.trim()) {
       alert("Indica un motivo de rechazo.");
       return;
     }
-    if (!usuario) return;
     setEnviando(true);
     try {
-      const nueva = { ...oc };
-      nueva.estado = "Rechazado";
-      (nueva.historial ||= []).push({
-        accion: "Rechazo",
-        por: usuario.email,
-        fecha: new Date().toLocaleString("es-PE"),
-        motivo: motivoRechazo.trim(),
-      });
+      const nueva = {
+        ...oc,
+        estado: "Rechazado",
+        motivoRechazo: motivoRechazo.trim(),
+        historial: [
+          ...(oc.historial || []),
+          {
+            accion: "Rechazo",
+            por: usuario.email,
+            fecha: new Date().toLocaleString("es-PE"),
+            motivo: motivoRechazo.trim(),
+          },
+        ],
+      };
 
       await actualizarOC(oc.id, nueva);
       await registrarLog({
@@ -113,8 +203,19 @@ const FirmarOCModal = ({ oc, onClose }) => {
         comentario: `OC ${oc.numeroOC} rechazada. Motivo: ${motivoRechazo}`,
       });
 
+      // Notificar a quien creó la OC / comprador
+      await notifyRole(
+        "comprador",
+        `OC ${nueva.numeroOC} rechazada`,
+        `Motivo: ${motivoRechazo.trim()}`,
+        nueva.id
+      );
+
+      try {
+        window.dispatchEvent(new CustomEvent("oc-updated", { detail: { oc: nueva } }));
+      } catch {}
       alert("Orden rechazada.");
-      onClose();
+      onClose?.();
     } catch (e) {
       console.error(e);
       alert("No se pudo rechazar la orden.");
@@ -135,7 +236,9 @@ const FirmarOCModal = ({ oc, onClose }) => {
         </div>
 
         <div className="border-t pt-3">
-          <label className="block text-gray-700 mb-1">Motivo de rechazo (si corresponde)</label>
+          <label className="block text-gray-700 mb-1">
+            Motivo de rechazo (si corresponde)
+          </label>
           <textarea
             value={motivoRechazo}
             onChange={(e) => setMotivoRechazo(e.target.value)}
@@ -146,6 +249,7 @@ const FirmarOCModal = ({ oc, onClose }) => {
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
+          {/* Primero Aprobar y Firmar (izquierda) */}
           <button
             disabled={enviando}
             onClick={aprobarYFirmar}
@@ -154,6 +258,8 @@ const FirmarOCModal = ({ oc, onClose }) => {
           >
             Aprobar y firmar
           </button>
+
+          {/* A la derecha Rechazar */}
           <button
             disabled={enviando}
             onClick={rechazar}
@@ -162,7 +268,6 @@ const FirmarOCModal = ({ oc, onClose }) => {
           >
             Rechazar
           </button>
-
         </div>
       </div>
     </ModalShell>

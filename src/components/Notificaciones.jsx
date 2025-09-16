@@ -1,22 +1,15 @@
-// ✅ src/components/Notificaciones.jsx
+// src/components/Notificaciones.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { Bell } from "lucide-react";
 import { onMessageListener } from "../firebase/fcm";
 import { useNavigate } from "react-router-dom";
 
-const SONIDO = "/sonidos/notif.mp3"; // archivo en /public/sonidos
+const SONIDO = "/sonidos/notif.mp3";
 
-// Normaliza el payload de FCM para primer plano
 const normalizePayload = (p) => ({
-  title:
-    p?.notification?.title ||
-    p?.data?.title ||
-    "Notificación",
-  body:
-    p?.notification?.body ||
-    p?.data?.body ||
-    "",
-  ocId: p?.data?.ocId || null,
+  title: p?.notification?.title || p?.data?.title || "Notificación",
+  body:  p?.notification?.body  || p?.data?.body  || "",
+  ocId:  p?.data?.ocId || null,
 });
 
 const Notificaciones = () => {
@@ -28,38 +21,42 @@ const Notificaciones = () => {
   const navigate = useNavigate();
   const audioRef = useRef(null);
 
-  // Persistencia local
   useEffect(() => {
     localStorage.setItem("notificaciones", JSON.stringify(notificaciones));
   }, [notificaciones]);
 
-  // Listener FCM foreground
   useEffect(() => {
-    onMessageListener().then((payload) => {
-      console.log("[FCM foreground payload]", payload);
-      const np = normalizePayload(payload);
+    let unsubscribe = () => {};
+    (async () => {
+      unsubscribe = await onMessageListener((payload) => {
+        console.log("[FCM foreground payload]", payload);
+        const np = normalizePayload(payload);
 
-      // sonido
-      if (audioRef.current) {
-        try {
-          audioRef.current.currentTime = 0;
-          audioRef.current.play();
-        } catch (e) {
-          // algunos navegadores requieren interacción del usuario antes de reproducir
-          console.warn("No se pudo reproducir el sonido:", e);
+        // sonido
+        if (audioRef.current) {
+          try {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play();
+          } catch (e) {
+            console.warn("No se pudo reproducir el sonido:", e);
+          }
         }
-      }
 
-      const nueva = {
-        id: Date.now(),
-        titulo: np.title,
-        cuerpo: np.body,
-        fecha: new Date().toLocaleString(),
-        leida: false,
-        ocId: np.ocId,
-      };
-      setNotificaciones((prev) => [nueva, ...prev]);
-    });
+        const nueva = {
+          id: Date.now(),
+          titulo: np.title,
+          cuerpo: np.body,
+          fecha: new Date().toLocaleString(),
+          leida: false,
+          ocId: np.ocId,
+        };
+        setNotificaciones((prev) => [nueva, ...prev]);
+      });
+    })();
+
+    return () => {
+      try { unsubscribe(); } catch {}
+    };
   }, []);
 
   const marcarComoLeida = (id) => {

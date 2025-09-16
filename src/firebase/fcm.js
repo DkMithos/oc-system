@@ -1,37 +1,29 @@
 // src/firebase/fcm.js
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  collection,
-  serverTimestamp
-} from "firebase/firestore";
-import { db, firebaseConfig, auth } from "./config";
+import { db, firebaseConfig } from "./config";
+import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
 
-// Inicializa (evita doble init si ya existe en otras partes)
+// Evita doble init si otro módulo ya lo hizo
 const app = initializeApp(firebaseConfig);
 
 // Algunas plataformas no soportan FCM (Safari macOS sin PWA, etc.)
-let messagingPromise = (async () => {
+const messagingPromise = (async () => {
   const ok = await isSupported().catch(() => false);
   return ok ? getMessaging(app) : null;
 })();
 
-// Registra/obtiene el service worker de FCM en la RAÍZ
+// Registra el SW en la RAÍZ y devuelve el registration
 async function ensureMessagingSW() {
-  if (!('serviceWorker' in navigator)) return null;
-  // Intenta recuperar un SW activo sobre la ruta del file
-  let reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
-  if (!reg) {
-    reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
-  }
-  // Espera a que esté activo
-  return navigator.serviceWorker.ready;
+  if (!("serviceWorker" in navigator)) return null;
+  // Registra (o reusa) el SW en / con el script correcto
+  const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+  // Espera a que esté “listo”
+  await navigator.serviceWorker.ready;
+  return reg;
 }
 
-// Pide permiso con un gesto del usuario y devuelve el token (o null)
+// Pide permiso y devuelve el token (o null)
 export const solicitarPermisoYObtenerToken = async (email) => {
   try {
     const messaging = await messagingPromise;
@@ -41,10 +33,10 @@ export const solicitarPermisoYObtenerToken = async (email) => {
     }
 
     const reg = await ensureMessagingSW();
-    // Si el sitio está bloqueado, esto lanzará messaging/permission-blocked
+    // IMPORTANTE: debes haber solicitado Notification permission before
     const token = await getToken(messaging, {
       vapidKey: "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU",
-      serviceWorkerRegistration: reg
+      serviceWorkerRegistration: reg,
     });
 
     if (token && email) {
@@ -58,30 +50,12 @@ export const solicitarPermisoYObtenerToken = async (email) => {
     }
     return token;
   } catch (error) {
-    console.error("Error obteniendo token FCM:", error);
+    console.error("[FCM] Error obteniendo token:", error);
     return null;
   }
 };
 
-// Guarda/actualiza el token en una colección plana
-export const guardarTokenFCM = async (token) => {
-  try {
-    const email = localStorage.getItem("userEmail") || auth.currentUser?.email;
-    if (!email || !token) return;
-
-    const _db = getFirestore();
-    await setDoc(doc(_db, "tokensFCM", email), {
-      usuarioEmail: email,
-      token,
-      actualizado: new Date().toISOString(),
-    });
-    console.log("[FCM] Token guardado en Firestore");
-  } catch (e) {
-    console.error("[FCM] Error guardando token FCM:", e);
-  }
-};
-
-// Foreground messages
+// Listener en primer plano: pásale un callback y devuelve unsubscribe
 export const onMessageListener = async (callback) => {
   const messaging = await messagingPromise;
   if (!messaging) return () => {};

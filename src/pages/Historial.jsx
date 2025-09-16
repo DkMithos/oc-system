@@ -1,7 +1,5 @@
 // ✅ src/pages/Historial.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import ReactDOM from "react-dom/client";
-import html2pdf from "html2pdf.js";
+import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
@@ -39,7 +37,6 @@ const exportarExcel = (ordenes) => {
   saveAs(new Blob([buf]), `Historial_OC_${new Date().toISOString().slice(0,10)}.xlsx`);
 };
 
-
 // ───────────────────────────────────────────────────────────────────────────────
 // Componente
 // ───────────────────────────────────────────────────────────────────────────────
@@ -50,7 +47,7 @@ const Historial = () => {
   const [busqueda, setBusqueda] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("Todos");
 
-  // Ordenamiento (por defecto N° OC de mayor a menor)
+  // Ordenamiento (default: N° OC de mayor a menor)
   const [sortKey, setSortKey] = useState("numero");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -101,7 +98,7 @@ const Historial = () => {
       }
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
-      // desempate por número de OC desc
+      // desempate por número desc
       const na = getOrderNumber(a), nb = getOrderNumber(b);
       if (na < nb) return 1;
       if (na > nb) return -1;
@@ -118,6 +115,14 @@ const Historial = () => {
   );
 
   const toggleDir = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+
+  // callback que recibe VerOCModal al firmar/rechazar
+  const handleOCActualizada = (ocActualizada) => {
+    setOrdenes((prev) =>
+      prev.map((x) => (x.id === ocActualizada.id ? ocActualizada : x))
+    );
+    setOcSeleccionada(ocActualizada);
+  };
 
   if (loading) return <div className="p-6">Cargando usuario…</div>;
   if (!usuario || !["admin", "gerencia", "operaciones", "comprador", "finanzas"].includes(usuario?.rol)) {
@@ -144,6 +149,7 @@ const Historial = () => {
           className="p-2 border rounded w-full md:w-1/3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         >
           <option value="Todos">Todos los estados</option>
+          <option value="Pendiente de Firma del Comprador">Pendiente de Firma del Comprador</option>
           <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
           <option value="Aprobado por Operaciones">Aprobado por Operaciones</option>
           <option value="Aprobado por Gerencia">Aprobado por Gerencia</option>
@@ -259,11 +265,12 @@ const Historial = () => {
         </>
       )}
 
-      {/* Modal Ver OC (popup) */}
+      {/* Modal Ver OC */}
       {modalAbierto && ocSeleccionada && (
         <VerOCModal
           oc={ocSeleccionada}
           onClose={() => setModalAbierto(false)}
+          onUpdated={handleOCActualizada}
         />
       )}
     </div>

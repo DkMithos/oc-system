@@ -41,15 +41,12 @@ const Proveedores = () => {
     const buscarProveedor = async () => {
       if (form.ruc.length === 11 && form.razonSocial.trim() === "") {
         try {
+          // usa tu util, ver opción B para proxy
           const data = await consultarSunat(form.ruc);
-          setForm((prev) => ({
-            ...prev,
-            razonSocial: data.razonSocial,
-            direccion: data.direccion,
-          }));
+          setForm((prev) => ({ ...prev, razonSocial: data.razonSocial, direccion: data.direccion }));
         } catch (error) {
-          console.error("Error al consultar SUNAT", error);
-          alert("No se pudo obtener datos del proveedor desde SUNAT");
+          console.warn("SUNAT CORS/Fetch falló, continúa manual:", error);
+          // No alert, para no molestar; deja que el usuario escriba manual.
         }
       }
     };

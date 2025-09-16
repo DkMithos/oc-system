@@ -29,11 +29,7 @@ const selectStyles = {
   menu: (base) => ({ ...base, zIndex: 30, fontSize: 14 }),
   option: (base, state) => ({
     ...base,
-    backgroundColor: state.isSelected
-      ? "#E5F0FF"
-      : state.isFocused
-      ? "#F3F4F6"
-      : "white",
+    backgroundColor: state.isSelected ? "#E5F0FF" : state.isFocused ? "#F3F4F6" : "white",
     color: "#111827",
   }),
 };
@@ -57,7 +53,7 @@ const CrearOC = () => {
     observaciones: "",
   });
 
-  const [numeroProvisional, setNumeroProvisional] = useState(""); // número correlativo mostrado
+  const [numeroProvisional, setNumeroProvisional] = useState("");
   const [items, setItems] = useState([
     { id: 1, nombre: "", cantidad: 0, precioUnitario: 0, descuento: 0 },
   ]);
@@ -93,10 +89,10 @@ const CrearOC = () => {
     }
   }, [usuario]);
 
-  // Opciones para react-select
+  // Opciones Select
   const opcionesProveedores = useMemo(
     () =>
-      proveedores.map((p) => ({
+      (proveedores || []).map((p) => ({
         label: `${p.ruc} - ${p.razonSocial}`,
         value: p.ruc,
         data: p,
@@ -105,16 +101,16 @@ const CrearOC = () => {
   );
 
   const opcionesCentroCosto = useMemo(
-    () => centrosCosto.map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
+    () => (centrosCosto || []).map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
     [centrosCosto]
   );
 
   const opcionesCondicionPago = useMemo(
-    () => condicionesPago.map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
+    () => (condicionesPago || []).map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
     [condicionesPago]
   );
 
-  // Bancos
+  // Bancos/Monedas
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
     .filter((b) => b.nombre === formData.bancoSeleccionado)
@@ -126,7 +122,7 @@ const CrearOC = () => {
       b.moneda === formData.monedaSeleccionada
   );
 
-  // 👉 Cuenta de detracciones (siempre que exista en proveedor)
+  // Detracción (siempre que exista)
   const detraccionCuenta = bancosDisponibles.find(
     (b) => b.nombre?.toUpperCase().includes("DETRACCION") || b.nombre === "BN"
   );
@@ -167,18 +163,26 @@ const CrearOC = () => {
     if (!validarFormulario()) return;
 
     const nuevaOC = {
-      estado: "Pendiente de Operaciones",
+      estado: "Pendiente de Firma del Comprador",
       ...formData,
       proveedor: formData.proveedor,
       cuenta: cuentaSeleccionada || null,
       detraccion: detraccionCuenta || null,
       items,
-      resumen: { subtotal, igv, valorVenta, otros: parseFloat(otros) || 0, total: totalFinal },
+      resumen: {
+        subtotal,
+        igv,
+        valorVenta,
+        otros: parseFloat(otros) || 0,
+        total: totalFinal,
+      },
       historial: [
-        { accion: "Creación OC", por: usuario?.email, fecha: new Date().toLocaleString("es-PE") },
-        ...(firmaComprador ? [{ accion: "Firma Comprador Automática", por: usuario?.email, fecha: new Date().toLocaleString("es-PE") }] : [])
+        {
+          accion: "Creación OC",
+          por: usuario?.email,
+          fecha: new Date().toLocaleString("es-PE"),
+        },
       ],
-      firmaComprador: firmaComprador || null,
       creadoPor: usuario?.nombre || usuario?.email,
       fechaCreacion: new Date().toISOString(),
     };
@@ -192,6 +196,14 @@ const CrearOC = () => {
         rol: usuario?.rol,
         comentario: `Total: ${formatearMoneda(totalFinal, formData.monedaSeleccionada)}`,
       });
+
+      // Notifica al COMPRADOR (opcional) que su OC fue creada
+      try {
+        if (window?.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("oc-created", { detail: { id: newId } }));
+        }
+      } catch {}
+
       alert("Orden guardada correctamente ✅");
       navigate("/ver?id=" + newId);
     } catch (error) {
@@ -202,7 +214,7 @@ const CrearOC = () => {
 
   return (
     <div className="min-h-[calc(100vh-8rem)] px-6 py-4">
-      {/* Cabecera con título y número alineado debajo */}
+      {/* Cabecera */}
       <div className="mb-4 flex items-start justify-between">
         <img src={Logo} alt="Logo Memphis" className="h-12" />
         <div className="text-right">
@@ -227,7 +239,14 @@ const CrearOC = () => {
           <Select
             placeholder="Selecciona proveedor por RUC o Razón Social"
             options={opcionesProveedores}
-            value={formData.proveedorRuc ? { value: formData.proveedorRuc, label: `${formData.proveedorRuc} - ${formData.proveedor?.razonSocial || ""}` } : null}
+            value={
+              formData.proveedorRuc
+                ? {
+                    value: formData.proveedorRuc,
+                    label: `${formData.proveedorRuc} - ${formData.proveedor?.razonSocial || ""}`,
+                  }
+                : null
+            }
             onChange={(opcion) => {
               setFormData((prev) => ({
                 ...prev,
@@ -252,14 +271,22 @@ const CrearOC = () => {
             <input disabled value={formData.proveedor.telefono || ""} className="border p-2 rounded" />
             <input disabled value={formData.proveedor.contacto || ""} className="border p-2 rounded" />
 
-            <select value={formData.bancoSeleccionado} onChange={(e) => setFormData({ ...formData, bancoSeleccionado: e.target.value, monedaSeleccionada: "" })} className="border p-2 rounded">
+            <select
+              value={formData.bancoSeleccionado}
+              onChange={(e) => setFormData({ ...formData, bancoSeleccionado: e.target.value, monedaSeleccionada: "" })}
+              className="border p-2 rounded"
+            >
               <option value="">Selecciona banco</option>
               {bancosDisponibles.map((b, i) => (
                 <option key={i} value={b.nombre}>{b.nombre}</option>
               ))}
             </select>
 
-            <select value={formData.monedaSeleccionada} onChange={(e) => setFormData({ ...formData, monedaSeleccionada: e.target.value })} className="border p-2 rounded">
+            <select
+              value={formData.monedaSeleccionada}
+              onChange={(e) => setFormData({ ...formData, monedaSeleccionada: e.target.value })}
+              className="border p-2 rounded"
+            >
               <option value="">Selecciona moneda</option>
               {monedasDisponibles.map((m, i) => (
                 <option key={i} value={m}>{m}</option>
@@ -273,7 +300,7 @@ const CrearOC = () => {
               </>
             )}
 
-            {/* 🔹 Siempre mostrar detracción si existe */}
+            {/* Detracción si existe */}
             {detraccionCuenta && (
               <div className="col-span-2 grid grid-cols-2 gap-2">
                 <input disabled value={detraccionCuenta.cuenta || ""} className="border p-2 rounded bg-yellow-50" placeholder="Cuenta detracciones BN" />
@@ -285,7 +312,13 @@ const CrearOC = () => {
           </>
         )}
 
-        <input type="text" placeholder="Lugar de Entrega" value={formData.lugarEntrega} onChange={(e) => setFormData({ ...formData, lugarEntrega: e.target.value })} className="border p-2 rounded col-span-2 md:col-span-3" />
+        <input
+          type="text"
+          placeholder="Lugar de Entrega"
+          value={formData.lugarEntrega}
+          onChange={(e) => setFormData({ ...formData, lugarEntrega: e.target.value })}
+          className="border p-2 rounded col-span-2 md:col-span-3"
+        />
       </div>
 
       {/* Ítems */}
@@ -294,12 +327,31 @@ const CrearOC = () => {
       {/* Centro / Condición / Observaciones */}
       <div className="bg-white border shadow rounded p-6 grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
         <div className="col-span-2 md:col-span-1">
-          <Select placeholder="Centro de Costo" options={opcionesCentroCosto} value={formData.centroCosto ? { label: formData.centroCosto, value: formData.centroCosto } : null} onChange={(opcion) => setFormData((prev) => ({ ...prev, centroCosto: opcion?.value || "" }))} isSearchable styles={selectStyles} />
+          <Select
+            placeholder="Centro de Costo"
+            options={opcionesCentroCosto}
+            value={formData.centroCosto ? { label: formData.centroCosto, value: formData.centroCosto } : null}
+            onChange={(opcion) => setFormData((prev) => ({ ...prev, centroCosto: opcion?.value || "" }))}
+            isSearchable
+            styles={selectStyles}
+          />
         </div>
         <div className="col-span-2 md:grid-cols-1">
-          <Select placeholder="Condición de Pago" options={opcionesCondicionPago} value={formData.condicionPago ? { label: formData.condicionPago, value: formData.condicionPago } : null} onChange={(opcion) => setFormData((prev) => ({ ...prev, condicionPago: opcion?.value || "" }))} isSearchable styles={selectStyles} />
+          <Select
+            placeholder="Condición de Pago"
+            options={opcionesCondicionPago}
+            value={formData.condicionPago ? { label: formData.condicionPago, value: formData.condicionPago } : null}
+            onChange={(opcion) => setFormData((prev) => ({ ...prev, condicionPago: opcion?.value || "" }))}
+            isSearchable
+            styles={selectStyles}
+          />
         </div>
-        <textarea placeholder="Observaciones" value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} className="col-span-2 md:col-span-3 border p-2 rounded" />
+        <textarea
+          placeholder="Observaciones"
+          value={formData.observaciones}
+          onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+          className="col-span-2 md:col-span-3 border p-2 rounded"
+        />
       </div>
 
       {/* Totales */}
@@ -317,7 +369,9 @@ const CrearOC = () => {
 
       {/* Guardar */}
       <div className="mt-6 text-center">
-        <button onClick={handleGuardarOC} className="bg-[#032f53] text-white px-6 py-2 rounded hover:bg-[#021d38] transition">Guardar Orden de Compra</button>
+        <button onClick={handleGuardarOC} className="bg-[#032f53] text-white px-6 py-2 rounded hover:bg-[#021d38] transition">
+          Guardar Orden de Compra
+        </button>
       </div>
     </div>
   );

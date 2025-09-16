@@ -148,26 +148,28 @@ const EditarOC = () => {
     const nuevaData = {
       ...formData,
       cuenta: cuentaSeleccionada || null,
-      detraccion: detraccionCuenta || null, // <- mantener detracción fija
       items,
       resumen: {
         subtotal,
         igv,
         valorVenta,
-        otros: Number(otros || 0),
+        otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
-      estado: "Pendiente de Operaciones",
+      // ⚠️ clave: regrésala a firma del comprador
+      estado: "Pendiente de Firma del Comprador",
+      // (opcional) si la OC venía con firmaComprador de antes, la limpiamos:
+      firmaComprador: null,
       historial: [
         ...(formData.historial || []),
         {
-          accion: "Edición",
+          accion: "Edición y reenvío a firma del comprador",
           por: usuario.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],
     };
-
+    
     try {
       await actualizarOC(formData.id, nuevaData);
       alert("Orden de compra actualizada ✅");
