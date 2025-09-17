@@ -28,7 +28,7 @@ const Navbar = () => {
         )}
         {puede("/crear") && (
           <Link to="/crear" className="hover:text-[#fbc102] transition">
-            Crear OC
+            Generar Órdenes
           </Link>
         )}
         {puede("/") && (

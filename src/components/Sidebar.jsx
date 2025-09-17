@@ -38,7 +38,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           {/* Logo y título */}
           <div className="flex items-center gap-3 mb-8">
             <img src={logo} alt="Memphis Logo" className="h-10" />
-            <h2 className="text-xl font-bold">Gestión de OC</h2>
+            <h2 className="text-xl font-bold">Compras</h2>
           </div>
 
           {/* Navegación dinámica */}
@@ -50,7 +50,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <NavLink to="/historial" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Historial</NavLink>
             )}            
             {puede("/crear") && (
-              <NavLink to="/crear" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Crear OC</NavLink>
+              <NavLink to="/crear" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Generar Órdenes</NavLink>
             )}
             {puede("/cotizaciones") && (
               <NavLink to="/cotizaciones" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Cotizaciones</NavLink>
