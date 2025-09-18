@@ -1,70 +1,121 @@
 // src/utils/permisosPorRol.js
+
+// Rutas comunes visibles para la mayoría de roles
+const comunes = [
+  "/",                 // home / dashboard general
+  "/historial",        // historial (filtrado por rol desde la UI)
+  "/dashboard",
+  "/resumen",
+  "/soporte",          // centro de ayuda/tickets
+  "/soporte/admin",    // vista admin de tickets (oculta por rol)
+];
+
+// Mapa de permisos por rol. Ajusta/añade rutas según tus páginas reales.
 const permisosPorRol = {
+  // Acceso total (TI/Soporte)
   admin: [
-    "/",
-    "/historial",
+    ...comunes,
     "/admin",
     "/crear",
+    "/editar",
     "/cotizaciones",
     "/proveedores",
-    "/editar",
-    "/dashboard",
-    "/logs",
+    "/requerimientos",
+    "/caja",
     "/cargar-maestros",
-    "/requerimientos",
-    "/caja",
-    "/resumen",
+    "/logs",
+    "/tickets",
+    "/admin-tickets",
     "/indicadores",
-    "/ver",
-    "/soporte",
-    "/adminsoporte",
   ],
-  comprador: [
-    "/",
-    "/historial",
+
+  soporte: [
+    ...comunes,
+    "/admin",
     "/crear",
-    "/firmar",
+    "/editar",
     "/cotizaciones",
     "/proveedores",
-    "/editar",
     "/requerimientos",
-    "/ver",
-    "/soporte",
-    "/soporte/admin",    
+    "/caja",
+    "/cargar-maestros",
+    "/logs",
+    "/tickets",
+    "/admin-tickets",
+    "/indicadores",
   ],
+
+  // Comprador (ya NO firma órdenes)
+  comprador: [
+    ...comunes,
+    "/crear",           // generar OC/OS
+    "/cotizaciones",
+    "/proveedores",
+    "/requerimientos",
+    "/tickets",
+    "/indicadores",
+  ],
+
+  // Operaciones (jefatura de logística/operaciones)
   operaciones: [
-    "/",
-    "/historial",
-    "/firmar",
-    "/dashboard",
+    ...comunes,
+    "/requerimientos",
+    "/cotizaciones",
+    "/crear",
+    "/tickets",
     "/caja",
-    "/ver",
-    "/soporte",
-    "/soporte/admin",    
+    "/indicadores",
   ],
-  gerencia: [
-    "/",
-    "/historial",
-    "/firmar",
-    "/dashboard",
-    "/ver",
-    "/soporte",
-    "/soporte/admin",    
+
+  // Gerencia de Operaciones y Proyectos (Mónica)
+  "gerencia operaciones": [
+    ...comunes,
+    "/requerimientos",
+    "/cotizaciones",
+    "/crear",
+    "/tickets",
+    "/caja",
+    "/indicadores",
   ],
+
+  // Gerencia General (Guillermo)
+  "gerencia general": [
+    ...comunes,
+    "/indicadores",
+  ],
+
+  // Finanzas/Contabilidad (Diego)
   finanzas: [
-    "/pago",
-    "/pagos",
-    "/soporte",
-    "/soporte/admin",
-  ],
-  legal: [
-    "/",
-  ],
-  administración: [
-    "/",
+    ...comunes,
+    "/requerimientos",
+    "/cotizaciones",
+    "/tickets",
     "/caja",
-    "/soporte",
-    "/soporte/admin",
+    "/indicadores",
+  ],
+
+  // Gerencia de Finanzas (Luis)
+  "gerencia finanzas": [
+    ...comunes,
+    "/requerimientos",
+    "/cotizaciones",
+    "/tickets",
+    "/caja",
+    "/indicadores",
+  ],
+
+  // Administración y Legal
+  administración: [
+    ...comunes,
+    "/caja",
+    "/tickets",
+    "/indicadores",
+  ],
+
+  legal: [
+    ...comunes,
+    "/indicadores",
   ],
 };
+
 export default permisosPorRol;

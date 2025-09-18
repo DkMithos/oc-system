@@ -1,7 +1,8 @@
-// ✅ AppRoutes.jsx
+// ✅ src/routes/AppRoutes.jsx
 import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import RutaProtegida from "../components/RutaProtegida";
+
 import Home from "../pages/Home";
 import Historial from "../pages/Historial";
 import VerOC from "../pages/VerOC";
@@ -22,7 +23,6 @@ import ResumenGeneral from "../pages/ResumenGeneral";
 import Indicadores from "../pages/Indicadores";
 import Tickets from "../pages/Tickets";
 import AdminTickets from "../pages/AdminTickets";
-
 
 const AppRoutes = () => {
   return (
@@ -88,7 +88,7 @@ const AppRoutes = () => {
         <Route
           path="firmar"
           element={
-            <RutaProtegida rolesPermitidos={["operaciones", "gerencia", "comprador"]}>
+            <RutaProtegida rolesPermitidos={["operaciones", "gerencia", "finanzas"]}>
               <FirmarOC />
             </RutaProtegida>
           }
@@ -189,10 +189,7 @@ const AppRoutes = () => {
             </RutaProtegida>
           }
         />
-        <Route
-          path="*"
-          element={<div className="p-6 text-red-600">⛔ Ruta no autorizada</div>}
-        />
+        <Route path="*" element={<div className="p-6 text-red-600">⛔ Ruta no autorizada</div>} />
       </Route>
     </Routes>
   );

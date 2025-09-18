@@ -1,53 +1,107 @@
 // src/firebase/fcm.js
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
 import { db, firebaseConfig } from "./config";
-import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, collection, serverTimestamp, getDoc, arrayUnion } from "firebase/firestore";
 
-// Evita doble init si otro módulo ya lo hizo
-const app = initializeApp(firebaseConfig);
+// Una sola app
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// Algunas plataformas no soportan FCM (Safari macOS sin PWA, etc.)
+// Algunas plataformas no soportan FCM
 const messagingPromise = (async () => {
-  const ok = await isSupported().catch(() => false);
-  return ok ? getMessaging(app) : null;
+  try {
+    const ok = await isSupported();
+    return ok ? getMessaging(app) : null;
+  } catch {
+    return null;
+  }
 })();
 
-// Registra el SW en la RAÍZ y devuelve el registration
+// Registra el SW en la raíz y devuelve el registration
 async function ensureMessagingSW() {
   if (!("serviceWorker" in navigator)) return null;
-  // Registra (o reusa) el SW en / con el script correcto
   const reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
-  // Espera a que esté “listo”
   await navigator.serviceWorker.ready;
   return reg;
 }
 
-// Pide permiso y devuelve el token (o null)
+/**
+ * Pide permiso (si hace falta), obtiene el token y lo persiste en:
+ *   - usuarios/{email}/tokens/{autoId} => { token, activo }
+ *   - tokensFCM/{email} => { token, tokens[] }
+ */
 export const solicitarPermisoYObtenerToken = async (email) => {
   try {
+    if (!email) throw new Error("email requerido");
+
     const messaging = await messagingPromise;
     if (!messaging) {
-      console.warn("[FCM] Este navegador no soporta FCM.");
+      console.info("[FCM] Este navegador no soporta FCM.");
       return null;
     }
 
+    // Permiso de notificaciones si aún no fue concedido
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        console.info("[FCM] Permiso no concedido:", perm);
+        return null;
+      }
+    }
+
     const reg = await ensureMessagingSW();
-    // IMPORTANTE: debes haber solicitado Notification permission before
-    const token = await getToken(messaging, {
-      vapidKey: "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU",
-      serviceWorkerRegistration: reg,
+    if (!reg) {
+      console.warn("[FCM] No se pudo registrar el Service Worker de messaging.");
+      return null;
+    }
+
+    // Usa tu VAPID pública (de la consola → Cloud Messaging → Web Push certificates)
+    const vapidKey = "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU";
+
+    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
+    if (!token) {
+      console.warn("[FCM] No se obtuvo token (¿permiso/VAPID?).");
+      return null;
+    }
+
+    // 1) Guarda en usuarios/{email}/tokens/*
+    const tokensCol = collection(db, "usuarios", email, "tokens");
+    await setDoc(doc(tokensCol), {
+      token,
+      plataforma: "web",
+      creado: serverTimestamp(),
+      activo: true,
     });
 
-    if (token && email) {
-      const tokenRef = doc(collection(db, "usuarios", email, "tokens"), token);
-      await setDoc(tokenRef, {
-        token,
-        plataforma: "web",
-        creado: serverTimestamp(),
-        activo: true,
-      });
+    // 2) Guarda en tokensFCM/{email} (token + array tokens)
+    const fcmRef = doc(db, "tokensFCM", email);
+    const snap = await getDoc(fcmRef);
+    if (!snap.exists()) {
+      await setDoc(
+        fcmRef,
+        {
+          token,
+          tokens: [token],
+          plataforma: "web",
+          creadoEn: serverTimestamp(),
+          actualizadoEn: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } else {
+      await setDoc(
+        fcmRef,
+        {
+          token,
+          tokens: arrayUnion(token),
+          plataforma: "web",
+          actualizadoEn: serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
+
+    console.log("[FCM] Token listo:", token.slice(0, 12) + "…");
     return token;
   } catch (error) {
     console.error("[FCM] Error obteniendo token:", error);
@@ -55,7 +109,7 @@ export const solicitarPermisoYObtenerToken = async (email) => {
   }
 };
 
-// Listener en primer plano: pásale un callback y devuelve unsubscribe
+// Listener en primer plano
 export const onMessageListener = async (callback) => {
   const messaging = await messagingPromise;
   if (!messaging) return () => {};

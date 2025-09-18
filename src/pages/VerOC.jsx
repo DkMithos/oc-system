@@ -1,3 +1,4 @@
+// ✅ src/pages/VerOC.jsx
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2pdf from "html2pdf.js";
@@ -15,6 +16,13 @@ const findDetraccion = (bancos = []) => {
     n.toUpperCase().includes("BANCO DE LA NACION");
   return bancos.find((b) => nameMatches(b?.nombre)) || null;
 };
+
+// 🔁 Helper compat firmas
+const pickFirma = (oc, keyPlano, keyObj) =>
+  oc?.[keyPlano] ||
+  oc?.firmas?.[keyObj] ||
+  oc?.firma?.[keyObj] ||
+  null;
 
 const VerOC = () => {
   const location = useLocation();
@@ -44,7 +52,7 @@ const VerOC = () => {
   if (!oc) return <div className="p-6">Cargando orden de compra...</div>;
   if (!oc.items) return <div className="p-6">Orden no válida o vacía.</div>;
 
-  const calcularNeto = (item) => (item.precioUnitario - item.descuento) * item.cantidad;
+  const calcularNeto = (item) => (item.precioUnitario - (item.descuento || 0)) * item.cantidad;
   const subtotal = oc.items.reduce((acc, item) => acc + calcularNeto(item), 0);
   const igv = subtotal * 0.18;
   const otros = oc.resumen?.otros || 0;
@@ -53,7 +61,6 @@ const VerOC = () => {
 
   // Detracciones (usa el guardado en la OC y si no existe lo deduce del proveedor)
   const detraccionCuenta = oc.detraccion || findDetraccion(oc.proveedor?.bancos);
-
 
   const puedeExportar =
     oc.estado === "Aprobado por Gerencia" ||
@@ -70,7 +77,6 @@ const VerOC = () => {
       alert("No se encontró el contenido para exportar.");
       return;
     }
-
     const opciones = {
       margin: [0.4, 0.4, 0.4, 0.4],
       filename: `OC-${oc.numeroOC}.pdf`,
@@ -79,9 +85,14 @@ const VerOC = () => {
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["avoid-all"] },
     };
-
     html2pdf().set(opciones).from(elemento).save();
   };
+
+  // 🖊️ Firmas con compat
+  const firmaComprador = pickFirma(oc, "firmaComprador", "comprador");
+  const firmaOperaciones = pickFirma(oc, "firmaOperaciones", "operaciones");
+  const firmaGerencia =
+    pickFirma(oc, "firmaGerencia", "gerencia") || pickFirma(oc, "firmaGerencia", "gerenciaGeneral");
 
   return (
     <div className="p-4 md:p-6">
@@ -160,15 +171,15 @@ const VerOC = () => {
           </thead>
           <tbody>
             {oc.items.map((item, i) => {
-              const neto = item.precioUnitario - item.descuento;
-              const totalItem = neto * item.cantidad;
+              const neto = (Number(item.precioUnitario) - Number(item.descuento || 0));
+              const totalItem = neto * Number(item.cantidad || 0);
               return (
                 <tr key={i} className="text-center">
                   <td className="border px-2 py-1">{i + 1}</td>
                   <td className="border px-2 py-1">{item.nombre}</td>
                   <td className="border px-2 py-1">{item.cantidad}</td>
                   <td className="border px-2 py-1">{formatearMoneda(item.precioUnitario, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(item.descuento, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(item.descuento || 0, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(neto, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(totalItem, simbolo)}</td>
                 </tr>
@@ -186,34 +197,22 @@ const VerOC = () => {
           <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
         </div>
 
-        {/* CONDICIONES DE ENTREGA */}
-        <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
-        <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
-          <div><span className="font-semibold">Lugar de entrega:</span><p>{oc.lugarEntrega}</p></div>
-          <div><span className="font-semibold">Fecha de entrega:</span><p>{oc.fechaEntrega}</p></div>
-          <div><span className="font-semibold">Condición de pago:</span><p>{oc.condicionPago}</p></div>
-          <div><span className="font-semibold">Observaciones:</span><p>{oc.observaciones || "—"}</p></div>
-        </div>
-
-        {/* FIRMAS */}
+        {/* FIRMAS (compat retroactiva) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-[11px] font-sans">
-          {["Comprador", "Operaciones", "Gerencia"].map((rol, i) => {
-            const firmas = {
-              "Comprador": oc.firmaComprador,
-              "Operaciones": oc.firmaOperaciones,
-              "Gerencia": oc.firmaGerencia
-            };
-            return (
-              <div key={rol} className="flex flex-col items-center justify-end">
-                {firmas[rol] ? (
-                  <img src={firmas[rol]} alt={`Firma ${rol}`} className="h-20 object-contain mb-2" />
-                ) : (
-                  <div className="h-20 mb-2"></div>
-                )}
-                <p className="font-semibold">{rol}</p>
-              </div>
-            );
-          })}
+          {[
+            { rol: "Comprador", src: firmaComprador },
+            { rol: "Operaciones", src: firmaOperaciones },
+            { rol: "Gerencia", src: firmaGerencia },
+          ].map(({ rol, src }) => (
+            <div key={rol} className="flex flex-col items-center justify-end">
+              {src ? (
+                <img src={src} alt={`Firma ${rol}`} className="h-20 object-contain mb-2" />
+              ) : (
+                <div className="h-20 mb-2"></div>
+              )}
+              <p className="font-semibold">{rol}</p>
+            </div>
+          ))}
         </div>
 
         {/* PIE DE DOCUMENTO */}
@@ -248,8 +247,6 @@ const VerOC = () => {
             Exportar como PDF
           </button>
         )}
-
-
       </div>
     </div>
   );

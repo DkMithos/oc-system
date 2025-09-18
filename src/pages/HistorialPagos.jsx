@@ -1,120 +1,90 @@
 import React, { useEffect, useState } from "react";
+import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
-import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
+import { obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
 
 const HistorialPagos = () => {
-  const [ordenes, setOrdenes] = useState([]);
-  const navigate = useNavigate();
+  const { usuario, loading } = useUsuario();
+  const [pagadas, setPagadas] = useState([]);
+  const [abierta, setAbierta] = useState(null);
+  const [facturas, setFacturas] = useState([]);
 
   useEffect(() => {
-    const cargarOCsConPagos = async () => {
+    if (loading) return;
+    (async () => {
       const data = await obtenerOCs();
-      const conPago = data.filter(
-        (oc) => oc.estado === "Pagado" && oc.archivosPago?.length > 0
-      );
-      setOrdenes(conPago);
-    };
+      setPagadas((data || []).filter(o => o.estado === "Pagado"));
+    })();
+  }, [loading]);
 
-    cargarOCsConPagos();
-  }, []);
-
-  const exportarExcel = () => {
-    const datos = ordenes.map((oc) => ({
-      "N° OC": oc.id,
-      "Proveedor": oc.proveedor?.razonSocial || "-",
-      "Factura": oc.numeroFactura || "-",
-      "Comprobante": oc.numeroComprobante || "-",
-      "F. Emisión": oc.fechaEmision || "-",
-      "F. Pago": oc.fechaPago || "-",
-      "Moneda": oc.monedaSeleccionada || "-",
-      "Monto Pagado":
-        (oc.monedaSeleccionada === "Dólares" ? "$" : "S/") +
-        " " +
-        (oc.montoPagado?.toFixed(2) || "0.00"),
-      "Archivos": oc.archivosPago.map((a) => a.name).join(", "),
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(datos);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "HistorialPagos");
-
-    XLSX.writeFile(workbook, "HistorialPagos_OC.xlsx");
+  const verFacturas = async (oc) => {
+    setAbierta(oc);
+    const f = await obtenerFacturasDeOrden(oc.id);
+    setFacturas(f);
   };
+
+  if (loading) return <div className="p-6">Cargando…</div>;
+  if (!usuario || !["admin","finanzas"].includes(usuario.rol)) {
+    return <div className="p-6 text-red-600">Acceso no autorizado</div>;
+  }
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-[#004990]">Historial de Pagos</h2>
-        {ordenes.length > 0 && (
-          <button
-            onClick={exportarExcel}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-          >
-            Exportar a Excel
-          </button>
-        )}
+      <h2 className="text-2xl font-bold mb-4 text-[#004990]">Historial de pagos</h2>
+
+      <div className="bg-white rounded shadow overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 text-left">N° OC</th>
+              <th className="p-2 text-left">Proveedor</th>
+              <th className="p-2 text-left">Factura</th>
+              <th className="p-2 text-left">Fecha Pago</th>
+              <th className="p-2 text-left">Monto Pagado</th>
+              <th className="p-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pagadas.length === 0 ? (
+              <tr><td colSpan={6} className="p-4 text-center text-gray-500">No hay pagos registrados.</td></tr>
+            ) : pagadas.map(o => (
+              <tr key={o.id} className="border-t">
+                <td className="p-2">{o.numeroOC || o.numero}</td>
+                <td className="p-2">{o.proveedor?.razonSocial || "—"}</td>
+                <td className="p-2">{o.numeroFactura || "—"}</td>
+                <td className="p-2">{o.fechaPago || "—"}</td>
+                <td className="p-2">{o.montoPagado != null ? o.montoPagado : "—"}</td>
+                <td className="p-2">
+                  <button className="text-blue-700 underline" onClick={() => verFacturas(o)}>Ver adjuntos</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {ordenes.length === 0 ? (
-        <p className="text-gray-500">No hay pagos registrados aún.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border mt-4">
-            <thead className="bg-gray-100">
-              <tr className="text-left">
-                <th className="border px-2 py-1">N° OC</th>
-                <th className="border px-2 py-1">Proveedor</th>
-                <th className="border px-2 py-1">Factura</th>
-                <th className="border px-2 py-1">Comprobante</th>
-                <th className="border px-2 py-1">F. Emisión</th>
-                <th className="border px-2 py-1">F. Pago</th>
-                <th className="border px-2 py-1">Monto Pagado</th>
-                <th className="border px-2 py-1">Archivos</th>
-                <th className="border px-2 py-1">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenes.map((oc) => (
-                <tr key={oc.id} className="border-t text-center">
-                  <td className="border px-2 py-1 font-semibold">{oc.id}</td>
-                  <td className="border px-2 py-1">{oc.proveedor?.razonSocial || "-"}</td>
-                  <td className="border px-2 py-1">{oc.numeroFactura || "-"}</td>
-                  <td className="border px-2 py-1">{oc.numeroComprobante || "-"}</td>
-                  <td className="border px-2 py-1">{oc.fechaEmision}</td>
-                  <td className="border px-2 py-1">{oc.fechaPago || "-"}</td>
-                  <td className="border px-2 py-1 text-green-700">
-                    {oc.monedaSeleccionada === "Dólares" ? "$" : "S/"}{" "}
-                    {oc.montoPagado?.toFixed(2)}
-                  </td>
-                  <td className="border px-2 py-1">
-                    <ul className="list-disc pl-4 text-left text-blue-600">
-                      {oc.archivosPago?.map((archivo, i) => (
-                        <li key={i}>
-                          <a
-                            href={archivo.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                          >
-                            {archivo.name}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                  <td className="border px-2 py-1">
-                    <button
-                      onClick={() => navigate(`/ver?id=${oc.id}`)}
-                      className="text-blue-700 underline hover:text-blue-900"
-                    >
-                      Ver OC
-                    </button>
-                  </td>
-                </tr>
+      {abierta && (
+        <div className="mt-4 bg-white rounded shadow p-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold">
+              Adjuntos de {abierta.numeroOC || abierta.numero} — {abierta.proveedor?.razonSocial}
+            </h3>
+            <button className="text-sm px-2 py-1 bg-gray-100 rounded" onClick={() => setAbierta(null)}>Cerrar</button>
+          </div>
+          {facturas.length === 0 ? (
+            <div className="text-sm text-gray-500 mt-2">Esta OC no tiene adjuntos.</div>
+          ) : (
+            <ul className="list-disc ml-5 mt-2">
+              {facturas.map(f => (
+                <li key={f.id} className="text-sm">
+                  <b>{f.numero || "Factura"}</b> {f.fecha ? `• ${f.fecha}` : ""} {f.monto ? `• ${f.monto}` : ""}
+                  {f.urlAdjunto && (
+                    <> • <a className="text-blue-700 underline" href={f.urlAdjunto} target="_blank" rel="noreferrer">Ver archivo</a></>
+                  )}
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          )}
         </div>
       )}
     </div>

@@ -20,6 +20,13 @@ const findDetraccion = (bancos = []) => {
   );
 };
 
+// 🔁 Helper compat firmas
+const pickFirma = (oc, keyPlano, keyObj) =>
+  oc?.[keyPlano] ||
+  oc?.firmas?.[keyObj] ||
+  oc?.firma?.[keyObj] ||
+  null;
+
 const ModalShell = ({ children, onClose, title }) => (
   <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
     <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
@@ -39,14 +46,15 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
   const [firmarAbierto, setFirmarAbierto] = useState(false);
   const [ocLocal, setOcLocal] = useState(oc);
 
-  // sincroniza si prop cambia (p.ej. reabrir otra OC)
   useEffect(() => setOcLocal(oc), [oc]);
 
   const simbolo = ocLocal.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
   const subtotal = useMemo(
     () =>
       (ocLocal.items || []).reduce(
-        (acc, it) => acc + (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0),
+        (acc, it) =>
+          acc +
+          (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0),
         0
       ),
     [ocLocal.items]
@@ -57,6 +65,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
 
   const detraccionCuenta = ocLocal.detraccion || findDetraccion(ocLocal.proveedor?.bancos);
 
+  // ⚖️ Reglas de exportación (ajusta si quieres)
   const puedeExportar =
     ocLocal.estado === "Aprobado por Gerencia" ||
     (ocLocal.monedaSeleccionada === "Soles" && total <= 3500) ||
@@ -87,6 +96,12 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     setOcLocal(ocActualizada);
     onUpdated?.(ocActualizada);
   };
+
+  // 🖊️ Firmas con compat
+  const firmaComprador = pickFirma(ocLocal, "firmaComprador", "comprador");
+  const firmaOperaciones = pickFirma(ocLocal, "firmaOperaciones", "operaciones");
+  const firmaGerencia =
+    pickFirma(ocLocal, "firmaGerencia", "gerencia") || pickFirma(ocLocal, "firmaGerencia", "gerenciaGeneral");
 
   return (
     <ModalShell title={`Orden de Compra ${ocLocal.numeroOC || ""}`} onClose={onClose}>
@@ -185,34 +200,22 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
         </div>
 
-        {/* Condiciones */}
-        <h3 className="text-sm font-semibold mb-1 text-blue-900">CONDICIONES DE ENTREGA</h3>
-        <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
-          <div><span className="font-semibold">Lugar de entrega:</span><p>{ocLocal.lugarEntrega}</p></div>
-          <div><span className="font-semibold">Fecha de entrega:</span><p>{ocLocal.fechaEntrega}</p></div>
-          <div><span className="font-semibold">Condición de pago:</span><p>{ocLocal.condicionPago}</p></div>
-          <div><span className="font-semibold">Observaciones:</span><p>{ocLocal.observaciones || "—"}</p></div>
-        </div>
-
-        {/* Firmas */}
+        {/* Firmas (compat retroactiva) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-10 text-[11px]">
-          {["Comprador", "Operaciones", "Gerencia"].map((rol) => {
-            const firmas = {
-              Comprador: ocLocal.firmaComprador,
-              Operaciones: ocLocal.firmaOperaciones,
-              Gerencia: ocLocal.firmaGerencia,
-            };
-            return (
-              <div key={rol} className="flex flex-col items-center justify-end">
-                {firmas[rol] ? (
-                  <img src={firmas[rol]} alt={`Firma ${rol}`} className="h-20 object-contain mb-2" />
-                ) : (
-                  <div className="h-20 mb-2" />
-                )}
-                <p className="font-semibold">{rol}</p>
-              </div>
-            );
-          })}
+          {[
+            { rol: "Comprador", src: firmaComprador },
+            { rol: "Operaciones", src: firmaOperaciones },
+            { rol: "Gerencia", src: firmaGerencia },
+          ].map(({ rol, src }) => (
+            <div key={rol} className="flex flex-col items-center justify-end">
+              {src ? (
+                <img src={src} alt={`Firma ${rol}`} className="h-20 object-contain mb-2" />
+              ) : (
+                <div className="h-20 mb-2" />
+              )}
+              <p className="font-semibold">{rol}</p>
+            </div>
+          ))}
         </div>
 
         {/* Pie */}
@@ -222,17 +225,15 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
             <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
           </ul>
-          <p className="mt-1 italic">
-            El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.
-          </p>
+          <p className="mt-1 italic">El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.</p>
         </div>
       </div>
 
-      {/* Footer acciones del modal principal */}
+      {/* Footer acciones */}
       <div className="sticky bottom-0 bg-white flex items-center justify-between p-3 border-t">
         <div className="text-xs text-gray-500">Estado: <b>{ocLocal.estado}</b></div>
         <div className="flex gap-2">
-          {(puedeFirmar) && (
+          {puedeFirmar && (
             <button
               onClick={() => setFirmarAbierto(true)}
               className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
@@ -248,7 +249,6 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         </div>
       </div>
 
-      {/* Modal de firma */}
       {firmarAbierto && (
         <FirmarOCModal oc={ocLocal} onClose={() => setFirmarAbierto(false)} onDone={handleFirmado} />
       )}

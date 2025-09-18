@@ -1,8 +1,9 @@
 // ✅ src/context/UsuarioContext.jsx
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
 import { obtenerUsuarioActual } from "../firebase/usuariosHelpers";
+import { solicitarPermisoYObtenerToken } from "../firebase/fcm";
 
 const UsuarioContext = createContext();
 
@@ -10,12 +11,10 @@ export const UsuarioProvider = ({ children }) => {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
-  // Ref para evitar doble ejecución de cierre
   const wasSignedOut = useRef(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Si está en cierre, mantenemos el loader con el mensaje correspondiente
       if (firebaseUser) {
         try {
           const data = await obtenerUsuarioActual();
@@ -28,7 +27,7 @@ export const UsuarioProvider = ({ children }) => {
             setUsuario(null);
             localStorage.clear();
           }
-        } catch (error) {
+        } catch {
           setUsuario(null);
           localStorage.clear();
         }
@@ -36,12 +35,11 @@ export const UsuarioProvider = ({ children }) => {
       } else {
         setUsuario(null);
         localStorage.clear();
-        // Solo mostrar "Cerrando sesión..." si fue acción explícita
         if (cerrandoSesion) {
           setTimeout(() => {
             setCerrandoSesion(false);
             setCargando(false);
-          }, 900); // Puedes ajustar el tiempo (milisegundos)
+          }, 900);
         } else {
           setCargando(false);
         }
@@ -50,9 +48,26 @@ export const UsuarioProvider = ({ children }) => {
     return () => unsub();
   }, [cerrandoSesion]);
 
-  // Esta función la usas para cerrar sesión desde tu botón/logout
+  // 🔔 Registrar token FCM al iniciar sesión (silencioso, pide permiso si es necesario)
+  useEffect(() => {
+    const run = async () => {
+      if (!usuario?.email) return;
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+          try {
+            await Notification.requestPermission();
+          } catch {}
+        }
+        await solicitarPermisoYObtenerToken(usuario.email);
+      } catch {
+        // No romper la UX si falla FCM
+      }
+    };
+    run();
+  }, [usuario?.email]);
+
   const cerrarSesion = async () => {
-    if (wasSignedOut.current) return; // previene doble click
+    if (wasSignedOut.current) return;
     setCerrandoSesion(true);
     setCargando(true);
     wasSignedOut.current = true;
@@ -62,10 +77,11 @@ export const UsuarioProvider = ({ children }) => {
       setCerrandoSesion(false);
       setCargando(false);
     }
-    setTimeout(() => { wasSignedOut.current = false; }, 2000); // evita spam
+    setTimeout(() => {
+      wasSignedOut.current = false;
+    }, 2000);
   };
 
-  // Loader centralizado
   if (cargando || cerrandoSesion) {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-white z-50">

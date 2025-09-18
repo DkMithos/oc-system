@@ -6,6 +6,7 @@ import { saveAs } from "file-saver";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
+import { useLocation } from "react-router-dom";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -34,7 +35,7 @@ const exportarExcel = (ordenes) => {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Ordenes de Compra");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), `Historial_OC_${new Date().toISOString().slice(0,10)}.xlsx`);
+  saveAs(new Blob([buf]), `Historial_OC_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ const exportarExcel = (ordenes) => {
 // ───────────────────────────────────────────────────────────────────────────────
 const Historial = () => {
   const { usuario, loading } = useUsuario();
+  const location = useLocation();
 
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -59,6 +61,7 @@ const Historial = () => {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
 
+  // Carga inicial
   useEffect(() => {
     if (!loading && usuario) {
       (async () => {
@@ -67,6 +70,40 @@ const Historial = () => {
       })();
     }
   }, [usuario, loading]);
+
+  // Lee filtros desde la URL (?estado=... & q=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const estado = params.get("estado");
+    const q = params.get("q");
+
+    let touched = false;
+    if (estado) {
+      setEstadoFiltro(estado);
+      touched = true;
+    }
+    if (q) {
+      setBusqueda(q);
+      touched = true;
+    }
+    if (touched) setPaginaActual(1);
+  }, [location.search]);
+
+  // Refresca/actualiza cuando otros componentes disparan "oc-updated"
+  useEffect(() => {
+    const onUpdated = (e) => {
+      const oc = e?.detail?.oc;
+      if (!oc?.id) return;
+      setOrdenes((prev) => {
+        const exists = prev.some((x) => x.id === oc.id);
+        return exists ? prev.map((x) => (x.id === oc.id ? oc : x)) : [oc, ...prev];
+      });
+      // Si está abierto y es la misma, sincroniza visual
+      setOcSeleccionada((curr) => (curr?.id === oc.id ? oc : curr));
+    };
+    window.addEventListener("oc-updated", onUpdated);
+    return () => window.removeEventListener("oc-updated", onUpdated);
+  }, []);
 
   const ordenesProcesadas = useMemo(() => {
     const filtradas = (ordenes || []).filter((oc) => {
@@ -83,23 +120,30 @@ const Historial = () => {
       let va, vb;
       switch (sortKey) {
         case "numero":
-          va = getOrderNumber(a); vb = getOrderNumber(b); break;
+          va = getOrderNumber(a);
+          vb = getOrderNumber(b);
+          break;
         case "proveedor":
           va = normalizeStr(a.proveedor?.razonSocial);
           vb = normalizeStr(b.proveedor?.razonSocial);
           break;
         case "fecha":
-          va = parseDate(a.fechaEmision); vb = parseDate(b.fechaEmision);
+          va = parseDate(a.fechaEmision);
+          vb = parseDate(b.fechaEmision);
           break;
         case "estado":
-          va = normalizeStr(a.estado); vb = normalizeStr(b.estado);
+          va = normalizeStr(a.estado);
+          vb = normalizeStr(b.estado);
           break;
-        default: va = 0; vb = 0;
+        default:
+          va = 0;
+          vb = 0;
       }
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       // desempate por número desc
-      const na = getOrderNumber(a), nb = getOrderNumber(b);
+      const na = getOrderNumber(a),
+        nb = getOrderNumber(b);
       if (na < nb) return 1;
       if (na > nb) return -1;
       return 0;
@@ -118,14 +162,15 @@ const Historial = () => {
 
   // callback que recibe VerOCModal al firmar/rechazar
   const handleOCActualizada = (ocActualizada) => {
-    setOrdenes((prev) =>
-      prev.map((x) => (x.id === ocActualizada.id ? ocActualizada : x))
-    );
+    setOrdenes((prev) => prev.map((x) => (x.id === ocActualizada.id ? ocActualizada : x)));
     setOcSeleccionada(ocActualizada);
   };
 
   if (loading) return <div className="p-6">Cargando usuario…</div>;
-  if (!usuario || !["admin", "gerencia", "operaciones", "comprador", "finanzas"].includes(usuario?.rol)) {
+  if (
+    !usuario ||
+    !["admin", "gerencia", "operaciones", "comprador", "finanzas"].includes(usuario?.rol)
+  ) {
     return <div className="p-6">Acceso no autorizado</div>;
   }
 
@@ -139,13 +184,19 @@ const Historial = () => {
           type="text"
           placeholder="Buscar por N° OC, proveedor o estado"
           value={busqueda}
-          onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(1); }}
+          onChange={(e) => {
+            setBusqueda(e.target.value);
+            setPaginaActual(1);
+          }}
           className="p-2 border rounded w-full md:w-1/2 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         />
 
         <select
           value={estadoFiltro}
-          onChange={(e) => { setEstadoFiltro(e.target.value); setPaginaActual(1); }}
+          onChange={(e) => {
+            setEstadoFiltro(e.target.value);
+            setPaginaActual(1);
+          }}
           className="p-2 border rounded w-full md:w-1/3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         >
           <option value="Todos">Todos los estados</option>
@@ -164,7 +215,10 @@ const Historial = () => {
           <span className="text-sm text-gray-700">Ordenar por:</span>
           <select
             value={sortKey}
-            onChange={(e) => { setSortKey(e.target.value); setPaginaActual(1); }}
+            onChange={(e) => {
+              setSortKey(e.target.value);
+              setPaginaActual(1);
+            }}
             className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
           >
             <option value="numero">N° de Orden</option>
@@ -173,7 +227,10 @@ const Historial = () => {
             <option value="estado">Estado</option>
           </select>
           <button
-            onClick={() => { toggleDir(); setPaginaActual(1); }}
+            onClick={() => {
+              toggleDir();
+              setPaginaActual(1);
+            }}
             className="px-3 py-2 border rounded bg-white hover:bg-gray-50"
             title="Cambiar dirección"
           >
@@ -200,10 +257,46 @@ const Historial = () => {
             <table className="w-full text-sm border border-gray-300">
               <thead className="bg-gray-100 text-center">
                 <tr>
-                  <th className="border px-3 py-2 cursor-pointer" onClick={() => { setSortKey("numero"); toggleDir(); setPaginaActual(1); }}>N° OC</th>
-                  <th className="border px-3 py-2 cursor-pointer" onClick={() => { setSortKey("proveedor"); toggleDir(); setPaginaActual(1); }}>Proveedor</th>
-                  <th className="border px-3 py-2 cursor-pointer" onClick={() => { setSortKey("fecha"); toggleDir(); setPaginaActual(1); }}>Fecha</th>
-                  <th className="border px-3 py-2 cursor-pointer" onClick={() => { setSortKey("estado"); toggleDir(); setPaginaActual(1); }}>Estado</th>
+                  <th
+                    className="border px-3 py-2 cursor-pointer"
+                    onClick={() => {
+                      setSortKey("numero");
+                      toggleDir();
+                      setPaginaActual(1);
+                    }}
+                  >
+                    N° OC
+                  </th>
+                  <th
+                    className="border px-3 py-2 cursor-pointer"
+                    onClick={() => {
+                      setSortKey("proveedor");
+                      toggleDir();
+                      setPaginaActual(1);
+                    }}
+                  >
+                    Proveedor
+                  </th>
+                  <th
+                    className="border px-3 py-2 cursor-pointer"
+                    onClick={() => {
+                      setSortKey("fecha");
+                      toggleDir();
+                      setPaginaActual(1);
+                    }}
+                  >
+                    Fecha
+                  </th>
+                  <th
+                    className="border px-3 py-2 cursor-pointer"
+                    onClick={() => {
+                      setSortKey("estado");
+                      toggleDir();
+                      setPaginaActual(1);
+                    }}
+                  >
+                    Estado
+                  </th>
                   <th className="border px-3 py-2">Factura</th>
                   <th className="border px-3 py-2">Acciones</th>
                 </tr>
@@ -236,7 +329,10 @@ const Historial = () => {
                       <div className="flex flex-wrap justify-center gap-3">
                         <button
                           className="text-blue-600 underline"
-                          onClick={() => { setOcSeleccionada(oc); setModalAbierto(true); }}
+                          onClick={() => {
+                            setOcSeleccionada(oc);
+                            setModalAbierto(true);
+                          }}
                         >
                           Ver
                         </button>
@@ -254,7 +350,9 @@ const Historial = () => {
               <button
                 key={i}
                 className={`px-3 py-1 border rounded ${
-                  i + 1 === paginaActual ? "bg-[#004990] text-white" : "bg-white text-[#004990] border-[#004990]"
+                  i + 1 === paginaActual
+                    ? "bg-[#004990] text-white"
+                    : "bg-white text-[#004990] border-[#004990]"
                 }`}
                 onClick={() => setPaginaActual(i + 1)}
               >

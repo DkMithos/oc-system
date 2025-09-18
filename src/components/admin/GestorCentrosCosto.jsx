@@ -1,3 +1,4 @@
+//src/components/admin/GestorCentrosCosto.jsx
 import React, { useState } from "react";
 
 const ESTADOS = ["Activo", "Inactivo", "Suspendido"];

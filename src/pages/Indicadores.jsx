@@ -1,17 +1,48 @@
 // ✅ src/pages/Indicadores.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { obtenerOCs, obtenerCentrosCosto } from "../firebase/firestoreHelpers";
-import { obtenerMovimientosCaja } from "../firebase/cajaChicaHelpers";
+import { obtenerMovimientosTodas } from "../firebase/cajaChicaHelpers";
 import { obtenerUsuarios } from "../firebase/indicadoresHelpers";
-import { format, parseISO, isAfter, isBefore } from "date-fns";
+import { parseISO, isAfter, isBefore } from "date-fns";
 import {
   PieChart, Pie, Cell, Tooltip, BarChart, Bar,
   XAxis, YAxis, ResponsiveContainer
 } from "recharts";
 import { useUsuario } from "../context/UsuarioContext";
 
+const colores = ["#60A5FA", "#F87171", "#34D399", "#FBBF24", "#A78BFA", "#fb923c", "#10b981", "#0ea5e9"];
+
+// Helpers de normalización
+const parseDateSafe = (v) => {
+  if (!v) return null;
+  try {
+    const d = v?.toDate ? v.toDate() : (typeof v === "string" ? parseISO(v) : new Date(v));
+    const t = d?.getTime?.();
+    return Number.isFinite(t) ? d : null;
+  } catch {
+    return null;
+  }
+};
+
+const getFechaOC = (oc) =>
+  parseDateSafe(oc?.fechaEmision) || parseDateSafe(oc?.fecha) || parseDateSafe(oc?.creadoEn);
+
+const calcTotalOC = (oc) => {
+  const t = Number(oc?.resumen?.total ?? 0);
+  if (t > 0) return t;
+  const items = Array.isArray(oc?.items) ? oc.items : [];
+  return items.reduce((acc, it) => {
+    const parcial = Number(it?.total ?? (Number(it?.cantidad || 0) * Number(it?.precio || 0)));
+    return acc + (Number.isFinite(parcial) ? parcial : 0);
+  }, 0);
+};
+
+const estadoEsAprobado = (estado = "") =>
+  String(estado).toLowerCase().includes("aprobado") || String(estado).toLowerCase() === "pagado";
+
 const Indicadores = () => {
   const { usuario } = useUsuario();
+
   const [ordenes, setOrdenes] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
@@ -22,65 +53,118 @@ const Indicadores = () => {
   const [filtroHasta, setFiltroHasta] = useState("");
 
   useEffect(() => {
-    const cargar = async () => {
+    (async () => {
       const [ocs, movs, usrs, ccs] = await Promise.all([
         obtenerOCs(),
-        obtenerMovimientosCaja(),
+        obtenerMovimientosTodas(), // TODAS las cajas
         obtenerUsuarios(),
         obtenerCentrosCosto()
       ]);
-      setOrdenes(ocs);
-      setMovimientos(movs);
-      setUsuarios(usrs);
-      setCentros(ccs.map((c) => c.nombre));
-    };
-    cargar();
+      setOrdenes(ocs || []);
+      setMovimientos(movs || []);
+      setUsuarios(usrs || []);
+      setCentros((ccs || []).map((c) => c.nombre));
+    })();
   }, []);
 
-  // 🔎 Aplicar filtros
-  const filtrarPorFechas = (items, campo) => {
-    return items.filter((item) => {
-      const fecha = parseISO(item[campo]);
+  // Filtro por fechas genérico
+  const filtrarPorFechas = (items, getterFecha) => {
+    return (items || []).filter((item) => {
+      const fecha = getterFecha(item);
       const desde = filtroDesde ? parseISO(filtroDesde) : null;
       const hasta = filtroHasta ? parseISO(filtroHasta) : null;
-      return (!desde || isAfter(fecha, desde)) && (!hasta || isBefore(fecha, hasta));
+      const okDesde = desde ? (fecha ? (isAfter(fecha, desde) || +fecha === +desde) : true) : true;
+      const okHasta = hasta ? (fecha ? (isBefore(fecha, hasta) || +fecha === +hasta) : true) : true;
+      return okDesde && okHasta;
     });
   };
 
-  const ordenesFiltradas = ordenes
-    .filter((o) => !filtroCentro || o.centroCosto === filtroCentro);
-  const movimientosFiltrados = movimientos
-    .filter((m) => !filtroCentro || m.centroCosto === filtroCentro);
+  // Aplica centro + fechas
+  const ordenesFiltradas = useMemo(() => {
+    const base = (ordenes || []).filter((o) => !filtroCentro || o.centroCosto === filtroCentro);
+    return filtrarPorFechas(base, getFechaOC);
+  }, [ordenes, filtroCentro, filtroDesde, filtroHasta]);
 
+  const movimientosFiltrados = useMemo(() => {
+    const base = (movimientos || []).filter((m) => !filtroCentro || m.centroCosto === filtroCentro);
+    const fechaMov = (m) => parseDateSafe(m?.fecha) || parseDateSafe(m?.creadoEn);
+    return filtrarPorFechas(base, fechaMov);
+  }, [movimientos, filtroCentro, filtroDesde, filtroHasta]);
+
+  // KPIs
   const totalOCs = ordenesFiltradas.length;
-  const montoTotalOCs = ordenesFiltradas.reduce((acc, o) => acc + (o.resumen?.total || 0), 0);
-  const ocObservadas = ordenesFiltradas.filter((o) => o.estado === "observada").length;
-  const promedioItems = promedio(ordenesFiltradas.map((o) => o.items.length));
-  const tiempoPromedioAprobacion = promedioDias(ordenesFiltradas, "fechaEmision", "fechaAprobacion");
+  const montoTotalOCs = ordenesFiltradas.reduce((acc, o) => acc + calcTotalOC(o), 0);
+  const ocObservadas = ordenesFiltradas
+    .filter((o) => String(o?.estado || "").toLowerCase() === "observada").length;
+
+  const promedioItems = (() => {
+    const arr = ordenesFiltradas.map((o) => Array.isArray(o?.items) ? o.items.length : 0);
+    return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  })();
+
+  const tiempoPromedioAprobacion = (() => {
+    const dias = ordenesFiltradas
+      .map((o) => {
+        const ini = getFechaOC(o);
+        const fin = parseDateSafe(o?.fechaAprobacion);
+        if (!ini || !fin) return null;
+        return (fin - ini) / (1000 * 60 * 60 * 24);
+      })
+      .filter((d) => Number.isFinite(d));
+    return dias.length ? dias.reduce((a, b) => a + b, 0) / dias.length : 0;
+  })();
 
   const montoAprobado = ordenesFiltradas
-    .filter((o) => o.estado === "Aprobado")
-    .reduce((acc, o) => acc + (o.resumen?.total || 0), 0);
+    .filter((o) => estadoEsAprobado(o?.estado))
+    .reduce((acc, o) => acc + calcTotalOC(o), 0);
 
   const ingresos = movimientosFiltrados
-    .filter((m) => m.tipo === "ingreso").reduce((acc, m) => acc + Number(m.monto), 0);
+    .filter((m) => String(m?.tipo || "").toLowerCase() === "ingreso")
+    .reduce((acc, m) => acc + Number(m?.monto || 0), 0);
+
   const egresos = movimientosFiltrados
-    .filter((m) => m.tipo === "egreso").reduce((acc, m) => acc + Number(m.monto), 0);
+    .filter((m) => String(m?.tipo || "").toLowerCase() === "egreso")
+    .reduce((acc, m) => acc + Number(m?.monto || 0), 0);
+
   const saldoCaja = ingresos - egresos;
+
   const egresosSinComprobante = movimientosFiltrados
-    .filter((m) => m.tipo === "egreso" && !m.comprobanteUrl).length;
+    .filter((m) => String(m?.tipo || "").toLowerCase() === "egreso" && !m?.comprobanteUrl).length;
+
+  const ocEmergencia = ordenesFiltradas
+    .filter((o) => String(o?.prioridad || "").toLowerCase() === "alta").length;
+
+  const sinFirmaFinal = ordenesFiltradas.filter((o) => !o?.firmaGerencia).length;
+
+  // Distribuciones / rankings
+  const conteoPorCampo = (arr, campo) => {
+    const result = {};
+    (arr || []).forEach((el) => {
+      const clave = typeof campo === "function" ? campo(el) : el?.[campo] || "—";
+      result[clave] = (result[clave] || 0) + 1;
+    });
+    return result;
+  };
+
+  const sumaPorCampo = (arr, campo) => {
+    const result = {};
+    (arr || []).forEach((el) => {
+      const clave = el?.[campo] || "—";
+      const v = Number(el?.monto || 0);
+      result[clave] = (result[clave] || 0) + (Number.isFinite(v) ? v : 0);
+    });
+    return result;
+  };
 
   const ocPorUsuario = conteoPorCampo(ordenesFiltradas, "creadoPor");
   const movimientosPorUsuario = conteoPorCampo(movimientosFiltrados, "usuario");
-  const ocPorProveedor = conteoPorCampo(ordenesFiltradas, (o) => o.proveedor?.razonSocial || "—");
-  const egresosPorCentro = sumaPorCampo(movimientosFiltrados.filter(m => m.tipo === "egreso"), "centroCosto");
+  const ocPorProveedor = conteoPorCampo(ordenesFiltradas, (o) => o?.proveedor?.razonSocial || "—");
+  const egresosPorCentro = sumaPorCampo(
+    movimientosFiltrados.filter((m) => String(m?.tipo || "").toLowerCase() === "egreso"),
+    "centroCosto"
+  );
 
-  const ocEmergencia = ordenesFiltradas.filter((o) => o.prioridad === "alta").length;
-  const sinFirma = ordenesFiltradas.filter((o) => !o.firma?.gerencia).length;
-
-  const colores = ["#60A5FA", "#F87171", "#34D399", "#FBBF24", "#A78BFA", "#fb923c"];
-
-  if (!usuario || !["admin", "gerencia", "operaciones"].includes(usuario.rol)) {
+  if (!usuario || !["admin", "gerencia", "operaciones", "finanzas"].includes(usuario.rol)) {
     return <div className="p-6">Acceso no autorizado</div>;
   }
 
@@ -96,7 +180,9 @@ const Indicadores = () => {
           className="border px-3 py-2 rounded"
         >
           <option value="">Todos los centros</option>
-          {centros.map((c) => <option key={c}>{c}</option>)}
+          {centros.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
         </select>
 
         <input
@@ -113,19 +199,24 @@ const Indicadores = () => {
         />
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Indicador titulo="Total de OCs" valor={totalOCs} />
         <Indicador titulo="Monto total de OCs" valor={`S/ ${montoTotalOCs.toFixed(2)}`} />
         <Indicador titulo="OCs observadas" valor={ocObservadas} />
         <Indicador titulo="Tiempo promedio aprobación" valor={`${tiempoPromedioAprobacion.toFixed(1)} días`} />
         <Indicador titulo="Promedio ítems por OC" valor={promedioItems.toFixed(1)} />
-        <Indicador titulo="Monto aprobado vs. solicitado" valor={`${((montoAprobado / montoTotalOCs) * 100 || 0).toFixed(1)}%`} />
+        <Indicador
+          titulo="Monto aprobado vs. solicitado"
+          valor={`${((montoAprobado / (montoTotalOCs || 1)) * 100).toFixed(1)}%`}
+        />
         <Indicador titulo="Saldo Caja Chica" valor={`S/ ${saldoCaja.toFixed(2)}`} />
         <Indicador titulo="Egresos sin comprobante" valor={egresosSinComprobante} />
-        <Indicador titulo="OCs sin firma final" valor={sinFirma} />
+        <Indicador titulo="OCs sin firma final" valor={sinFirmaFinal} />
         <Indicador titulo="OCs de emergencia" valor={ocEmergencia} />
       </div>
 
+      {/* Gráficos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
         <GraficoPie titulo="OCs por proveedor" datos={ocPorProveedor} colores={colores} />
         <GraficoBar titulo="Egresos por centro de costo" datos={egresosPorCentro} />
@@ -139,7 +230,7 @@ const Indicadores = () => {
   );
 };
 
-// Componentes
+// Subcomponentes UI
 const Indicador = ({ titulo, valor }) => (
   <div className="bg-white shadow p-4 rounded">
     <p className="text-sm text-gray-500">{titulo}</p>
@@ -152,9 +243,9 @@ const GraficoPie = ({ titulo, datos, colores }) => {
   return (
     <div className="bg-white p-4 rounded shadow">
       <h3 className="font-semibold mb-2">{titulo}</h3>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={220}>
         <PieChart>
-          <Pie dataKey="value" data={data} label outerRadius={70}>
+          <Pie dataKey="value" data={data} label outerRadius={80}>
             {data.map((_, i) => (
               <Cell key={i} fill={colores[i % colores.length]} />
             ))}
@@ -171,7 +262,7 @@ const GraficoBar = ({ titulo, datos }) => {
   return (
     <div className="bg-white p-4 rounded shadow">
       <h3 className="font-semibold mb-2">{titulo}</h3>
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data}>
           <XAxis dataKey="name" />
           <YAxis allowDecimals={false} />
@@ -181,31 +272,6 @@ const GraficoBar = ({ titulo, datos }) => {
       </ResponsiveContainer>
     </div>
   );
-};
-
-// Utils
-const promedio = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-const promedioDias = (lista, inicio, fin) => {
-  const dias = lista
-    .filter((o) => o[inicio] && o[fin])
-    .map((o) => (new Date(o[fin]) - new Date(o[inicio])) / (1000 * 60 * 60 * 24));
-  return promedio(dias);
-};
-const conteoPorCampo = (arr, campo) => {
-  const result = {};
-  arr.forEach((el) => {
-    const clave = typeof campo === "function" ? campo(el) : el[campo] || "Desconocido";
-    result[clave] = (result[clave] || 0) + 1;
-  });
-  return result;
-};
-const sumaPorCampo = (arr, campo) => {
-  const result = {};
-  arr.forEach((el) => {
-    const clave = el[campo] || "Desconocido";
-    result[clave] = (result[clave] || 0) + parseFloat(el.monto || 0);
-  });
-  return result;
 };
 
 export default Indicadores;

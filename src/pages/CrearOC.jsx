@@ -2,18 +2,20 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
+import Logo from "../assets/Logo_OC.png";
+import Select from "react-select";
+import { useUsuario } from "../context/UsuarioContext";
+
 import {
-  guardarOC,
+  guardarOrden,                     // nuevo: guarda OC/OS/OI con correlativo único
+  obtenerSiguienteNumeroOrden,      // nuevo: correlativo único MM-000001...
   obtenerCentrosCosto,
   obtenerCondicionesPago,
   obtenerProveedores,
   registrarLog,
-  obtenerSiguienteNumeroOC,
+  // Si ya tienes helpers para requerimientos / cotizaciones, impórtalos aquí:
+  // obtenerRequerimientos, obtenerCotizaciones
 } from "../firebase/firestoreHelpers";
-import { formatearMoneda } from "../utils/formatearMoneda";
-import Logo from "../assets/Logo_OC.png";
-import Select from "react-select";
-import { useUsuario } from "../context/UsuarioContext";
 
 const selectStyles = {
   control: (base) => ({
@@ -26,353 +28,428 @@ const selectStyles = {
   }),
   valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
   indicatorsContainer: (base) => ({ ...base, height: 32 }),
-  menu: (base) => ({ ...base, zIndex: 30, fontSize: 14 }),
-  option: (base, state) => ({
-    ...base,
-    backgroundColor: state.isSelected ? "#E5F0FF" : state.isFocused ? "#F3F4F6" : "white",
-    color: "#111827",
-  }),
+  menu: (base) => ({ ...base, zIndex: 50 }),
 };
 
 const CrearOC = () => {
   const navigate = useNavigate();
   const { usuario } = useUsuario();
 
-  const [formData, setFormData] = useState({
-    fechaEmision: new Date().toISOString().split("T")[0],
-    cotizacion: "",
-    fechaEntrega: "",
-    comprador: usuario?.email || "",
-    proveedorRuc: "",
-    proveedor: {},
-    bancoSeleccionado: "",
-    monedaSeleccionada: "",
-    centroCosto: "",
-    condicionPago: "",
-    lugarEntrega: "",
-    observaciones: "",
-  });
-
-  const [numeroProvisional, setNumeroProvisional] = useState("");
-  const [items, setItems] = useState([
-    { id: 1, nombre: "", cantidad: 0, precioUnitario: 0, descuento: 0 },
-  ]);
-  const [otros, setOtros] = useState(0);
-
+  // Datos de maestros
+  const [proveedores, setProveedores] = useState([]);
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
+  const [requerimientos, setRequerimientos] = useState([]); // opcional
+  const [cotizaciones, setCotizaciones] = useState([]);     // opcional
 
-  useEffect(() => {
-    const cargarDatosMaestros = async () => {
-      const [centros, condiciones, listaProveedores] = await Promise.all([
-        obtenerCentrosCosto(),
-        obtenerCondicionesPago(),
-        obtenerProveedores(),
-      ]);
-      setCentrosCosto(centros || []);
-      setCondicionesPago(condiciones || []);
-      setProveedores(listaProveedores || []);
+  // Estado de formulario
+  const [numero, setNumero] = useState(""); // correlativo
+  const [loading, setLoading] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
 
-      try {
-        const siguiente = await obtenerSiguienteNumeroOC();
-        setNumeroProvisional(siguiente);
-      } catch (e) {
-        console.error("No se pudo obtener el siguiente número de OC:", e);
-        setNumeroProvisional("");
-      }
-    };
-
-    if (usuario?.email) {
-      setFormData((prev) => ({ ...prev, comprador: usuario.email }));
-      cargarDatosMaestros();
-    }
-  }, [usuario]);
-
-  // Opciones Select
-  const opcionesProveedores = useMemo(
-    () =>
-      (proveedores || []).map((p) => ({
-        label: `${p.ruc} - ${p.razonSocial}`,
-        value: p.ruc,
-        data: p,
-      })),
-    [proveedores]
-  );
-
-  const opcionesCentroCosto = useMemo(
-    () => (centrosCosto || []).map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
-    [centrosCosto]
-  );
-
-  const opcionesCondicionPago = useMemo(
-    () => (condicionesPago || []).map((c) => ({ label: c.nombre, value: c.nombre, data: c })),
-    [condicionesPago]
-  );
-
-  // Bancos/Monedas
-  const bancosDisponibles = formData.proveedor?.bancos || [];
-  const monedasDisponibles = bancosDisponibles
-    .filter((b) => b.nombre === formData.bancoSeleccionado)
-    .map((b) => b.moneda);
-
-  const cuentaSeleccionada = bancosDisponibles.find(
-    (b) =>
-      b.nombre === formData.bancoSeleccionado &&
-      b.moneda === formData.monedaSeleccionada
-  );
-
-  // Detracción (siempre que exista)
-  const detraccionCuenta = bancosDisponibles.find(
-    (b) => b.nombre?.toUpperCase().includes("DETRACCION") || b.nombre === "BN"
-  );
+  const [form, setForm] = useState({
+    tipoOrden: "OC", // "OC" | "OS" | "OI"
+    fechaEmision: new Date().toISOString().split("T")[0],
+    moneda: "PEN",
+    igv: 0.18,
+    proveedorId: null,
+    condicionPagoId: null,
+    centroCostoId: null,
+    requerimientoId: null,
+    cotizacionId: null,
+    notas: "",
+    lugarEntrega: "",
+    plazoEntrega: "",
+    responsable: usuario?.nombre || "",
+    creadoPor: usuario?.email || "",
+    items: [], // [{codigo, descripcion, cantidad, um, pu, dscto, subtotal}]
+  });
 
   // Totales
-  const subtotal = items.reduce((acc, item) => {
-    const pu = parseFloat(item.precioUnitario) || 0;
-    const ds = parseFloat(item.descuento) || 0;
-    const ct = parseFloat(item.cantidad) || 0;
-    return acc + (pu - ds) * ct;
-  }, 0);
-  const igv = subtotal * 0.18;
-  const valorVenta = subtotal;
-  const totalFinal = subtotal + igv + (parseFloat(otros) || 0);
+  const totals = useMemo(() => {
+    const sub = form.items.reduce((acc, it) => acc + (Number(it.cantidad || 0) * Number(it.pu || 0) - Number(it.dscto || 0)), 0);
+    const igvMonto = Math.round(sub * Number(form.igv || 0) * 100) / 100;
+    const total = Math.round((sub + igvMonto) * 100) / 100;
+    return { sub, igvMonto, total };
+  }, [form.items, form.igv]);
 
-  const validarFormulario = () => {
-    if (
-      !formData.fechaEntrega ||
-      !formData.comprador ||
-      !formData.proveedorRuc ||
-      !formData.centroCosto ||
-      !formData.condicionPago
-    ) {
-      alert("Completa los campos obligatorios (proveedor, entrega, centro de costo y condición de pago).");
-      return false;
-    }
-    const tieneItemsValidos = items.some(
-      (item) => item.nombre && Number(item.cantidad) > 0
-    );
-    if (!tieneItemsValidos) {
-      alert("Agrega al menos un ítem válido.");
-      return false;
-    }
-    return true;
-  };
-
-  const handleGuardarOC = async () => {
-    if (!validarFormulario()) return;
-
-    const nuevaOC = {
-      estado: "Pendiente de Firma del Comprador",
-      ...formData,
-      proveedor: formData.proveedor,
-      cuenta: cuentaSeleccionada || null,
-      detraccion: detraccionCuenta || null,
-      items,
-      resumen: {
-        subtotal,
-        igv,
-        valorVenta,
-        otros: parseFloat(otros) || 0,
-        total: totalFinal,
-      },
-      historial: [
-        {
-          accion: "Creación OC",
-          por: usuario?.email,
-          fecha: new Date().toLocaleString("es-PE"),
-        },
-      ],
-      creadoPor: usuario?.nombre || usuario?.email,
-      fechaCreacion: new Date().toISOString(),
-    };
-
-    try {
-      const newId = await guardarOC(nuevaOC);
-      await registrarLog({
-        accion: "Creación de OC",
-        ocId: newId,
-        usuario: usuario?.nombre || usuario?.email,
-        rol: usuario?.rol,
-        comentario: `Total: ${formatearMoneda(totalFinal, formData.monedaSeleccionada)}`,
-      });
-
-      // Notifica al COMPRADOR (opcional) que su OC fue creada
+  // Cargar maestros y correlativo
+  useEffect(() => {
+    (async () => {
       try {
-        if (window?.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent("oc-created", { detail: { id: newId } }));
-        }
-      } catch {}
+        const [prov, cc, cp] = await Promise.all([
+          obtenerProveedores(),
+          obtenerCentrosCosto(),
+          obtenerCondicionesPago(),
+        ]);
 
-      alert("Orden guardada correctamente ✅");
-      navigate("/ver?id=" + newId);
-    } catch (error) {
-      console.error("Error guardando OC:", error);
-      alert("Ocurrió un error al guardar la orden.");
+        setProveedores((prov || []).map(p => ({ value: p.id, label: p.razonSocial || p.nombre, raw: p })));
+        setCentrosCosto((cc || []).map(c => ({ value: c.id, label: c.nombre, raw: c })));
+        setCondicionesPago((cp || []).map(c => ({ value: c.id, label: c.nombre, raw: c })));
+
+        // Si tienes helpers de requerimientos y cotizaciones, habilita esto:
+        // const [reqs, cots] = await Promise.all([obtenerRequerimientos(), obtenerCotizaciones()]);
+        // setRequerimientos((reqs || []).map(r => ({ value: r.id, label: r.numero || r.asunto, raw: r })));
+        // setCotizaciones((cots || []).map(c => ({ value: c.id, label: c.numero || c.proveedorRazonSocial, raw: c })));
+
+        const { numero } = await obtenerSiguienteNumeroOrden();
+        setNumero(numero);
+      } catch (e) {
+        console.error(e);
+        setError("Error cargando datos iniciales.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleChange = (key, val) => setForm(f => ({ ...f, [key]: val }));
+
+  const agregarItem = () => {
+    setForm(f => ({
+      ...f,
+      items: [
+        ...f.items,
+        { codigo: "", descripcion: "", cantidad: 1, um: "UND", pu: 0, dscto: 0, subtotal: 0 },
+      ],
+    }));
+  };
+
+  const actualizarItem = (index, key, value) => {
+    setForm(f => {
+      const items = [...f.items];
+      items[index] = { ...items[index], [key]: value };
+      const cantidad = Number(items[index].cantidad || 0);
+      const pu = Number(items[index].pu || 0);
+      const dscto = Number(items[index].dscto || 0);
+      items[index].subtotal = Math.max(0, cantidad * pu - dscto);
+      return { ...f, items };
+    });
+  };
+
+  const eliminarItem = (index) => {
+    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== index) }));
+  };
+
+  const validar = () => {
+    if (!form.tipoOrden) return "Selecciona el tipo de orden.";
+    if (!numero) return "No se pudo obtener el correlativo.";
+    if (!form.proveedorId && form.tipoOrden !== "OI") return "Selecciona un proveedor.";
+    if (form.items.length === 0) return "Agrega al menos un ítem.";
+    if (form.tipoOrden !== "OI") {
+      // reglas de enlace
+      if (!form.cotizacionId) return "Debes vincular una cotización.";
+      if (!form.requerimientoId) return "Debes vincular un requerimiento.";
+    }
+    return null;
+  };
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const v = validar();
+    if (v) {
+      setError(v);
+      return;
+    }
+    setGuardando(true);
+    try {
+      const payload = {
+        ...form,
+        numero, // correlativo único
+        estado: "Pendiente",
+        creadoPor: usuario?.email || form.creadoPor,
+      };
+      const id = await guardarOrden(payload);
+      await registrarLog("ui_crear_orden", id, usuario?.email || "");
+      navigate(`/ver/${id}`);
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || "Error al guardar la orden.");
+    } finally {
+      setGuardando(false);
     }
   };
+
+  if (loading) {
+    return <div className="p-4">Cargando...</div>;
+  }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-6 py-4">
-      {/* Cabecera */}
-      <div className="mb-4 flex items-start justify-between">
-        <img src={Logo} alt="Logo Memphis" className="h-12" />
-        <div className="text-right">
-          <h2 className="text-2xl font-bold text-[#032f53]">Nueva Orden de Compra</h2>
-          {numeroProvisional && (
-            <p className="text-gray-600 text-sm mt-1">
-              <span className="font-semibold">N°:</span> {numeroProvisional}
-            </p>
-          )}
-        </div>
+    <div className="p-4 max-w-6xl mx-auto">
+      <div className="flex items-center gap-4 mb-4">
+        <img src={Logo} alt="Memphis" className="h-10" />
+        <h1 className="text-xl font-semibold">Generar Orden</h1>
       </div>
 
-      {/* Datos generales */}
-      <div className="bg-white border shadow rounded p-6 grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        <input type="date" disabled value={formData.fechaEmision} className="border p-2 rounded" />
-        <input type="text" placeholder="N° Cotización" value={formData.cotizacion} onChange={(e) => setFormData({ ...formData, cotizacion: e.target.value })} className="border p-2 rounded" />
-        <input type="date" value={formData.fechaEntrega} onChange={(e) => setFormData({ ...formData, fechaEntrega: e.target.value })} className="border p-2 rounded" />
-        <input type="text" disabled value={formData.comprador} className="border p-2 rounded" />
+      {error && (
+        <div className="bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded mb-3">
+          {error}
+        </div>
+      )}
 
-        {/* Proveedor */}
-        <div className="col-span-2 md:col-span-3">
-          <Select
-            placeholder="Selecciona proveedor por RUC o Razón Social"
-            options={opcionesProveedores}
-            value={
-              formData.proveedorRuc
-                ? {
-                    value: formData.proveedorRuc,
-                    label: `${formData.proveedorRuc} - ${formData.proveedor?.razonSocial || ""}`,
-                  }
-                : null
-            }
-            onChange={(opcion) => {
-              setFormData((prev) => ({
-                ...prev,
-                proveedor: opcion?.data || {},
-                proveedorRuc: opcion?.data?.ruc || "",
-                bancoSeleccionado: "",
-                monedaSeleccionada: "",
-              }));
-            }}
-            isSearchable
-            styles={selectStyles}
-            noOptionsMessage={() => "Sin resultados"}
-          />
+      <form onSubmit={onSubmit} className="space-y-4">
+        {/* Correlativo & Tipo */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium">N° de Orden</label>
+            <input value={numero} readOnly className="border rounded w-full px-2 py-1 bg-gray-50" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Tipo de Orden</label>
+            <select
+              value={form.tipoOrden}
+              onChange={(e) => handleChange("tipoOrden", e.target.value)}
+              className="border rounded px-2 py-1 w-full"
+            >
+              <option value="OC">Orden de Compra (OC)</option>
+              <option value="OS">Orden de Servicio (OS)</option>
+              <option value="OI">Orden Interna (OI)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Fecha de Emisión</label>
+            <input
+              type="date"
+              value={form.fechaEmision}
+              onChange={(e) => handleChange("fechaEmision", e.target.value)}
+              className="border rounded w-full px-2 py-1"
+            />
+          </div>
         </div>
 
-        {/* Datos proveedor */}
-        {formData.proveedor?.razonSocial && (
-          <>
-            <input disabled value={formData.proveedor.razonSocial || ""} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.direccion || ""} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.email || ""} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.telefono || ""} className="border p-2 rounded" />
-            <input disabled value={formData.proveedor.contacto || ""} className="border p-2 rounded" />
-
-            <select
-              value={formData.bancoSeleccionado}
-              onChange={(e) => setFormData({ ...formData, bancoSeleccionado: e.target.value, monedaSeleccionada: "" })}
-              className="border p-2 rounded"
-            >
-              <option value="">Selecciona banco</option>
-              {bancosDisponibles.map((b, i) => (
-                <option key={i} value={b.nombre}>{b.nombre}</option>
-              ))}
-            </select>
-
-            <select
-              value={formData.monedaSeleccionada}
-              onChange={(e) => setFormData({ ...formData, monedaSeleccionada: e.target.value })}
-              className="border p-2 rounded"
-            >
-              <option value="">Selecciona moneda</option>
-              {monedasDisponibles.map((m, i) => (
-                <option key={i} value={m}>{m}</option>
-              ))}
-            </select>
-
-            {cuentaSeleccionada && (
-              <>
-                <input disabled value={cuentaSeleccionada.cuenta || ""} className="border p-2 rounded" placeholder="Cuenta bancaria" />
-                <input disabled value={cuentaSeleccionada.cci || ""} className="border p-2 rounded" placeholder="CCI" />
-              </>
-            )}
-
-            {/* Detracción si existe */}
-            {detraccionCuenta && (
-              <div className="col-span-2 grid grid-cols-2 gap-2">
-                <input disabled value={detraccionCuenta.cuenta || ""} className="border p-2 rounded bg-yellow-50" placeholder="Cuenta detracciones BN" />
-                {detraccionCuenta.cci && (
-                  <input disabled value={detraccionCuenta.cci} className="border p-2 rounded bg-yellow-50" placeholder="CCI detracciones" />
-                )}
-              </div>
-            )}
-          </>
+        {/* Vínculos (Req/Cot) */}
+        {form.tipoOrden !== "OI" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium">Requerimiento</label>
+              {/* Si tienes datos reales, usa <Select options={requerimientos} .../> */}
+              <input
+                placeholder="ID de Requerimiento (temporal)"
+                value={form.requerimientoId || ""}
+                onChange={(e) => handleChange("requerimientoId", e.target.value)}
+                className="border rounded w-full px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Cotización</label>
+              {/* Si tienes datos reales, usa <Select options={cotizaciones} .../> */}
+              <input
+                placeholder="ID de Cotización (temporal)"
+                value={form.cotizacionId || ""}
+                onChange={(e) => handleChange("cotizacionId", e.target.value)}
+                className="border rounded w-full px-2 py-1"
+              />
+            </div>
+          </div>
         )}
 
-        <input
-          type="text"
-          placeholder="Lugar de Entrega"
-          value={formData.lugarEntrega}
-          onChange={(e) => setFormData({ ...formData, lugarEntrega: e.target.value })}
-          className="border p-2 rounded col-span-2 md:col-span-3"
-        />
-      </div>
+        {/* Proveedor / Condición de Pago / Centro de Costo */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium">Proveedor</label>
+            {form.tipoOrden === "OI" ? (
+              <input
+                readOnly
+                placeholder="No aplica para OI"
+                className="border rounded w-full px-2 py-1 bg-gray-50"
+              />
+            ) : (
+              <Select
+                styles={selectStyles}
+                options={proveedores}
+                value={proveedores.find(p => p.value === form.proveedorId) || null}
+                onChange={(opt) => handleChange("proveedorId", opt?.value || null)}
+                placeholder="Selecciona proveedor..."
+                isClearable
+              />
+            )}
+          </div>
 
-      {/* Ítems */}
-      <ItemTable items={items} setItems={setItems} moneda={formData.monedaSeleccionada} />
+          <div>
+            <label className="block text-sm font-medium">Condición de Pago</label>
+            <Select
+              styles={selectStyles}
+              options={condicionesPago}
+              value={condicionesPago.find(p => p.value === form.condicionPagoId) || null}
+              onChange={(opt) => handleChange("condicionPagoId", opt?.value || null)}
+              placeholder="Selecciona condición..."
+              isClearable
+            />
+          </div>
 
-      {/* Centro / Condición / Observaciones */}
-      <div className="bg-white border shadow rounded p-6 grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
-        <div className="col-span-2 md:col-span-1">
-          <Select
-            placeholder="Centro de Costo"
-            options={opcionesCentroCosto}
-            value={formData.centroCosto ? { label: formData.centroCosto, value: formData.centroCosto } : null}
-            onChange={(opcion) => setFormData((prev) => ({ ...prev, centroCosto: opcion?.value || "" }))}
-            isSearchable
-            styles={selectStyles}
+          <div>
+            <label className="block text-sm font-medium">Centro de Costo</label>
+            <Select
+              styles={selectStyles}
+              options={centrosCosto}
+              value={centrosCosto.find(c => c.value === form.centroCostoId) || null}
+              onChange={(opt) => handleChange("centroCostoId", opt?.value || null)}
+              placeholder="Selecciona centro de costo..."
+              isClearable
+            />
+          </div>
+        </div>
+
+        {/* Ítems */}
+        <div className="border rounded p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-medium">Detalle del Pedido</h2>
+            <button type="button" onClick={agregarItem} className="px-3 py-1 border rounded hover:bg-gray-50">
+              + Agregar ítem
+            </button>
+          </div>
+
+          {/* Puedes seguir usando tu componente ItemTable si ya lo tienes */}
+          {/* Aquí una tabla simple inline por si no lo usas */}
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left p-2">Código</th>
+                  <th className="text-left p-2">Descripción</th>
+                  <th className="text-right p-2">Cant.</th>
+                  <th className="text-left p-2">U.M.</th>
+                  <th className="text-right p-2">P.U.</th>
+                  <th className="text-right p-2">Dscto</th>
+                  <th className="text-right p-2">Subtotal</th>
+                  <th className="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((it, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-2">
+                      <input className="border rounded px-2 py-1 w-full"
+                             value={it.codigo}
+                             onChange={(e)=>actualizarItem(i, "codigo", e.target.value)} />
+                    </td>
+                    <td className="p-2">
+                      <input className="border rounded px-2 py-1 w-full"
+                             value={it.descripcion}
+                             onChange={(e)=>actualizarItem(i, "descripcion", e.target.value)} />
+                    </td>
+                    <td className="p-2 text-right">
+                      <input type="number" min="0" className="border rounded px-2 py-1 w-24 text-right"
+                             value={it.cantidad}
+                             onChange={(e)=>actualizarItem(i, "cantidad", e.target.value)} />
+                    </td>
+                    <td className="p-2">
+                      <input className="border rounded px-2 py-1 w-20"
+                             value={it.um}
+                             onChange={(e)=>actualizarItem(i, "um", e.target.value)} />
+                    </td>
+                    <td className="p-2 text-right">
+                      <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right"
+                             value={it.pu}
+                             onChange={(e)=>actualizarItem(i, "pu", e.target.value)} />
+                    </td>
+                    <td className="p-2 text-right">
+                      <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right"
+                             value={it.dscto}
+                             onChange={(e)=>actualizarItem(i, "dscto", e.target.value)} />
+                    </td>
+                    <td className="p-2 text-right">{it.subtotal?.toFixed(2)}</td>
+                    <td className="p-2 text-right">
+                      <button type="button" className="text-red-600 hover:underline" onClick={()=>eliminarItem(i)}>
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {form.items.length === 0 && (
+                  <tr><td colSpan={8} className="text-center text-gray-500 py-6">Sin ítems</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* IGV / Resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <div>
+              <label className="block text-sm font-medium">Moneda</label>
+              <select
+                value={form.moneda}
+                onChange={(e) => handleChange("moneda", e.target.value)}
+                className="border rounded px-2 py-1 w-full"
+              >
+                <option value="PEN">PEN (S/.)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium">IGV</label>
+              <input
+                type="number"
+                step="0.01"
+                value={form.igv}
+                onChange={(e) => handleChange("igv", e.target.value)}
+                className="border rounded px-2 py-1 w-full"
+              />
+            </div>
+            <div className="text-right md:text-right">
+              <div className="text-sm">SubTotal: <strong>{totals.sub.toFixed(2)}</strong></div>
+              <div className="text-sm">IGV: <strong>{totals.igvMonto.toFixed(2)}</strong></div>
+              <div className="text-base">Total: <strong>{totals.total.toFixed(2)}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Entrega / Notas */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium">Lugar de Entrega/Ejecución</label>
+            <input
+              value={form.lugarEntrega}
+              onChange={(e) => handleChange("lugarEntrega", e.target.value)}
+              className="border rounded px-2 py-1 w-full"
+              placeholder="Ej. Almacén central / Dirección"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Plazo de Entrega</label>
+            <input
+              value={form.plazoEntrega}
+              onChange={(e) => handleChange("plazoEntrega", e.target.value)}
+              className="border rounded px-2 py-1 w-full"
+              placeholder="Ej. 7 días hábiles"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Responsable</label>
+            <input
+              value={form.responsable}
+              onChange={(e) => handleChange("responsable", e.target.value)}
+              className="border rounded px-2 py-1 w-full"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Notas</label>
+          <textarea
+            value={form.notas}
+            onChange={(e) => handleChange("notas", e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+            rows={3}
+            placeholder="Garantías, penalidades u observaciones"
           />
         </div>
-        <div className="col-span-2 md:grid-cols-1">
-          <Select
-            placeholder="Condición de Pago"
-            options={opcionesCondicionPago}
-            value={formData.condicionPago ? { label: formData.condicionPago, value: formData.condicionPago } : null}
-            onChange={(opcion) => setFormData((prev) => ({ ...prev, condicionPago: opcion?.value || "" }))}
-            isSearchable
-            styles={selectStyles}
-          />
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={guardando}
+            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {guardando ? "Guardando..." : "Generar Orden"}
+          </button>
+          <button type="button" className="px-4 py-2 rounded border" onClick={() => navigate(-1)}>
+            Cancelar
+          </button>
         </div>
-        <textarea
-          placeholder="Observaciones"
-          value={formData.observaciones}
-          onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-          className="col-span-2 md:col-span-3 border p-2 rounded"
-        />
-      </div>
-
-      {/* Totales */}
-      <div className="bg-white border shadow rounded p-6 w-full max-w-md mt-6">
-        <p className="flex justify-between text-sm"><span>Subtotal:</span><span>{formatearMoneda(subtotal, formData.monedaSeleccionada)}</span></p>
-        <p className="flex justify-between text-sm"><span>IGV (18%):</span><span>{formatearMoneda(igv, formData.monedaSeleccionada)}</span></p>
-        <p className="flex justify-between text-sm"><span>Valor Venta:</span><span>{formatearMoneda(valorVenta, formData.monedaSeleccionada)}</span></p>
-        <p className="flex justify-between text-sm items-center">
-          <span>Otros:</span>
-          <input type="number" value={otros} onChange={(e) => setOtros(e.target.value)} className="border px-2 py-1 w-32 text-right rounded" />
-        </p>
-        <hr className="my-2" />
-        <p className="flex justify-between font-bold text-base"><span>Total:</span><span>{formatearMoneda(totalFinal, formData.monedaSeleccionada)}</span></p>
-      </div>
-
-      {/* Guardar */}
-      <div className="mt-6 text-center">
-        <button onClick={handleGuardarOC} className="bg-[#032f53] text-white px-6 py-2 rounded hover:bg-[#021d38] transition">
-          Guardar Orden de Compra
-        </button>
-      </div>
+      </form>
     </div>
   );
 };
