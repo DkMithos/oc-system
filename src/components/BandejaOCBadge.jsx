@@ -1,77 +1,37 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Inbox } from "lucide-react";
-import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { usePendientes } from "../context/PendientesContext";
+import { useUsuario } from "../context/UsuarioContext";
+import { isGerenciaRole } from "../utils/aprobaciones";
 
-/**
- * Muestra un badge con la cantidad de OCs relevantes según el rol:
- * - comprador   -> "Pendiente de Firma del Comprador"
- * - operaciones -> "Pendiente de Operaciones"
- * - gerencia    -> "Aprobado por Operaciones"
- * - finanzas    -> "Aprobado por Gerencia"
- *
- * Al hacer click, navega a /historial?estado=<estado>
- */
-const BandejaOCBadge = ({ rol }) => {
+const sizeClasses = {
+  sm: { icon: 16, pill: "px-2 py-1 text-xs", dot: "min-w-[16px] h-[16px] text-[10px]" },
+  md: { icon: 18, pill: "px-3 py-1.5 text-sm", dot: "min-w-[18px] h-[18px] text-[10px]" },
+  lg: { icon: 20, pill: "px-3.5 py-2 text-sm", dot: "min-w-[20px] h-[20px] text-[11px]" },
+};
+
+const BandejaOCBadge = ({ size = "md", targetQuery = "?pendientes=1", className = "" }) => {
   const navigate = useNavigate();
-  const [ordenes, setOrdenes] = useState([]);
-  const [cargando, setCargando] = useState(false);
+  const { usuario } = useUsuario();
+  const { total, loading } = usePendientes();
 
-  const estadoObjetivo = useMemo(() => {
-    const map = {
-      comprador: "Pendiente de Firma del Comprador",
-      operaciones: "Pendiente de Operaciones",
-      gerencia: "Aprobado por Operaciones",
-      finanzas: "Aprobado por Gerencia",
-    };
-    return map[rol] || null;
-  }, [rol]);
+  if (!usuario || !isGerenciaRole(usuario.rol)) return null;
+  if (loading) return null;
 
-  const cargar = async () => {
-    try {
-      setCargando(true);
-      const ocs = await obtenerOCs();
-      setOrdenes(ocs || []);
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  useEffect(() => {
-    cargar();
-    // refresca cuando se actualiza una OC desde los modales
-    const onUpdated = () => cargar();
-    window.addEventListener("oc-updated", onUpdated);
-    return () => window.removeEventListener("oc-updated", onUpdated);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const cantidad = useMemo(() => {
-    if (!estadoObjetivo) return 0;
-    return (ordenes || []).filter((o) => (o.estado || "") === estadoObjetivo).length;
-  }, [ordenes, estadoObjetivo]);
-
-  if (!estadoObjetivo) return null;
-
-  const go = () => {
-    const q = new URLSearchParams({ estado: estadoObjetivo }).toString();
-    navigate(`/historial?${q}`);
-  };
+  const s = sizeClasses[size] ?? sizeClasses.md;
 
   return (
     <button
-      onClick={go}
-      title={`Ir a: ${estadoObjetivo}`}
-      className="relative flex items-center gap-2 bg-white text-blue-900 px-3 py-1 rounded-full shadow hover:shadow-md"
+      onClick={() => navigate({ pathname: "/historial", search: targetQuery })}
+      title="Ver órdenes pendientes por aprobar/firmar"
+      className={`inline-flex items-center gap-2 rounded-full bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 transition ${s.pill} ${className}`}
+      style={{ lineHeight: 1 }}
     >
-      <Inbox size={18} />
-      <span className="text-sm font-semibold hidden sm:inline">Bandeja</span>
-      <span
-        className={`ml-1 inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full text-xs font-bold ${
-          cargando ? "bg-gray-300 text-gray-700" : cantidad > 0 ? "bg-red-600 text-white" : "bg-gray-200 text-gray-700"
-        }`}
-      >
-        {cargando ? "…" : cantidad}
+      <Inbox size={s.icon} />
+      <span className="font-semibold">Bandeja</span>
+      <span className={`inline-flex items-center justify-center rounded-full bg-amber-600 text-white ${s.dot} px-1.5 leading-none`}>
+        {total > 99 ? "99+" : total}
       </span>
     </button>
   );

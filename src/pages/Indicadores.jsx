@@ -164,7 +164,22 @@ const Indicadores = () => {
     "centroCosto"
   );
 
-  if (!usuario || !["admin", "gerencia", "operaciones", "finanzas"].includes(usuario.rol)) {
+  if (
+    !usuario ||
+    ![
+      "admin",
+      "soporte",
+      "comprador",
+      "operaciones",
+      "gerencia",
+      "gerencia operaciones",
+      "gerencia finanzas",
+      "gerencia general",
+      "finanzas",
+      "administracion",
+      "legal",
+    ].includes(usuario.rol)
+  ) {
     return <div className="p-6">Acceso no autorizado</div>;
   }
 

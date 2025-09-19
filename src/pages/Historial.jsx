@@ -2,11 +2,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useLocation } from "react-router-dom";
 
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
-import { useLocation } from "react-router-dom";
+import { ocPendingForRole, isGerenciaRole } from "../utils/aprobaciones";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -38,12 +39,58 @@ const exportarExcel = (ordenes) => {
   saveAs(new Blob([buf]), `Historial_OC_${new Date().toISOString().slice(0, 10)}.xlsx`);
 };
 
+// Mini card para móvil
+const CardOC = ({ oc, onVer }) => (
+  <div className="bg-white border rounded-lg p-3 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div className="text-sm text-gray-500">N° OC</div>
+      <div className="text-sm font-semibold">{oc.numeroOC || oc.numero || "—"}</div>
+    </div>
+    <div className="mt-2">
+      <div className="text-xs text-gray-500">Proveedor</div>
+      <div className="text-sm">{oc.proveedor?.razonSocial || "—"}</div>
+    </div>
+    <div className="mt-2 grid grid-cols-2 gap-3">
+      <div>
+        <div className="text-xs text-gray-500">Fecha</div>
+        <div className="text-sm">{oc.fechaEmision || "—"}</div>
+      </div>
+      <div>
+        <div className="text-xs text-gray-500">Estado</div>
+        <span
+          className={`inline-block mt-0.5 text-xs font-medium px-2 py-1 rounded-full ${
+            oc.estado === "Pagado"
+              ? "text-green-700 bg-green-100"
+              : oc.estado === "Rechazado"
+              ? "text-red-700 bg-red-100"
+              : oc.estado?.includes("Aprobado")
+              ? "text-blue-700 bg-blue-100"
+              : "text-gray-700 bg-gray-100"
+          }`}
+        >
+          {oc.estado || "—"}
+        </span>
+      </div>
+    </div>
+    <div className="mt-3 flex justify-end">
+      <button className="text-[#004990] font-medium underline" onClick={onVer}>
+        Ver
+      </button>
+    </div>
+  </div>
+);
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Componente
 // ───────────────────────────────────────────────────────────────────────────────
 const Historial = () => {
   const { usuario, loading } = useUsuario();
-  const location = useLocation();
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+
+  // 👉 acepta ambas variantes para compatibilidad
+  const onlyPendientesParam =
+    params.get("pendientes") === "1" || params.get("bandeja") === "1";
 
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -61,7 +108,7 @@ const Historial = () => {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
 
-  // Carga inicial
+  // Carga
   useEffect(() => {
     if (!loading && usuario) {
       (async () => {
@@ -71,42 +118,28 @@ const Historial = () => {
     }
   }, [usuario, loading]);
 
-  // Lee filtros desde la URL (?estado=... & q=...)
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const estado = params.get("estado");
-    const q = params.get("q");
-
-    let touched = false;
-    if (estado) {
-      setEstadoFiltro(estado);
-      touched = true;
+  // 1) Filtro base por ROL (gerencias/finanzas: solo pendientes)
+  const baseSegunRol = useMemo(() => {
+    if (!usuario) return [];
+    const all = ordenes || [];
+    if (isGerenciaRole(usuario.rol)) {
+      return all.filter((oc) => ocPendingForRole(oc, usuario.rol, usuario.email));
     }
-    if (q) {
-      setBusqueda(q);
-      touched = true;
+    return all;
+  }, [ordenes, usuario]);
+
+  // 2) Si viene ?pendientes=1 (o ?bandeja=1) – fuerza pendientes para cualquier rol
+  const baseConParam = useMemo(() => {
+    if (!usuario) return [];
+    if (onlyPendientesParam) {
+      return (ordenes || []).filter((oc) => ocPendingForRole(oc, usuario.rol, usuario.email));
     }
-    if (touched) setPaginaActual(1);
-  }, [location.search]);
+    return baseSegunRol;
+  }, [baseSegunRol, ordenes, onlyPendientesParam, usuario]);
 
-  // Refresca/actualiza cuando otros componentes disparan "oc-updated"
-  useEffect(() => {
-    const onUpdated = (e) => {
-      const oc = e?.detail?.oc;
-      if (!oc?.id) return;
-      setOrdenes((prev) => {
-        const exists = prev.some((x) => x.id === oc.id);
-        return exists ? prev.map((x) => (x.id === oc.id ? oc : x)) : [oc, ...prev];
-      });
-      // Si está abierto y es la misma, sincroniza visual
-      setOcSeleccionada((curr) => (curr?.id === oc.id ? oc : curr));
-    };
-    window.addEventListener("oc-updated", onUpdated);
-    return () => window.removeEventListener("oc-updated", onUpdated);
-  }, []);
-
+  // 3) Filtros de UI (texto/estado)
   const ordenesProcesadas = useMemo(() => {
-    const filtradas = (ordenes || []).filter((oc) => {
+    const filtradas = (baseConParam || []).filter((oc) => {
       const q = normalizeStr(busqueda);
       const n = normalizeStr(oc.numeroOC || oc.numero);
       const p = normalizeStr(oc.proveedor?.razonSocial);
@@ -141,16 +174,14 @@ const Historial = () => {
       }
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
-      // desempate por número desc
-      const na = getOrderNumber(a),
-        nb = getOrderNumber(b);
+      const na = getOrderNumber(a), nb = getOrderNumber(b);
       if (na < nb) return 1;
       if (na > nb) return -1;
       return 0;
     };
 
     return [...filtradas].sort(compare);
-  }, [ordenes, busqueda, estadoFiltro, sortKey, sortDir]);
+  }, [baseConParam, busqueda, estadoFiltro, sortKey, sortDir]);
 
   const totalPaginas = Math.ceil(ordenesProcesadas.length / elementosPorPagina);
   const ordenesPaginadas = ordenesProcesadas.slice(
@@ -169,14 +200,34 @@ const Historial = () => {
   if (loading) return <div className="p-6">Cargando usuario…</div>;
   if (
     !usuario ||
-    !["admin", "gerencia", "operaciones", "comprador", "finanzas"].includes(usuario?.rol)
+    ![
+      "admin",
+      "comprador",
+      "finanzas",
+      "gerencia",
+      "operaciones",
+      "administracion",
+      "legal",
+      "soporte",
+      "gerencia operaciones",
+      "gerencia finanzas",
+      "gerencia general",
+    ].includes(usuario?.rol)
   ) {
     return <div className="p-6">Acceso no autorizado</div>;
   }
 
+  const isVistaPendientesGerencia = isGerenciaRole(usuario.rol) || onlyPendientesParam;
+
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4 text-[#004990]">Historial de Órdenes</h2>
+      <h2 className="text-2xl font-bold mb-2 text-[#004990]">Historial de Órdenes</h2>
+
+      {isVistaPendientesGerencia && (
+        <div className="mb-4 p-3 rounded bg-amber-50 text-amber-700 border border-amber-200">
+          Mostrando <b>solo</b> órdenes <b>pendientes</b> de tu aprobación.
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
@@ -207,36 +258,6 @@ const Historial = () => {
           <option value="Rechazado">Rechazado</option>
           <option value="Pagado">Pagado</option>
         </select>
-      </div>
-
-      {/* Ordenamiento + Export general */}
-      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700">Ordenar por:</span>
-          <select
-            value={sortKey}
-            onChange={(e) => {
-              setSortKey(e.target.value);
-              setPaginaActual(1);
-            }}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-          >
-            <option value="numero">N° de Orden</option>
-            <option value="proveedor">Proveedor</option>
-            <option value="fecha">Fecha de Emisión</option>
-            <option value="estado">Estado</option>
-          </select>
-          <button
-            onClick={() => {
-              toggleDir();
-              setPaginaActual(1);
-            }}
-            className="px-3 py-2 border rounded bg-white hover:bg-gray-50"
-            title="Cambiar dirección"
-          >
-            {sortDir === "asc" ? "Ascendente ▲" : "Descendente ▼"}
-          </button>
-        </div>
 
         <div className="ml-auto">
           <button
@@ -248,12 +269,12 @@ const Historial = () => {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla (desktop) */}
       {ordenesProcesadas.length === 0 ? (
         <p className="text-gray-600">No hay órdenes disponibles.</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm border border-gray-300">
               <thead className="bg-gray-100 text-center">
                 <tr>
@@ -304,8 +325,12 @@ const Historial = () => {
               <tbody>
                 {ordenesPaginadas.map((oc) => (
                   <tr key={oc.id} className="text-center border-t">
-                    <td className="border px-3 py-2 font-semibold">{oc.numeroOC || oc.numero}</td>
-                    <td className="border px-3 py-2">{oc.proveedor?.razonSocial || "—"}</td>
+                    <td className="border px-3 py-2 font-semibold">
+                      {oc.numeroOC || oc.numero}
+                    </td>
+                    <td className="border px-3 py-2">
+                      {oc.proveedor?.razonSocial || "—"}
+                    </td>
                     <td className="border px-3 py-2">{oc.fechaEmision || "—"}</td>
                     <td className="border px-3 py-2">
                       <span
@@ -342,6 +367,20 @@ const Historial = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Cards (móvil) */}
+          <div className="grid md:hidden gap-3">
+            {ordenesPaginadas.map((oc) => (
+              <CardOC
+                key={oc.id}
+                oc={oc}
+                onVer={() => {
+                  setOcSeleccionada(oc);
+                  setModalAbierto(true);
+                }}
+              />
+            ))}
           </div>
 
           {/* Paginación */}
