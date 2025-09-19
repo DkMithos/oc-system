@@ -47,74 +47,72 @@ const permisosPorRol = {
 
   // Comprador (ya NO firma órdenes)
   comprador: [
-    ...comunes,
+    "/",
+    "/historial",
     "/crear",           // generar OC/OS
     "/cotizaciones",
     "/proveedores",
     "/requerimientos",
     "/tickets",
-    "/indicadores",
   ],
 
   // Operaciones (jefatura de logística/operaciones)
   operaciones: [
-    ...comunes,
+    "/",
+    "/historial",
     "/requerimientos",
     "/cotizaciones",
     "/crear",
     "/tickets",
     "/caja",
-    "/indicadores",
   ],
 
   // Gerencia de Operaciones y Proyectos (Mónica)
   "gerencia operaciones": [
-    ...comunes,
+    "/",
+    "/historial",
     "/requerimientos",
     "/cotizaciones",
     "/crear",
     "/tickets",
     "/caja",
-    "/indicadores",
   ],
 
   // Gerencia General (Guillermo)
   "gerencia general": [
-    ...comunes,
-    "/indicadores",
+    "/",
+    "/historial",
   ],
 
   // Finanzas/Contabilidad (Diego)
   finanzas: [
-    ...comunes,
+    "/",
+    "/historial",
     "/requerimientos",
     "/cotizaciones",
     "/tickets",
     "/caja",
-    "/indicadores",
   ],
 
   // Gerencia de Finanzas (Luis)
   "gerencia finanzas": [
-    ...comunes,
+    "/",
+    "/historial",
     "/requerimientos",
     "/cotizaciones",
     "/tickets",
     "/caja",
-    "/indicadores",
   ],
 
   // Administración y Legal
   administración: [
-    ...comunes,
+    "/", 
     "/caja",
     "/tickets",
-    "/indicadores",
   ],
 
   legal: [
-    ...comunes,
-    "/indicadores",
+    "/", 
   ],
 };
 

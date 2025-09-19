@@ -5,6 +5,7 @@ import { actualizarOC, registrarLog } from "../firebase/firestoreHelpers";
 import { obtenerFirmaGuardada } from "../firebase/firmasHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "../firebase/config"; // o como exportes tu app
 
 // Shell
 const ModalShell = ({ children, onClose, title }) => (
