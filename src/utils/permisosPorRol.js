@@ -60,6 +60,7 @@ const permisosPorRol = {
   operaciones: [
     "/",
     "/historial",
+    "/FirmarOC",    
     "/requerimientos",
     "/cotizaciones",
     "/crear",

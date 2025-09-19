@@ -253,3 +253,97 @@ export const enviarNotificacionTest = onCall(
     return { sent, errors };
   }
 );
+
+
+/** Devuelve todos los tokens de todos los usuarios con un rol X */
+async function getTokensByRole(role) {
+  const db = admin.firestore();
+  const q = await db.collection("usuarios").where("rol", "==", role).get();
+  const all = await Promise.all(q.docs.map((d) => getUserTokensByEmail(d.id)));
+  return Array.from(new Set(all.flat().filter(Boolean)));
+}
+
+/** 🔸 NUEVO: reúne tokens de varios roles */
+async function getTokensByRoles(roles = []) {
+  const sets = await Promise.all(roles.map((r) => getTokensByRole(r)));
+  return Array.from(new Set(sets.flat().filter(Boolean)));
+}
+
+// ───────────────────────────────────────────────────────────────
+// NUEVOS TRIGGERS: Solicitudes de Edición
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * Cuando se crea una solicitud de edición:
+ * - Notifica a operaciones/gerencia/finanzas
+ */
+export const onSolicitudEdicionCreated = onDocumentCreated(
+  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
+  async (event) => {
+    const ocId = event.params.ocId;
+    const s = event.data?.data();
+    if (!s) return;
+
+    const title = "Solicitud de edición de OC";
+    const body = `Se solicitó editar la OC ${s.numeroOC || ocId} por ${s.creadoPorNombre || s.creadoPorEmail || "—"}.`;
+
+    const rolesAprobadores = ["operaciones", "gerencia", "finanzas"];
+    const tokens = await getTokensByRoles(rolesAprobadores);
+
+    const { sent, errors } = await sendToTokens({
+      ocId,
+      title,
+      body,
+      tokens,
+    });
+    console.log(`[onSolicitudEdicionCreated] OC ${ocId} -> enviados: ${sent}`, errors);
+  }
+);
+
+/**
+ * Cuando cambia el estado de la solicitud (pendiente -> aprobada / rechazada):
+ * - Si "aprobada": marca la OC con "permiteEdicion = true"
+ * - Notifica al solicitante el resultado
+ */
+export const onSolicitudEdicionUpdated = onDocumentUpdated(
+  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
+  async (event) => {
+    const ocId = event.params.ocId;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    if (before.estado === after.estado) return;
+
+    const db = admin.firestore();
+
+    // Si Aprobada -> habilitar edición en la OC
+    if (String(after.estado || "").toLowerCase() === "aprobada") {
+      await db.doc(`ordenesCompra/${ocId}`).update({
+        permiteEdicion: true,
+        edicionAprobadaEn: admin.firestore.FieldValue.serverTimestamp(),
+        edicionAprobadaPor: after.resueltoPorNombre || after.resueltoPorEmail || "",
+        edicionMotivo: after.motivo || after.motivoEdicion || "",
+      });
+    }
+
+    // Notificar al solicitante
+    const title =
+      String(after.estado || "").toLowerCase() === "aprobada"
+        ? "Solicitud de edición APROBADA"
+        : "Solicitud de edición RECHAZADA";
+    const body = `OC ${after.numeroOC || ocId} – Estado: ${after.estado}.`;
+
+    const destinatario = after.creadoPorEmail || after.creadoPor || "";
+    if (destinatario) {
+      const tokens = await getUserTokensByEmail(destinatario);
+      const { sent, errors } = await sendToTokens({
+        ocId,
+        title,
+        body,
+        tokens,
+      });
+      console.log(`[onSolicitudEdicionUpdated] OC ${ocId} -> enviados: ${sent}`, errors);
+    }
+  }
+);

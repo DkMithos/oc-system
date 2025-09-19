@@ -24,39 +24,54 @@ const Layout = () => {
         console.warn("No se pudo obtener el token de FCM");
       }
 
-      // Listener correcto: pásale un callback y guarda el unsubscribe
-      unsubscribe = await onMessageListener((payload) => {
-        console.log("[FCM foreground payload]", payload);
-        const title =
-          payload?.notification?.title || payload?.data?.title || "Notificación";
-        const body =
-          payload?.notification?.body || payload?.data?.body || "";
-        alert(`🔔 Nueva notificación: ${title}\n${body}`);
-      });
+      // Suscripción a notificaciones en primer plano
+      try {
+        unsubscribe = await onMessageListener((payload) => {
+          console.log("[FCM foreground payload]", payload);
+          const title =
+            payload?.notification?.title || payload?.data?.title || "Notificación";
+          const body =
+            payload?.notification?.body || payload?.data?.body || "";
+          alert(`🔔 Nueva notificación:\n${title}\n${body}`);
+        });
+      } catch (e) {
+        console.error("No se pudo suscribir a onMessage:", e);
+      }
     })();
 
     return () => {
-      try { unsubscribe(); } catch {}
+      try {
+        unsubscribe && unsubscribe();
+      } catch {}
     };
   }, [usuario?.email]);
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    // ⬇️ min-h-screen (no h-screen) y SIN scroll interno: deja que el body scrollee
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Topbar toggleSidebar={toggleSidebar} />
-      <div className="flex flex-1 overflow-hidden relative">
+
+      {/* Contenedor principal sin overflow-hidden para permitir scroll de la página */}
+      <div className="flex flex-1 relative">
         <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+
+        {/* Overlay para cerrar sidebar en móvil */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30"
+            className="fixed inset-0 bg-black/50 z-30"
             onClick={toggleSidebar}
           />
         )}
-        <div className="flex-1 overflow-y-auto p-4 z-10">
+
+        {/* ⬇️ Contenido sin overflow-y-auto para que el footer quede al final real del documento */}
+        <div className="flex-1 p-4 z-10">
           <Outlet />
         </div>
       </div>
+
+      {/* El Footer ya no es fijo; aparece al final del documento */}
       <Footer />
     </div>
   );

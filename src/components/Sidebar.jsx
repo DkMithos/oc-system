@@ -93,7 +93,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             )}
             {puede("/adminsoporte") && (
               <NavLink to="/adminsoporte" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Admin de Tickets</NavLink>
-            )}          
+            )}  
+            {puede("/FirmarOC") && (
+              <NavLink to="/FirmarOC" className={({ isActive }) => `${linkBase} ${isActive ? activeStyle : inactiveStyle}`}>Registrar Firma</NavLink>
+            )}           
           </nav>
         </div>
 

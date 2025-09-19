@@ -1,83 +1,62 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+// src/context/PendientesContext.jsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { collection, collectionGroup, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useUsuario } from "./UsuarioContext";
-import { ocPendingForRole, isGerenciaRole } from "../utils/aprobaciones";
+import { ocPendingForRole, isApprovalRole } from "../utils/aprobaciones";
 
-/**
- * Estructura:
- * - total: número de OCs pendientes para el usuario logueado (según su rol)
- * - pendientes: array de OCs pendientes (ya normalizadas desde Firestore)
- * - loading: estado de carga
- * - refresh: fuerza el recálculo (vuelve a enganchar la suscripción)
- */
-const Ctx = createContext({
-  total: 0,
-  pendientes: [],
-  loading: true,
-  refresh: () => {},
-});
+const PendientesContext = createContext({ total: 0, ocs: 0, solicitudes: 0, loading: true });
 
 export const PendientesProvider = ({ children }) => {
   const { usuario } = useUsuario();
+  const [ocs, setOcs] = useState([]);
+  const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pendientes, setPendientes] = useState([]);
-  const [total, setTotal] = useState(0);
 
-  // Para poder “refrescar” manualmente la suscripción si lo necesitas
-  const refreshFlag = useRef(0);
-  const refresh = () => {
-    refreshFlag.current += 1;
-    setLoading(true);
-  };
+  const aprobador = !!usuario && isApprovalRole(usuario.rol);
 
   useEffect(() => {
-    // Si no hay usuario, limpiamos y no nos suscribimos
     if (!usuario) {
-      setPendientes([]);
-      setTotal(0);
+      setOcs([]);
+      setSolicitudes([]);
       setLoading(false);
       return;
     }
 
-    // Nos suscribimos a todas las OCs; si esto es pesado, podrías filtrar por campos.
-    const ref = collection(db, "ordenesCompra");
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        const ocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 1) OCs (escucha global)
+    const unsub1 = onSnapshot(collection(db, "ordenesCompra"), (snap) => {
+      setOcs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
 
-        // Para roles aprobadores calculamos sus pendientes; otros roles → 0
-        let lista = [];
-        if (isGerenciaRole(usuario.rol)) {
-          lista = ocs.filter((oc) => ocPendingForRole(oc, usuario.rol, usuario.email));
-        } else {
-          // puedes decidir mostrar otros pendientes; por ahora 0 para no “ensuciar” el header
-          lista = [];
-        }
+    // 2) Solicitudes de edición pendientes (solo si es aprobador)
+    let unsub2 = () => {};
+    if (aprobador) {
+      const qSol = query(collectionGroup(db, "solicitudesEdicion"), where("estado", "==", "pendiente"));
+      unsub2 = onSnapshot(qSol, (snap) => setSolicitudes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    } else {
+      setSolicitudes([]);
+    }
 
-        setPendientes(lista);
-        setTotal(lista.length);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("[PendientesContext] onSnapshot error:", err);
-        setPendientes([]);
-        setTotal(0);
-        setLoading(false);
-      }
-    );
+    setLoading(false);
+    return () => {
+      try { unsub1(); } catch {}
+      try { unsub2(); } catch {}
+    };
+  }, [usuario, aprobador]);
 
-    return () => unsub();
-    // Se vuelve a enganchar si cambia el rol/email o si llamas a refresh()
-  }, [usuario?.rol, usuario?.email, refreshFlag.current]);
+  const countOCs = useMemo(() => {
+    if (!usuario) return 0;
+    return ocs.filter((oc) => ocPendingForRole(oc, usuario.rol, usuario.email)).length;
+  }, [ocs, usuario]);
+
+  const countSolicitudes = useMemo(() => (aprobador ? solicitudes.length : 0), [aprobador, solicitudes]);
 
   const value = useMemo(
-    () => ({ total, pendientes, loading, refresh }),
-    [total, pendientes, loading]
+    () => ({ total: countOCs + countSolicitudes, ocs: countOCs, solicitudes: countSolicitudes, loading }),
+    [countOCs, countSolicitudes, loading]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <PendientesContext.Provider value={value}>{children}</PendientesContext.Provider>;
 };
 
-export const usePendientes = () => useContext(Ctx);
+export const usePendientes = () => useContext(PendientesContext);
