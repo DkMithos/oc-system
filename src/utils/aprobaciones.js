@@ -1,6 +1,6 @@
 // ✅ src/utils/aprobaciones.js
 
-// Incluye todos tus nuevos nombres de rol "gerencia ..."
+// Roles de GERENCIA
 const GERENCIA_ROLES = [
   "gerencia",
   "gerencia general",
@@ -8,49 +8,65 @@ const GERENCIA_ROLES = [
   "gerencia finanzas",
 ];
 
-export const isGerenciaRole = (role) => GERENCIA_ROLES.includes(String(role || "").toLowerCase());
-
-// Mapa simple de estados que “esperan” la firma del rol correspondiente.
-// Ajusta estos arrays según tu flujo real.
-// 🆕 Roles que deben ver la BANDEJA/PENDIENTES en header (incluye OPERACIONES)
+// Roles que muestran "Bandeja/Pendientes" en el header
+// (incluye operaciones, y puedes sumar admin/soporte/finanzas si quieres ver todo)
 const BANDEJA_ROLES = [...GERENCIA_ROLES, "operaciones"];
 
-export const isBandejaRole = (role) =>
+// Roles que aprueban/firman (para contador global y permisos de edición)
+const APPROVAL_ROLES = [
+  "operaciones",
+  ...GERENCIA_ROLES,
+  "finanzas",
+  "admin",
+  "soporte",
+];
+
+export const isGerenciaRole = (role = "") =>
+  GERENCIA_ROLES.includes(String(role || "").toLowerCase());
+
+export const isBandejaRole = (role = "") =>
   BANDEJA_ROLES.includes(String(role || "").toLowerCase());
+
+export const isApprovalRole = (role = "") =>
+  APPROVAL_ROLES.includes(String(role || "").toLowerCase());
 
 // Estados “pendientes” por rol (ajústalo a tu flujo real)
 const PENDING_BY_ROLE = {
   "operaciones": ["Pendiente de Operaciones"],
-  "gerencia operaciones": ["Pendiente de Operaciones"],
-
-  // Cuando Operaciones aprueba
+  "gerencia operaciones": ["Aprobado por Operaciones", "Pendiente de Gerencia"],
   "gerencia": ["Aprobado por Operaciones", "Pendiente de Gerencia"],
   "gerencia general": ["Aprobado por Operaciones", "Pendiente de Gerencia"],
-
-  // Finanzas
-  "finanzas": ["Aprobado por Gerencia", "Aprobado por Operaciones"],
-  "gerencia finanzas": ["Aprobado por Gerencia", "Aprobado por Operaciones"],
+  "finanzas": ["Aprobado por Gerencia", "Pendiente de Finanzas", "Aprobado por Operaciones"],
+  "gerencia finanzas": ["Aprobado por Gerencia", "Pendiente de Finanzas", "Aprobado por Operaciones"],
+  // admin/soporte si quisieras contarlos como “pendientes de todos”:
+  "admin": ["Pendiente de Operaciones","Aprobado por Operaciones","Pendiente de Gerencia","Aprobado por Gerencia","Pendiente de Finanzas"],
+  "soporte": ["Pendiente de Operaciones","Aprobado por Operaciones","Pendiente de Gerencia","Aprobado por Gerencia","Pendiente de Finanzas"],
 };
 
-export const pendingStatesForRole = (role) => {
+export const pendingStatesForRole = (role = "") => {
   const key = String(role || "").toLowerCase();
   return PENDING_BY_ROLE[key] || [];
 };
 
-// Determina si una OC está pendiente para el rol/persona
-export const ocPendingForRole = (oc, role, email) => {
+/**
+ * ¿Esta OC está pendiente para que la firme/apruebe este rol/usuario?
+ * - Filtra por estados esperados según rol
+ * - Respeta asignación directa (asignadoA)
+ * - Evita contar si el usuario ya firmó (si usas oc.aprobadores[])
+ */
+export const ocPendingForRole = (oc = {}, role = "", email = "") => {
   const estados = pendingStatesForRole(role);
   if (!estados.length) return false;
 
   const estado = oc?.estado || "";
   if (!estados.includes(estado)) return false;
 
-  // Respeta asignación directa si existe
+  // Asignación directa por persona (si existe)
   if (oc?.asignadoA && String(oc.asignadoA).toLowerCase() !== String(email || "").toLowerCase()) {
     return false;
   }
 
-  // Si guardas aprobadores por persona y ya firmó, no cuenta
+  // Ya firmó (si manejas aprobadores por persona)
   if (Array.isArray(oc?.aprobadores)) {
     const yo = oc.aprobadores.find(
       (a) => String(a?.email || "").toLowerCase() === String(email || "").toLowerCase()

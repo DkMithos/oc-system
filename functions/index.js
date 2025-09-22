@@ -1,6 +1,6 @@
 /**
  * Cloud Functions para notificaciones FCM (Node 18, ESM)
- * - Triggers: onOCCreated / onOCUpdated
+ * - Triggers: onOCCreated / onOCUpdated / onSolicitudEdicionCreated / onSolicitudEdicionUpdated
  * - Callables: enviarNotificacionRol, enviarNotificacionTest
  */
 
@@ -18,7 +18,7 @@ admin.initializeApp();
 // ───────────────────────────────────────────────────────────────
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://portal.memphismaquinarias.com";
 const ICON_URL = `${WEB_BASE_URL}/logo-navbar.png`;
-const ALLOWED_ORIGINS = ["http://localhost:5173", WEB_BASE_URL]; // CORS para local y prod
+const ALLOWED_ORIGINS = ["http://localhost:5173", WEB_BASE_URL]; // CORS local y prod
 
 // ───────────────────────────────────────────────────────────────
 // Helpers de tokens
@@ -151,10 +151,9 @@ function resolveDestinatarios(afterOC) {
   if (afterOC.asignadoA) posibles.push(afterOC.asignadoA);
   if (afterOC.comprador) posibles.push(afterOC.comprador);
 
-  // Correos de “roles” operativos si quieres notificar por estado
   if (afterOC.estado === "Pendiente de Operaciones") posibles.push("operaciones@memphis.pe");
-  if (afterOC.estado === "Aprobado por Operaciones") posibles.push("gerencia@memphis.pe");
-  if (afterOC.estado === "Aprobado por Gerencia") posibles.push("finanzas@memphis.pe");
+  if (afterOC.estado === "Aprobado por Operaciones" || afterOC.estado === "Pendiente de Gerencia") posibles.push("gerencia@memphis.pe");
+  if (afterOC.estado === "Aprobado por Gerencia" || afterOC.estado === "Pendiente de Finanzas") posibles.push("finanzas@memphis.pe");
 
   return Array.from(new Set(posibles.filter(Boolean)));
 }
@@ -167,8 +166,14 @@ async function getTokensByRole(role) {
   return Array.from(new Set(all.flat().filter(Boolean)));
 }
 
+/** Reúne tokens de varios roles */
+async function getTokensByRoles(roles = []) {
+  const sets = await Promise.all(roles.map((r) => getTokensByRole(r)));
+  return Array.from(new Set(sets.flat().filter(Boolean)));
+}
+
 // ───────────────────────────────────────────────────────────────
-// TRIGGERS
+// TRIGGERS – OCs
 // ───────────────────────────────────────────────────────────────
 
 export const onOCCreated = onDocumentCreated("ordenesCompra/{ocId}", async (event) => {
@@ -204,20 +209,70 @@ export const onOCUpdated = onDocumentUpdated("ordenesCompra/{ocId}", async (even
 });
 
 // ───────────────────────────────────────────────────────────────
+// TRIGGERS – Solicitudes de Edición
+// ───────────────────────────────────────────────────────────────
+
+/** Nueva solicitud → notifica a operaciones/gerencias/finanzas */
+export const onSolicitudEdicionCreated = onDocumentCreated(
+  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
+  async (event) => {
+    const ocId = event.params.ocId;
+    const s = event.data?.data();
+    if (!s) return;
+
+    const title = "Solicitud de edición de OC";
+    const body = `Se solicitó editar la OC ${s.numeroOC || ocId} por ${s.creadoPorNombre || s.creadoPorEmail || "—"}.`;
+
+    const rolesAprobadores = ["operaciones", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "finanzas", "admin", "soporte"];
+    const tokens = await getTokensByRoles(rolesAprobadores);
+
+    const { sent, errors } = await sendToTokens({ ocId, title, body, tokens });
+    console.log(`[onSolicitudEdicionCreated] OC ${ocId} -> enviados: ${sent}`, errors);
+  }
+);
+
+/** Cambio de estado → marcar permiteEdicion y notificar al solicitante */
+export const onSolicitudEdicionUpdated = onDocumentUpdated(
+  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
+  async (event) => {
+    const ocId = event.params.ocId;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.estado === after.estado) return;
+
+    const db = admin.firestore();
+
+    if (String(after.estado || "").toLowerCase() === "aprobada") {
+      await db.doc(`ordenesCompra/${ocId}`).update({
+        permiteEdicion: true,
+        edicionAprobadaEn: admin.firestore.FieldValue.serverTimestamp(),
+        edicionAprobadaPor: after.resueltoPorNombre || after.resueltoPorEmail || "",
+        edicionMotivo: after.motivo || after.motivoEdicion || "",
+      });
+    }
+
+    const title =
+      String(after.estado || "").toLowerCase() === "aprobada"
+        ? "Solicitud de edición APROBADA"
+        : "Solicitud de edición RECHAZADA";
+    const body = `OC ${after.numeroOC || ocId} – Estado: ${after.estado}.`;
+
+    const destinatario = after.creadoPorEmail || after.creadoPor || "";
+    if (destinatario) {
+      const tokens = await getUserTokensByEmail(destinatario);
+      const { sent, errors } = await sendToTokens({ ocId, title, body, tokens });
+      console.log(`[onSolicitudEdicionUpdated] OC ${ocId} -> enviados: ${sent}`, errors);
+    }
+  }
+);
+
+// ───────────────────────────────────────────────────────────────
 // CALLABLES (v2) con región + CORS
 // ───────────────────────────────────────────────────────────────
 
-/**
- * Frontend:
- *   const fns = getFunctions(undefined, "us-central1");
- *   const send = httpsCallable(fns, "enviarNotificacionRol");
- *   await send({ toRole: "operaciones", payload: { title: "OC lista", body: "Revisar", ocId: "..." }});
- */
 export const enviarNotificacionRol = onCall(
-  {
-    region: "us-central1",
-    cors: ALLOWED_ORIGINS,
-  },
+  { region: "us-central1", cors: ALLOWED_ORIGINS },
   async (request) => {
     const { toRole, payload } = request.data || {};
     if (!toRole || !payload?.title) {
@@ -234,116 +289,13 @@ export const enviarNotificacionRol = onCall(
   }
 );
 
-/**
- * Test simple por email:
- *   const fns = getFunctions(undefined, "us-central1");
- *   const test = httpsCallable(fns, "enviarNotificacionTest");
- *   await test({ email: "admin@memphis.pe", ocId: "ABC", title: "Prueba", body: "Hola" });
- */
 export const enviarNotificacionTest = onCall(
-  {
-    region: "us-central1",
-    cors: ALLOWED_ORIGINS,
-  },
+  { region: "us-central1", cors: ALLOWED_ORIGINS },
   async (request) => {
     const { email, ocId, title = "Prueba", body = "Mensaje de prueba" } = request.data || {};
     if (!email) throw new Error("email requerido");
     const tokens = await getUserTokensByEmail(String(email).toLowerCase());
     const { sent, errors } = await sendToTokens({ ocId, title, body, tokens });
     return { sent, errors };
-  }
-);
-
-
-/** Devuelve todos los tokens de todos los usuarios con un rol X */
-async function getTokensByRole(role) {
-  const db = admin.firestore();
-  const q = await db.collection("usuarios").where("rol", "==", role).get();
-  const all = await Promise.all(q.docs.map((d) => getUserTokensByEmail(d.id)));
-  return Array.from(new Set(all.flat().filter(Boolean)));
-}
-
-/** 🔸 NUEVO: reúne tokens de varios roles */
-async function getTokensByRoles(roles = []) {
-  const sets = await Promise.all(roles.map((r) => getTokensByRole(r)));
-  return Array.from(new Set(sets.flat().filter(Boolean)));
-}
-
-// ───────────────────────────────────────────────────────────────
-// NUEVOS TRIGGERS: Solicitudes de Edición
-// ───────────────────────────────────────────────────────────────
-
-/**
- * Cuando se crea una solicitud de edición:
- * - Notifica a operaciones/gerencia/finanzas
- */
-export const onSolicitudEdicionCreated = onDocumentCreated(
-  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
-  async (event) => {
-    const ocId = event.params.ocId;
-    const s = event.data?.data();
-    if (!s) return;
-
-    const title = "Solicitud de edición de OC";
-    const body = `Se solicitó editar la OC ${s.numeroOC || ocId} por ${s.creadoPorNombre || s.creadoPorEmail || "—"}.`;
-
-    const rolesAprobadores = ["operaciones", "gerencia", "finanzas"];
-    const tokens = await getTokensByRoles(rolesAprobadores);
-
-    const { sent, errors } = await sendToTokens({
-      ocId,
-      title,
-      body,
-      tokens,
-    });
-    console.log(`[onSolicitudEdicionCreated] OC ${ocId} -> enviados: ${sent}`, errors);
-  }
-);
-
-/**
- * Cuando cambia el estado de la solicitud (pendiente -> aprobada / rechazada):
- * - Si "aprobada": marca la OC con "permiteEdicion = true"
- * - Notifica al solicitante el resultado
- */
-export const onSolicitudEdicionUpdated = onDocumentUpdated(
-  "ordenesCompra/{ocId}/solicitudesEdicion/{solId}",
-  async (event) => {
-    const ocId = event.params.ocId;
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-    if (!before || !after) return;
-
-    if (before.estado === after.estado) return;
-
-    const db = admin.firestore();
-
-    // Si Aprobada -> habilitar edición en la OC
-    if (String(after.estado || "").toLowerCase() === "aprobada") {
-      await db.doc(`ordenesCompra/${ocId}`).update({
-        permiteEdicion: true,
-        edicionAprobadaEn: admin.firestore.FieldValue.serverTimestamp(),
-        edicionAprobadaPor: after.resueltoPorNombre || after.resueltoPorEmail || "",
-        edicionMotivo: after.motivo || after.motivoEdicion || "",
-      });
-    }
-
-    // Notificar al solicitante
-    const title =
-      String(after.estado || "").toLowerCase() === "aprobada"
-        ? "Solicitud de edición APROBADA"
-        : "Solicitud de edición RECHAZADA";
-    const body = `OC ${after.numeroOC || ocId} – Estado: ${after.estado}.`;
-
-    const destinatario = after.creadoPorEmail || after.creadoPor || "";
-    if (destinatario) {
-      const tokens = await getUserTokensByEmail(destinatario);
-      const { sent, errors } = await sendToTokens({
-        ocId,
-        title,
-        body,
-        tokens,
-      });
-      console.log(`[onSolicitudEdicionUpdated] OC ${ocId} -> enviados: ${sent}`, errors);
-    }
   }
 );

@@ -5,6 +5,8 @@ import { formatearMoneda } from "../utils/formatearMoneda";
 import FirmarOCModal from "./FirmarOCModal";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
+import OCAccionesEdicion from "./OCAccionesEdicion";
+import { ocPendingForRole } from "../utils/aprobaciones";
 
 // Detección de detracción
 const findDetraccion = (bancos = []) => {
@@ -20,7 +22,7 @@ const findDetraccion = (bancos = []) => {
   );
 };
 
-// 🔁 Helper compat firmas
+// Compat firmas
 const pickFirma = (oc, keyPlano, keyObj) =>
   oc?.[keyPlano] ||
   oc?.firmas?.[keyObj] ||
@@ -65,23 +67,21 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
 
   const detraccionCuenta = ocLocal.detraccion || findDetraccion(ocLocal.proveedor?.bancos);
 
-  // ⚖️ Reglas de exportación (ajusta si quieres)
+  // Exportación (ajusta si quieres)
   const puedeExportar =
     ocLocal.estado === "Aprobado por Gerencia" ||
     (ocLocal.monedaSeleccionada === "Soles" && total <= 3500) ||
     (ocLocal.monedaSeleccionada === "Dólares" && total <= 1000);
 
-  const puedeFirmar =
-    (usuario?.rol === "comprador" && ocLocal.estado === "Pendiente de Firma del Comprador") ||
-    (usuario?.rol === "operaciones" && ocLocal.estado === "Pendiente de Operaciones") ||
-    (usuario?.rol === "gerencia" && ocLocal.estado === "Aprobado por Operaciones");
+  // Firma basada en lógica central (roles y estado)
+  const puedeFirmar = !!usuario && ocPendingForRole(ocLocal, usuario.rol, usuario.email);
 
   const exportarPDF = () => {
     const elemento = document.getElementById("modal-oc-print");
     if (!elemento) return;
     const opciones = {
       margin: [0.4, 0.4, 0.4, 0.4],
-      filename: `OC-${ocLocal.numeroOC}.pdf`,
+      filename: `OC-${ocLocal.numeroOC || ocLocal.id}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: { scale: 3, scrollY: 0 },
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
@@ -90,18 +90,24 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     html2pdf().set(opciones).from(elemento).save();
   };
 
-  // recibe del modal de firma la OC actualizada y propaga al padre
   const handleFirmado = (ocActualizada) => {
     setFirmarAbierto(false);
     setOcLocal(ocActualizada);
     onUpdated?.(ocActualizada);
   };
 
-  // 🖊️ Firmas con compat
   const firmaComprador = pickFirma(ocLocal, "firmaComprador", "comprador");
   const firmaOperaciones = pickFirma(ocLocal, "firmaOperaciones", "operaciones");
   const firmaGerencia =
     pickFirma(ocLocal, "firmaGerencia", "gerencia") || pickFirma(ocLocal, "firmaGerencia", "gerenciaGeneral");
+
+  // Si tienes un refetch desde el padre, puedes pasarlo; aquí dejo onUpdated como refresco
+  const refetchOC = (updated) => {
+    if (updated) {
+      setOcLocal(updated);
+      onUpdated?.(updated);
+    }
+  };
 
   return (
     <ModalShell title={`Orden de Compra ${ocLocal.numeroOC || ""}`} onClose={onClose}>
@@ -200,7 +206,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
         </div>
 
-        {/* Firmas (compat retroactiva) */}
+        {/* Firmas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-10 text-[11px]">
           {[
             { rol: "Comprador", src: firmaComprador },
@@ -218,15 +224,10 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           ))}
         </div>
 
-        {/* Pie */}
-        <div className="mt-4 text-[9px] leading-snug text-gray-700 border-t pt-2">
-          <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A LOS SIGUIENTES CORREOS:</p>
-          <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
-            <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
-          </ul>
-          <p className="mt-1 italic">El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.</p>
-        </div>
+        {/* ─────────────────────────────
+            Solicitudes de edición (nuevo)
+           ───────────────────────────── */}
+        <OCAccionesEdicion oc={ocLocal} onRefetch={refetchOC} />
       </div>
 
       {/* Footer acciones */}
