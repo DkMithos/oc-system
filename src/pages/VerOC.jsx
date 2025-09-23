@@ -6,8 +6,8 @@ import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
+import { ocPendingForRole } from "../utils/aprobaciones";
 
-/** Busca cuenta de detracciones en arreglo de bancos del proveedor */
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
   const nameMatches = (n = "") =>
@@ -17,12 +17,7 @@ const findDetraccion = (bancos = []) => {
   return bancos.find((b) => nameMatches(b?.nombre)) || null;
 };
 
-// 🔁 Helper compat firmas
-const pickFirma = (oc, keyPlano, keyObj) =>
-  oc?.[keyPlano] ||
-  oc?.firmas?.[keyObj] ||
-  oc?.firma?.[keyObj] ||
-  null;
+const pick = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 
 const VerOC = () => {
   const location = useLocation();
@@ -35,7 +30,7 @@ const VerOC = () => {
   const [oc, setOC] = useState(null);
 
   useEffect(() => {
-    const cargarOrden = async () => {
+    const cargar = async () => {
       if (stateOC) {
         setOC(stateOC);
       } else if (ocId) {
@@ -43,41 +38,32 @@ const VerOC = () => {
         setOC(encontrada || null);
       }
     };
-
-    cargarOrden();
+    cargar();
   }, [ocId, stateOC]);
 
   if (loading) return <div className="p-6">Cargando usuario...</div>;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
-  if (!oc) return <div className="p-6">Cargando orden de compra...</div>;
-  if (!oc.items) return <div className="p-6">Orden no válida o vacía.</div>;
+  if (!oc) return <div className="p-6">Cargando orden...</div>;
+  if (!Array.isArray(oc.items)) return <div className="p-6">Orden no válida.</div>;
 
-  const calcularNeto = (item) => (item.precioUnitario - (item.descuento || 0)) * item.cantidad;
-  const subtotal = oc.items.reduce((acc, item) => acc + calcularNeto(item), 0);
+  const calcularNeto = (item) =>
+    (Number(item.precioUnitario) - Number(item.descuento || 0)) *
+    Number(item.cantidad || 0);
+  const subtotal = oc.items.reduce((acc, it) => acc + calcularNeto(it), 0);
   const igv = subtotal * 0.18;
-  const otros = oc.resumen?.otros || 0;
+  const otros = Number(oc.resumen?.otros || 0);
   const total = subtotal + igv + otros;
   const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
 
-  // Detracciones (usa el guardado en la OC y si no existe lo deduce del proveedor)
   const detraccionCuenta = oc.detraccion || findDetraccion(oc.proveedor?.bancos);
 
-  const puedeExportar =
-    oc.estado === "Aprobado por Gerencia" ||
-    (oc.monedaSeleccionada === "Soles" && total <= 10000) ||
-    (oc.monedaSeleccionada === "Dólares" && total <= 2850);
-
-  const puedeFirmar =
-    (usuario.rol === "operaciones" && oc.estado === "Pendiente de Operaciones") ||
-    (usuario.rol === "gerencia" && oc.estado === "Aprobado por Operaciones");
+  const puedeExportar = oc.estado === "Aprobado";
+  const puedeFirmar = ocPendingForRole(oc, usuario.rol, usuario.email);
 
   const exportarPDF = () => {
-    const elemento = document.getElementById("contenido-oc");
-    if (!elemento) {
-      alert("No se encontró el contenido para exportar.");
-      return;
-    }
-    const opciones = {
+    const el = document.getElementById("contenido-oc");
+    if (!el) return alert("No se encontró el contenido.");
+    const opts = {
       margin: [0.4, 0.4, 0.4, 0.4],
       filename: `OC-${oc.numeroOC}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
@@ -85,14 +71,13 @@ const VerOC = () => {
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["avoid-all"] },
     };
-    html2pdf().set(opciones).from(elemento).save();
+    html2pdf().set(opts).from(el).save();
   };
 
-  // 🖊️ Firmas con compat
-  const firmaComprador = pickFirma(oc, "firmaComprador", "comprador");
-  const firmaOperaciones = pickFirma(oc, "firmaOperaciones", "operaciones");
-  const firmaGerencia =
-    pickFirma(oc, "firmaGerencia", "gerencia") || pickFirma(oc, "firmaGerencia", "gerenciaGeneral");
+  // Firmas
+  const firmaOperaciones = pick(oc, "firmaOperaciones", "operaciones");
+  const firmaGerOp = pick(oc, "firmaGerenciaOperaciones", "gerenciaOperaciones");
+  const firmaGerGral = pick(oc, "firmaGerenciaGeneral", "gerenciaGeneral");
 
   return (
     <div className="p-4 md:p-6">
@@ -113,7 +98,7 @@ const VerOC = () => {
             </div>
           </div>
           <div className="text-right">
-            <h1 className="text-lg font-bold text-[#004990]">ORDEN DE COMPRA</h1>
+            <h1 className="text-lg font-bold text-[#004990]">ORDEN</h1>
             <p className="text-sm font-semibold text-blue-800">N° {oc.numeroOC || oc.id}</p>
           </div>
         </div>
@@ -141,13 +126,10 @@ const VerOC = () => {
           <div><strong>Cuenta:</strong> {oc.cuenta?.cuenta || "-"}</div>
           <div><strong>CCI:</strong> {oc.cuenta?.cci || "-"}</div>
 
-          {/* DETRACCIONES (BN) */}
           {detraccionCuenta && (
             <>
               <div className="col-span-2 mt-2 pt-2 border-t">
-                <span className="text-red-700 font-semibold">
-                  Cuenta de Detracciones (BN)
-                </span>
+                <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN)</span>
               </div>
               <div><strong>Cuenta:</strong> {detraccionCuenta.cuenta || "—"}</div>
               <div><strong>CCI:</strong> {detraccionCuenta.cci || "—"}</div>
@@ -156,7 +138,7 @@ const VerOC = () => {
         </div>
 
         {/* ÍTEMS */}
-        <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE DE COMPRA</h3>
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE</h3>
         <table className="w-full text-[9px] border border-collapse mb-3" style={{ borderSpacing: "0" }}>
           <thead className="bg-gray-200 text-[9px]">
             <tr>
@@ -170,16 +152,16 @@ const VerOC = () => {
             </tr>
           </thead>
           <tbody>
-            {oc.items.map((item, i) => {
-              const neto = (Number(item.precioUnitario) - Number(item.descuento || 0));
-              const totalItem = neto * Number(item.cantidad || 0);
+            {oc.items.map((it, i) => {
+              const neto = Number(it.precioUnitario) - Number(it.descuento || 0);
+              const totalItem = neto * Number(it.cantidad || 0);
               return (
                 <tr key={i} className="text-center">
                   <td className="border px-2 py-1">{i + 1}</td>
-                  <td className="border px-2 py-1">{item.nombre}</td>
-                  <td className="border px-2 py-1">{item.cantidad}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(item.precioUnitario, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(item.descuento || 0, simbolo)}</td>
+                  <td className="border px-2 py-1">{it.nombre}</td>
+                  <td className="border px-2 py-1">{it.cantidad}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(it.precioUnitario, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(it.descuento || 0, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(neto, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(totalItem, simbolo)}</td>
                 </tr>
@@ -197,12 +179,12 @@ const VerOC = () => {
           <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
         </div>
 
-        {/* FIRMAS (compat retroactiva) */}
+        {/* FIRMAS (3) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-[11px] font-sans">
           {[
-            { rol: "Comprador", src: firmaComprador },
             { rol: "Operaciones", src: firmaOperaciones },
-            { rol: "Gerencia", src: firmaGerencia },
+            { rol: "Gerencia Operaciones", src: firmaGerOp },
+            { rol: "Gerencia General", src: firmaGerGral },
           ].map(({ rol, src }) => (
             <div key={rol} className="flex flex-col items-center justify-end">
               {src ? (
@@ -215,16 +197,15 @@ const VerOC = () => {
           ))}
         </div>
 
-        {/* PIE DE DOCUMENTO */}
+        {/* PIE */}
         <div className="mt-4 text-[8px] leading-snug text-gray-700 border-t pt-2">
-          <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A LOS SIGUIENTES CORREOS:</p>
+          <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A:</p>
           <ul className="list-disc pl-4">
             <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
             <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 text-justify italic">
             El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.
-            De no ser así, usar los canales de denuncia correspondientes.
           </p>
         </div>
       </div>

@@ -1,18 +1,29 @@
-// src/utils/permisosPorRol.js
+// ✅ src/utils/permisosPorRol.js
 
-// Rutas comunes visibles para la mayoría de roles
+/**
+ * Nota de compatibilidad de roles:
+ * En toda la app usamos roles en minúsculas y SIN acentos.
+ * Ej.: "administracion" (no "administración"), "gerencia finanzas", etc.
+ *
+ * Rutas reales (según AppRoutes.jsx):
+ *   "/", "/historial", "/ver", "/crear", "/editar", "/cotizaciones", "/proveedores",
+ *   "/firmar", "/dashboard", "/logs", "/admin", "/cargar-maestros",
+ *   "/requerimientos", "/caja", "/resumen", "/indicadores",
+ *   "/pago", "/pagos", "/soporte", "/adminsoporte", "/mi-firma"
+ */
+
+// Rutas mínimas comunes para la mayoría de roles (visibles y útiles)
 const comunes = [
-  "/",                 // home / dashboard general
-  "/historial",        // historial (filtrado por rol desde la UI)
-  "/dashboard",
-  "/resumen",
-  "/soporte",          // centro de ayuda/tickets
-  "/soporte/admin",    // vista admin de tickets (oculta por rol)
+  "/",           // Home
+  "/historial",  // Historial (se filtra por rol desde la UI)
+  "/ver",        // Ver OC
+  "/soporte",    // Centro de soporte/tickets
+  "/mi-firma",   // Módulo para registrar/actualizar firma
 ];
 
-// Mapa de permisos por rol. Ajusta/añade rutas según tus páginas reales.
+// Mapa de permisos por rol (coincidir con strings reales de rol)
 const permisosPorRol = {
-  // Acceso total (TI/Soporte)
+  // Acceso total (TI / Soporte)
   admin: [
     ...comunes,
     "/admin",
@@ -24,9 +35,12 @@ const permisosPorRol = {
     "/caja",
     "/cargar-maestros",
     "/logs",
-    "/tickets",
-    "/admin-tickets",
+    "/dashboard",
+    "/resumen",
     "/indicadores",
+    "/pagos",
+    "/pago",
+    "/adminsoporte",
   ],
 
   soporte: [
@@ -40,81 +54,101 @@ const permisosPorRol = {
     "/caja",
     "/cargar-maestros",
     "/logs",
-    "/tickets",
-    "/admin-tickets",
+    "/dashboard",
+    "/resumen",
     "/indicadores",
+    "/pagos",
+    "/pago",
+    "/adminsoporte",
   ],
 
-  // Comprador (ya NO firma órdenes)
+  // Comprador (no firma OCs)
   comprador: [
-    "/",
-    "/historial",
-    "/crear",           // generar OC/OS
+    ...comunes,
+    "/crear",
+    "/editar",        // edita solo cuando la OC tenga permiteEdicion = true
     "/cotizaciones",
     "/proveedores",
     "/requerimientos",
-    "/tickets",
   ],
 
-  // Operaciones (jefatura de logística/operaciones)
+  // Operaciones (jefatura logística/operaciones)
   operaciones: [
-    "/",
-    "/historial",
-    "/FirmarOC",    
+    ...comunes,
+    "/firmar",
     "/requerimientos",
     "/cotizaciones",
     "/crear",
-    "/tickets",
     "/caja",
+    "/resumen",
+    "/indicadores",
   ],
 
-  // Gerencia de Operaciones y Proyectos (Mónica)
+  // Gerencia de Operaciones y Proyectos
   "gerencia operaciones": [
-    "/",
-    "/historial",
+    ...comunes,
+    "/firmar",
     "/requerimientos",
     "/cotizaciones",
     "/crear",
-    "/tickets",
     "/caja",
+    "/resumen",
+    "/indicadores",
   ],
 
-  // Gerencia General (Guillermo)
+  // Gerencia General
   "gerencia general": [
-    "/",
-    "/historial",
+    ...comunes,
+    "/firmar",
+    "/resumen",
+    "/indicadores",
+    // Si habilitas acceso al dashboard en AppRoutes para este rol, añade "/dashboard".
   ],
 
-  // Finanzas/Contabilidad (Diego)
+  // Finanzas/Contabilidad
   finanzas: [
-    "/",
-    "/historial",
+    ...comunes,
+    "/firmar",
     "/requerimientos",
     "/cotizaciones",
-    "/tickets",
     "/caja",
+    "/dashboard",
+    "/pago",
+    "/pagos",
   ],
 
-  // Gerencia de Finanzas (Luis)
+  // Gerencia de Finanzas
   "gerencia finanzas": [
-    "/",
-    "/historial",
+    ...comunes,
+    "/firmar",
     "/requerimientos",
     "/cotizaciones",
-    "/tickets",
+    "/caja",
+    "/dashboard",
+    "/pago",
+    "/pagos",
+  ],
+
+  // Administración (sin acento)
+  administracion: [
+    ...comunes,
     "/caja",
   ],
 
-  // Administración y Legal
-  administración: [
-    "/", 
-    "/caja",
-    "/tickets",
-  ],
-
+  // Legal
   legal: [
-    "/", 
+    ...comunes,
   ],
 };
 
 export default permisosPorRol;
+
+/**
+ * (Opcional) Helper para chequear acceso desde componentes
+ *  puedeAcceder(rol, path) -> true/false
+ */
+export const puedeAcceder = (rol, path) => {
+  const key = String(rol || "").toLowerCase();
+  const lista = permisosPorRol[key] || [];
+  return lista.includes(path);
+};

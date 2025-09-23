@@ -5,10 +5,9 @@ import { formatearMoneda } from "../utils/formatearMoneda";
 import FirmarOCModal from "./FirmarOCModal";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
-import OCAccionesEdicion from "./OCAccionesEdicion";
 import { ocPendingForRole } from "../utils/aprobaciones";
 
-// Detección de detracción
+// Buscar detracción en bancos
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
   const up = (s = "") => s.toUpperCase();
@@ -23,11 +22,7 @@ const findDetraccion = (bancos = []) => {
 };
 
 // Compat firmas
-const pickFirma = (oc, keyPlano, keyObj) =>
-  oc?.[keyPlano] ||
-  oc?.firmas?.[keyObj] ||
-  oc?.firma?.[keyObj] ||
-  null;
+const pick = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 
 const ModalShell = ({ children, onClose, title }) => (
   <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
@@ -55,8 +50,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     () =>
       (ocLocal.items || []).reduce(
         (acc, it) =>
-          acc +
-          (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0),
+          acc + (Number(it.precioUnitario) - Number(it.descuento || 0)) * Number(it.cantidad || 0),
         0
       ),
     [ocLocal.items]
@@ -67,19 +61,13 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
 
   const detraccionCuenta = ocLocal.detraccion || findDetraccion(ocLocal.proveedor?.bancos);
 
-  // Exportación (ajusta si quieres)
-  const puedeExportar =
-    ocLocal.estado === "Aprobado por Gerencia" ||
-    (ocLocal.monedaSeleccionada === "Soles" && total <= 3500) ||
-    (ocLocal.monedaSeleccionada === "Dólares" && total <= 1000);
-
-  // Firma basada en lógica central (roles y estado)
+  const puedeExportar = ocLocal.estado === "Aprobado";
   const puedeFirmar = !!usuario && ocPendingForRole(ocLocal, usuario.rol, usuario.email);
 
   const exportarPDF = () => {
-    const elemento = document.getElementById("modal-oc-print");
-    if (!elemento) return;
-    const opciones = {
+    const el = document.getElementById("modal-oc-print");
+    if (!el) return;
+    const opts = {
       margin: [0.4, 0.4, 0.4, 0.4],
       filename: `OC-${ocLocal.numeroOC || ocLocal.id}.pdf`,
       image: { type: "jpeg", quality: 0.98 },
@@ -87,7 +75,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
       jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["avoid-all"] },
     };
-    html2pdf().set(opciones).from(elemento).save();
+    html2pdf().set(opts).from(el).save();
   };
 
   const handleFirmado = (ocActualizada) => {
@@ -96,21 +84,13 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     onUpdated?.(ocActualizada);
   };
 
-  const firmaComprador = pickFirma(ocLocal, "firmaComprador", "comprador");
-  const firmaOperaciones = pickFirma(ocLocal, "firmaOperaciones", "operaciones");
-  const firmaGerencia =
-    pickFirma(ocLocal, "firmaGerencia", "gerencia") || pickFirma(ocLocal, "firmaGerencia", "gerenciaGeneral");
-
-  // Si tienes un refetch desde el padre, puedes pasarlo; aquí dejo onUpdated como refresco
-  const refetchOC = (updated) => {
-    if (updated) {
-      setOcLocal(updated);
-      onUpdated?.(updated);
-    }
-  };
+  // 🖊️ Firmas (3 bloques)
+  const firmaOperaciones = pick(ocLocal, "firmaOperaciones", "operaciones");
+  const firmaGerOp = pick(ocLocal, "firmaGerenciaOperaciones", "gerenciaOperaciones");
+  const firmaGerGral = pick(ocLocal, "firmaGerenciaGeneral", "gerenciaGeneral");
 
   return (
-    <ModalShell title={`Orden de Compra ${ocLocal.numeroOC || ""}`} onClose={onClose}>
+    <ModalShell title={`Orden ${ocLocal.numeroOC || ""}`} onClose={onClose}>
       <div id="modal-oc-print" className="p-4 text-[12px] leading-tight">
         {/* Encabezado */}
         <div className="flex justify-between items-start mb-4">
@@ -125,7 +105,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             </div>
           </div>
           <div className="text-right">
-            <h1 className="text-lg font-bold text-[#004990]">ORDEN DE COMPRA</h1>
+            <h1 className="text-lg font-bold text-[#004990]">ORDEN</h1>
             <p className="text-sm font-semibold text-blue-800">N° {ocLocal.numeroOC || ocLocal.id}</p>
           </div>
         </div>
@@ -165,13 +145,13 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         </div>
 
         {/* Detalle */}
-        <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE DE COMPRA</h3>
+        <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE</h3>
         <table className="w-full text-[11px] border border-collapse mb-3">
           <thead className="bg-gray-200">
             <tr>
               <th className="border px-2 py-1">#</th>
               <th className="border px-2 py-1">Descripción</th>
-              <th className="border px-2 py-1">Cantidad</th>
+              <th className="border px-2 py-1">Cant.</th>
               <th className="border px-2 py-1">P. Unit</th>
               <th className="border px-2 py-1">Descuento</th>
               <th className="border px-2 py-1">Neto</th>
@@ -179,18 +159,18 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             </tr>
           </thead>
           <tbody>
-            {(ocLocal.items || []).map((item, i) => {
-              const neto = Number(item.precioUnitario) - Number(item.descuento || 0);
-              const totalItem = neto * Number(item.cantidad || 0);
+            {(ocLocal.items || []).map((it, i) => {
+              const neto = Number(it.precioUnitario) - Number(it.descuento || 0);
+              const totalIt = neto * Number(it.cantidad || 0);
               return (
                 <tr key={i} className="text-center">
                   <td className="border px-2 py-1">{i + 1}</td>
-                  <td className="border px-2 py-1">{item.nombre}</td>
-                  <td className="border px-2 py-1">{item.cantidad}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(item.precioUnitario, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(item.descuento || 0, simbolo)}</td>
+                  <td className="border px-2 py-1">{it.nombre}</td>
+                  <td className="border px-2 py-1">{it.cantidad}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(it.precioUnitario, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(it.descuento || 0, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(neto, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(totalItem, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(totalIt, simbolo)}</td>
                 </tr>
               );
             })}
@@ -203,15 +183,15 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           <p><strong>Subtotal:</strong> {formatearMoneda(subtotal, simbolo)}</p>
           <p><strong>IGV (18%):</strong> {formatearMoneda(igv, simbolo)}</p>
           <p><strong>Otros:</strong> {formatearMoneda(otros, simbolo)}</p>
-          <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
+          <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(subtotal + igv + otros, simbolo)}</p>
         </div>
 
-        {/* Firmas */}
+        {/* Firmas (3) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-10 text-[11px]">
           {[
-            { rol: "Comprador", src: firmaComprador },
             { rol: "Operaciones", src: firmaOperaciones },
-            { rol: "Gerencia", src: firmaGerencia },
+            { rol: "Gerencia Operaciones", src: firmaGerOp },
+            { rol: "Gerencia General", src: firmaGerGral },
           ].map(({ rol, src }) => (
             <div key={rol} className="flex flex-col items-center justify-end">
               {src ? (
@@ -223,11 +203,6 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             </div>
           ))}
         </div>
-
-        {/* ─────────────────────────────
-            Solicitudes de edición (nuevo)
-           ───────────────────────────── */}
-        <OCAccionesEdicion oc={ocLocal} onRefetch={refetchOC} />
       </div>
 
       {/* Footer acciones */}
@@ -251,7 +226,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
       </div>
 
       {firmarAbierto && (
-        <FirmarOCModal oc={ocLocal} onClose={() => setFirmarAbierto(false)} onDone={handleFirmado} />
+        <FirmarOCModal oc={ocLocal} onClose={() => setFirmarAbierto(false)} />
       )}
     </ModalShell>
   );

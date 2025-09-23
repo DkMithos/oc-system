@@ -23,6 +23,7 @@ import ResumenGeneral from "../pages/ResumenGeneral";
 import Indicadores from "../pages/Indicadores";
 import Tickets from "../pages/Tickets";
 import AdminTickets from "../pages/AdminTickets";
+import MiFirma from "../pages/MiFirma"; // ⬅️ NUEVO
 
 const AppRoutes = () => {
   return (
@@ -93,6 +94,17 @@ const AppRoutes = () => {
             </RutaProtegida>
           }
         />
+
+        {/* ⬇️ NUEVO: módulo para registrar/actualizar firma */}
+        <Route
+          path="mi-firma"
+          element={
+            <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","finanzas","legal","administracion"]}>
+              <MiFirma />
+            </RutaProtegida>
+          }
+        />
+
         <Route
           path="dashboard"
           element={

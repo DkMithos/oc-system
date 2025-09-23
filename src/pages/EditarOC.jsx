@@ -156,20 +156,30 @@ const EditarOC = () => {
         otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
-      // ⚠️ clave: regrésala a firma del comprador
-      estado: "Pendiente de Firma del Comprador",
-      // (opcional) si la OC venía con firmaComprador de antes, la limpiamos:
-      firmaComprador: null,
+      // 🔁 Nuevo: reencola al flujo en Operaciones
+      estado: "Pendiente de Operaciones",
+
+      // Limpia firmas de la cadena
+      firmaOperaciones: null,
+      firmaGerenciaOperaciones: null,
+      firmaGerenciaGeneral: null,
+      firmas: {
+        ...(formData.firmas || {}),
+        operaciones: null,
+        gerenciaOperaciones: null,
+        gerenciaGeneral: null,
+      },
+
       historial: [
         ...(formData.historial || []),
         {
-          accion: "Edición y reenvío a firma del comprador",
+          accion: "Edición y reenvío a Operaciones",
           por: usuario.email,
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],
     };
-    
+
     try {
       await actualizarOC(formData.id, nuevaData);
       alert("Orden de compra actualizada ✅");

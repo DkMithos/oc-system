@@ -1,21 +1,19 @@
 // ✅ src/pages/CrearOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import ItemTable from "../components/ItemTable";
-import Logo from "../assets/Logo_OC.png";
+import { useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
+import Logo from "../assets/Logo_OC.png";
 import { useUsuario } from "../context/UsuarioContext";
 
 import {
-  guardarOrden,                     // nuevo: guarda OC/OS/OI con correlativo único
-  obtenerSiguienteNumeroOrden,      // nuevo: correlativo único MM-000001...
+  guardarOrden,
+  obtenerSiguienteNumeroOrden,
   obtenerCentrosCosto,
   obtenerCondicionesPago,
   obtenerProveedores,
   registrarLog,
-  // Si ya tienes helpers para requerimientos / cotizaciones, impórtalos aquí:
-  // obtenerRequerimientos, obtenerCotizaciones
 } from "../firebase/firestoreHelpers";
+import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers"; // combo de Cotización
 
 const selectStyles = {
   control: (base) => ({
@@ -33,68 +31,130 @@ const selectStyles = {
 
 const CrearOC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { usuario } = useUsuario();
 
-  // Datos de maestros
+  // Preselección al venir desde Cotizaciones → “Generar orden”
+  const preselect = location.state?.desdeCotizacion || null; // { cotizacionId }
+
+  // Maestros
   const [proveedores, setProveedores] = useState([]);
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
-  const [requerimientos, setRequerimientos] = useState([]); // opcional
-  const [cotizaciones, setCotizaciones] = useState([]);     // opcional
+  const [cotizaciones, setCotizaciones] = useState([]);
 
-  // Estado de formulario
-  const [numero, setNumero] = useState(""); // correlativo
+  // Derivados de proveedor
+  const [bancosProveedor, setBancosProveedor] = useState([]);
+  const [bancoSeleccionado, setBancoSeleccionado] = useState("");
+  const [monedaSeleccionada, setMonedaSeleccionada] = useState("");
+  const [cuentaSel, setCuentaSel] = useState(null);
+
+  // Form
+  const [numero, setNumero] = useState("");
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    tipoOrden: "OC", // "OC" | "OS" | "OI"
+    tipoOrden: "OC", // OC | OS | OI
     fechaEmision: new Date().toISOString().split("T")[0],
-    moneda: "PEN",
-    igv: 0.18,
+
+    // Enlaces
     proveedorId: null,
     condicionPagoId: null,
     centroCostoId: null,
     requerimientoId: null,
-    cotizacionId: null,
-    notas: "",
+    cotizacionId: null,      // ID
+    cotizacionCodigo: "",    // Código legible
+
+    // Entrega
     lugarEntrega: "",
     plazoEntrega: "",
+
+    // Meta
     responsable: usuario?.nombre || "",
     creadoPor: usuario?.email || "",
-    items: [], // [{codigo, descripcion, cantidad, um, pu, dscto, subtotal}]
+    notas: "",
+
+    // Ítems (formato del formulario)
+    items: [], // [{codigo, descripcion, cantidad, um, pu, dscto}]
   });
 
-  // Totales
+  // Totales (igv 18%)
   const totals = useMemo(() => {
-    const sub = form.items.reduce((acc, it) => acc + (Number(it.cantidad || 0) * Number(it.pu || 0) - Number(it.dscto || 0)), 0);
-    const igvMonto = Math.round(sub * Number(form.igv || 0) * 100) / 100;
-    const total = Math.round((sub + igvMonto) * 100) / 100;
-    return { sub, igvMonto, total };
-  }, [form.items, form.igv]);
+    const sub = form.items.reduce(
+      (acc, it) =>
+        acc +
+        (Number(it.cantidad || 0) * Number(it.pu || 0) -
+          Number(it.dscto || 0)),
+      0
+    );
+    const igv = Math.round(sub * 0.18 * 100) / 100;
+    const total = Math.round((sub + igv) * 100) / 100;
+    return { sub, igv, total };
+  }, [form.items]);
 
-  // Cargar maestros y correlativo
+  // Carga inicial
   useEffect(() => {
     (async () => {
       try {
-        const [prov, cc, cp] = await Promise.all([
+        const [prov, cc, cp, correl, cots] = await Promise.all([
           obtenerProveedores(),
           obtenerCentrosCosto(),
           obtenerCondicionesPago(),
+          obtenerSiguienteNumeroOrden(),
+          obtenerCotizaciones(),
         ]);
 
-        setProveedores((prov || []).map(p => ({ value: p.id, label: p.razonSocial || p.nombre, raw: p })));
-        setCentrosCosto((cc || []).map(c => ({ value: c.id, label: c.nombre, raw: c })));
-        setCondicionesPago((cp || []).map(c => ({ value: c.id, label: c.nombre, raw: c })));
+        setProveedores(
+          (prov || []).map((p) => ({
+            value: p.id ?? p.ruc ?? p.email ?? p.razonSocial,
+            label: `${p.ruc || ""} ${p.razonSocial || p.nombre || ""}`.trim(),
+            raw: p,
+          }))
+        );
+        setCentrosCosto(
+          (cc || []).map((c) => ({ value: c.id, label: c.nombre, raw: c }))
+        );
+        setCondicionesPago(
+          (cp || []).map((c) => ({ value: c.id, label: c.nombre, raw: c }))
+        );
 
-        // Si tienes helpers de requerimientos y cotizaciones, habilita esto:
-        // const [reqs, cots] = await Promise.all([obtenerRequerimientos(), obtenerCotizaciones()]);
-        // setRequerimientos((reqs || []).map(r => ({ value: r.id, label: r.numero || r.asunto, raw: r })));
-        // setCotizaciones((cots || []).map(c => ({ value: c.id, label: c.numero || c.proveedorRazonSocial, raw: c })));
+        setCotizaciones(cots || []);
+        setNumero(correl?.numero || correl?.numeroOC || "");
 
-        const { numero } = await obtenerSiguienteNumeroOrden();
-        setNumero(numero);
+        // Si vienes desde “Generar orden”
+        if (preselect?.cotizacionId) {
+          const cot = (cots || []).find((x) => x.id === preselect.cotizacionId);
+          if (cot) {
+            const provOpt = (prov || []).find((p) => p.id === cot.proveedorId);
+            const proveedorId =
+              provOpt?.id ??
+              provOpt?.ruc ??
+              provOpt?.email ??
+              provOpt?.razonSocial ??
+              null;
+
+            // map items de la COT → items del formulario
+            const mappedItems = (cot.items || []).map((it) => ({
+              codigo: "",
+              descripcion: it.nombre || "",
+              cantidad: Number(it.cantidad || 0),
+              um: "UND",
+              pu: Number(it.precioUnitario || 0),
+              dscto: 0,
+            }));
+
+            setForm((f) => ({
+              ...f,
+              cotizacionId: cot.id,
+              cotizacionCodigo: cot.codigo || "",
+              requerimientoId: cot.requerimientoId || f.requerimientoId,
+              proveedorId: proveedorId,
+              items: mappedItems.length ? mappedItems : f.items,
+            }));
+          }
+        }
       } catch (e) {
         console.error(e);
         setError("Error cargando datos iniciales.");
@@ -102,79 +162,231 @@ const CrearOC = () => {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleChange = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  // Proveedor seleccionado (para bancos)
+  const proveedorOpt = useMemo(
+    () => proveedores.find((p) => p.value === form.proveedorId) || null,
+    [proveedores, form.proveedorId]
+  );
 
-  const agregarItem = () => {
-    setForm(f => ({
+  // Al cambiar proveedor → reset bancos/monedas/cuenta
+  useEffect(() => {
+    const bancos = proveedorOpt?.raw?.bancos || [];
+    setBancosProveedor(bancos);
+    setBancoSeleccionado("");
+    setMonedaSeleccionada("");
+    setCuentaSel(null);
+  }, [proveedorOpt?.value]); // eslint-disable-line
+
+  // Opciones derivadas de bancos
+  const bancosUnicos = useMemo(() => {
+    const names = new Set((bancosProveedor || []).map((b) => b.nombre).filter(Boolean));
+    return Array.from(names);
+  }, [bancosProveedor]);
+
+  const monedasDelBanco = useMemo(() => {
+    return (bancosProveedor || [])
+      .filter((b) => b.nombre === bancoSeleccionado)
+      .map((b) => b.moneda)
+      .filter(Boolean);
+  }, [bancosProveedor, bancoSeleccionado]);
+
+  useEffect(() => {
+    if (!bancoSeleccionado || !monedaSeleccionada) {
+      setCuentaSel(null);
+      return;
+    }
+    const found =
+      (bancosProveedor || []).find(
+        (b) => b.nombre === bancoSeleccionado && b.moneda === monedaSeleccionada
+      ) || null;
+    setCuentaSel(found);
+  }, [bancosProveedor, bancoSeleccionado, monedaSeleccionada]);
+
+  // Helpers UI
+  const handleChange = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const agregarItem = () =>
+    setForm((f) => ({
       ...f,
       items: [
         ...f.items,
-        { codigo: "", descripcion: "", cantidad: 1, um: "UND", pu: 0, dscto: 0, subtotal: 0 },
+        {
+          codigo: "",
+          descripcion: "",
+          cantidad: 1,
+          um: "UND",
+          pu: 0,
+          dscto: 0,
+        },
       ],
+    }));
+  const actualizarItem = (i, k, v) =>
+    setForm((f) => {
+      const items = [...f.items];
+      items[i] = { ...items[i], [k]: v };
+      return { ...f, items };
+    });
+  const eliminarItem = (i) =>
+    setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+
+  // Combo de Cotizaciones (muestra CÓDIGO)
+  const cotizacionOptions = useMemo(() => {
+    const list = cotizaciones || [];
+    return list.map((c) => ({
+      value: c.id, // guardamos id
+      label: `${c.codigo || "(s/cód)"}`,
+      raw: c,
+    }));
+  }, [cotizaciones, proveedores]);
+
+  const handleSeleccionCotizacion = (opt) => {
+    if (!opt) {
+      setForm((f) => ({ ...f, cotizacionId: null, cotizacionCodigo: "" }));
+      return;
+    }
+    const c = opt.raw;
+    const prov = proveedores.find((p) => p.id === c.proveedorId);
+    const proveedorId =
+      prov?.id ?? prov?.ruc ?? prov?.email ?? prov?.razonSocial ?? null;
+
+    const mappedItems = (c.items || []).map((it) => ({
+      codigo: "",
+      descripcion: it.nombre || "",
+      cantidad: Number(it.cantidad || 0),
+      um: "UND",
+      pu: Number(it.precioUnitario || 0),
+      dscto: 0,
+    }));
+
+    setForm((f) => ({
+      ...f,
+      cotizacionId: c.id,
+      cotizacionCodigo: c.codigo || "",
+      requerimientoId: c.requerimientoId || f.requerimientoId,
+      proveedorId: proveedorId || f.proveedorId,
+      items: mappedItems.length ? mappedItems : f.items,
     }));
   };
 
-  const actualizarItem = (index, key, value) => {
-    setForm(f => {
-      const items = [...f.items];
-      items[index] = { ...items[index], [key]: value };
-      const cantidad = Number(items[index].cantidad || 0);
-      const pu = Number(items[index].pu || 0);
-      const dscto = Number(items[index].dscto || 0);
-      items[index].subtotal = Math.max(0, cantidad * pu - dscto);
-      return { ...f, items };
-    });
-  };
-
-  const eliminarItem = (index) => {
-    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== index) }));
-  };
-
+  // Validaciones
   const validar = () => {
     if (!form.tipoOrden) return "Selecciona el tipo de orden.";
     if (!numero) return "No se pudo obtener el correlativo.";
-    if (!form.proveedorId && form.tipoOrden !== "OI") return "Selecciona un proveedor.";
     if (form.items.length === 0) return "Agrega al menos un ítem.";
+
     if (form.tipoOrden !== "OI") {
-      // reglas de enlace
-      if (!form.cotizacionId) return "Debes vincular una cotización.";
-      if (!form.requerimientoId) return "Debes vincular un requerimiento.";
+      if (!form.proveedorId) return "Selecciona un proveedor.";
+      if (!form.cotizacionId) return "Selecciona la cotización.";
+      if (!bancoSeleccionado) return "Selecciona el banco del proveedor.";
+      if (!monedaSeleccionada) return "Selecciona la moneda para el pago.";
+      if (!cuentaSel?.cuenta) return "No se encontró la cuenta del proveedor.";
+      if (!form.requerimientoId) return "Vincula el requerimiento.";
     }
     return null;
   };
 
+  // Guardar
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
     const v = validar();
-    if (v) {
-      setError(v);
-      return;
-    }
+    if (v) return setError(v);
+
     setGuardando(true);
     try {
+      // Mapear ítems al esquema de las vistas
+      const items = form.items.map((it) => ({
+        codigo: it.codigo || "",
+        nombre: it.descripcion || "",
+        cantidad: Number(it.cantidad || 0),
+        unidad: it.um || "UND",
+        precioUnitario: Number(it.pu || 0),
+        descuento: Number(it.dscto || 0),
+      }));
+
+      const proveedorObj = proveedorOpt?.raw || null;
+
       const payload = {
-        ...form,
-        numero, // correlativo único
-        estado: "Pendiente",
-        creadoPor: usuario?.email || form.creadoPor,
+        numeroOC: numero,
+        tipoOrden: form.tipoOrden,
+        fechaEmision: form.fechaEmision,
+
+        // Enlaces (guardamos ambos, id y código)
+        requerimientoId: form.requerimientoId || "",
+        cotizacionId: form.cotizacionId || "",
+        cotizacion: form.cotizacionCodigo || "",
+
+        centroCosto:
+          centrosCosto.find((c) => c.value === form.centroCostoId)?.label || "",
+        condicionPago:
+          condicionesPago.find((c) => c.value === form.condicionPagoId)
+            ?.label || "",
+
+        proveedor: proveedorObj
+          ? {
+              ruc: proveedorObj.ruc || "",
+              razonSocial: proveedorObj.razonSocial || proveedorObj.nombre || "",
+              direccion: proveedorObj.direccion || "",
+              telefono: proveedorObj.telefono || "",
+              email: proveedorObj.email || "",
+              contacto: proveedorObj.contacto || "",
+              bancos: proveedorObj.bancos || [],
+            }
+          : null,
+
+        // Pago
+        bancoSeleccionado: form.tipoOrden !== "OI" ? bancoSeleccionado : "",
+        monedaSeleccionada:
+          form.tipoOrden !== "OI" ? monedaSeleccionada : "Soles",
+        cuenta:
+          form.tipoOrden !== "OI"
+            ? { cuenta: cuentaSel?.cuenta || "", cci: cuentaSel?.cci || "" }
+            : null,
+
+        // Entrega
+        lugarEntrega: form.lugarEntrega || "",
+        plazoEntrega: form.plazoEntrega || "",
+
+        // Meta
+        responsable: form.responsable || "",
+        creadoPor: usuario?.email || form.creadoPor || "",
+
+        // Totales
+        items,
+        resumen: {
+          subtotal: totals.sub,
+          igv: totals.igv,
+          otros: 0,
+          total: totals.sub + totals.igv,
+        },
+
+        // Flags / historial
+        permiteEdicion: false,
+        historial: [
+          {
+            accion: "Creación",
+            por: usuario?.email || "",
+            fecha: new Date().toLocaleString("es-PE"),
+          },
+        ],
       };
+
       const id = await guardarOrden(payload);
       await registrarLog("ui_crear_orden", id, usuario?.email || "");
-      navigate(`/ver/${id}`);
-    } catch (e) {
-      console.error(e);
-      setError(e?.message || "Error al guardar la orden.");
+
+      // Redirige a VerOC con state para render inmediato
+      navigate(`/ver?id=${id}`, { state: { orden: { id, ...payload } } });
+    } catch (e2) {
+      console.error(e2);
+      setError(e2?.message || "Error al guardar la orden.");
     } finally {
       setGuardando(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-4">Cargando...</div>;
-  }
+  if (loading) return <div className="p-4">Cargando...</div>;
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
@@ -190,7 +402,7 @@ const CrearOC = () => {
       )}
 
       <form onSubmit={onSubmit} className="space-y-4">
-        {/* Correlativo & Tipo */}
+        {/* Correlativo & Tipo & Fecha */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium">N° de Orden</label>
@@ -219,14 +431,14 @@ const CrearOC = () => {
           </div>
         </div>
 
-        {/* Vínculos (Req/Cot) */}
+        {/* Requerimiento / Cotización (solo OC/OS) */}
         {form.tipoOrden !== "OI" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium">Requerimiento</label>
-              {/* Si tienes datos reales, usa <Select options={requerimientos} .../> */}
+              {/* Si luego quieres, cambiamos por un Select de requerimientos aprobados */}
               <input
-                placeholder="ID de Requerimiento (temporal)"
+                placeholder="Código o ID de Requerimiento"
                 value={form.requerimientoId || ""}
                 onChange={(e) => handleChange("requerimientoId", e.target.value)}
                 className="border rounded w-full px-2 py-1"
@@ -234,13 +446,23 @@ const CrearOC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium">Cotización</label>
-              {/* Si tienes datos reales, usa <Select options={cotizaciones} .../> */}
-              <input
-                placeholder="ID de Cotización (temporal)"
-                value={form.cotizacionId || ""}
-                onChange={(e) => handleChange("cotizacionId", e.target.value)}
-                className="border rounded w-full px-2 py-1"
+              <Select
+                styles={selectStyles}
+                options={cotizacionOptions}
+                value={
+                  cotizacionOptions.find((o) => o.value === form.cotizacionId) ||
+                  null
+                }
+                onChange={handleSeleccionCotizacion}
+                placeholder="Selecciona cotización..."
+                isClearable
+                isSearchable
               />
+              {form.cotizacionCodigo && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Seleccionada: <b>{form.cotizacionCodigo}</b>
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -250,16 +472,12 @@ const CrearOC = () => {
           <div>
             <label className="block text-sm font-medium">Proveedor</label>
             {form.tipoOrden === "OI" ? (
-              <input
-                readOnly
-                placeholder="No aplica para OI"
-                className="border rounded w-full px-2 py-1 bg-gray-50"
-              />
+              <input readOnly placeholder="No aplica para OI" className="border rounded w-full px-2 py-1 bg-gray-50" />
             ) : (
               <Select
                 styles={selectStyles}
                 options={proveedores}
-                value={proveedores.find(p => p.value === form.proveedorId) || null}
+                value={proveedores.find((p) => p.value === form.proveedorId) || null}
                 onChange={(opt) => handleChange("proveedorId", opt?.value || null)}
                 placeholder="Selecciona proveedor..."
                 isClearable
@@ -272,7 +490,7 @@ const CrearOC = () => {
             <Select
               styles={selectStyles}
               options={condicionesPago}
-              value={condicionesPago.find(p => p.value === form.condicionPagoId) || null}
+              value={condicionesPago.find((p) => p.value === form.condicionPagoId) || null}
               onChange={(opt) => handleChange("condicionPagoId", opt?.value || null)}
               placeholder="Selecciona condición..."
               isClearable
@@ -284,13 +502,67 @@ const CrearOC = () => {
             <Select
               styles={selectStyles}
               options={centrosCosto}
-              value={centrosCosto.find(c => c.value === form.centroCostoId) || null}
+              value={centrosCosto.find((c) => c.value === form.centroCostoId) || null}
               onChange={(opt) => handleChange("centroCostoId", opt?.value || null)}
               placeholder="Selecciona centro de costo..."
               isClearable
             />
           </div>
         </div>
+
+        {/* Banco / Moneda / Cuenta (solo OC/OS) */}
+        {form.tipoOrden !== "OI" && proveedorOpt && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium">Banco</label>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={bancoSeleccionado}
+                onChange={(e) => {
+                  setBancoSeleccionado(e.target.value);
+                  setMonedaSeleccionada("");
+                }}
+              >
+                <option value="">Selecciona banco</option>
+                {bancosUnicos.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Moneda</label>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={monedaSeleccionada}
+                onChange={(e) => setMonedaSeleccionada(e.target.value)}
+                disabled={!bancoSeleccionado}
+              >
+                <option value="">Selecciona moneda</option>
+                {monedasDelBanco.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <div className="text-xs text-gray-600">
+                {cuentaSel ? (
+                  <>
+                    <div><b>Cuenta:</b> {cuentaSel.cuenta || "—"}</div>
+                    <div><b>CCI:</b> {cuentaSel.cci || "—"}</div>
+                  </>
+                ) : (
+                  <span>Cuenta/CCI aparecerán aquí</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ítems */}
         <div className="border rounded p-3">
@@ -301,8 +573,6 @@ const CrearOC = () => {
             </button>
           </div>
 
-          {/* Puedes seguir usando tu componente ItemTable si ya lo tienes */}
-          {/* Aquí una tabla simple inline por si no lo usas */}
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead>
@@ -318,80 +588,107 @@ const CrearOC = () => {
                 </tr>
               </thead>
               <tbody>
-                {form.items.map((it, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="p-2">
-                      <input className="border rounded px-2 py-1 w-full"
-                             value={it.codigo}
-                             onChange={(e)=>actualizarItem(i, "codigo", e.target.value)} />
-                    </td>
-                    <td className="p-2">
-                      <input className="border rounded px-2 py-1 w-full"
-                             value={it.descripcion}
-                             onChange={(e)=>actualizarItem(i, "descripcion", e.target.value)} />
-                    </td>
-                    <td className="p-2 text-right">
-                      <input type="number" min="0" className="border rounded px-2 py-1 w-24 text-right"
-                             value={it.cantidad}
-                             onChange={(e)=>actualizarItem(i, "cantidad", e.target.value)} />
-                    </td>
-                    <td className="p-2">
-                      <input className="border rounded px-2 py-1 w-20"
-                             value={it.um}
-                             onChange={(e)=>actualizarItem(i, "um", e.target.value)} />
-                    </td>
-                    <td className="p-2 text-right">
-                      <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right"
-                             value={it.pu}
-                             onChange={(e)=>actualizarItem(i, "pu", e.target.value)} />
-                    </td>
-                    <td className="p-2 text-right">
-                      <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right"
-                             value={it.dscto}
-                             onChange={(e)=>actualizarItem(i, "dscto", e.target.value)} />
-                    </td>
-                    <td className="p-2 text-right">{it.subtotal?.toFixed(2)}</td>
-                    <td className="p-2 text-right">
-                      <button type="button" className="text-red-600 hover:underline" onClick={()=>eliminarItem(i)}>
-                        Eliminar
-                      </button>
+                {form.items.map((it, i) => {
+                  const subtotal = Math.max(
+                    0,
+                    Number(it.cantidad || 0) * Number(it.pu || 0) -
+                      Number(it.dscto || 0)
+                  );
+                  return (
+                    <tr key={i} className="border-t">
+                      <td className="p-2">
+                        <input
+                          className="border rounded px-2 py-1 w-full"
+                          value={it.codigo}
+                          onChange={(e) => actualizarItem(i, "codigo", e.target.value)}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          className="border rounded px-2 py-1 w-full"
+                          value={it.descripcion}
+                          onChange={(e) =>
+                            actualizarItem(i, "descripcion", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          className="border rounded px-2 py-1 w-24 text-right"
+                          value={it.cantidad}
+                          onChange={(e) =>
+                            actualizarItem(i, "cantidad", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          className="border rounded px-2 py-1 w-20"
+                          value={it.um}
+                          onChange={(e) => actualizarItem(i, "um", e.target.value)}
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="border rounded px-2 py-1 w-28 text-right"
+                          value={it.pu}
+                          onChange={(e) => actualizarItem(i, "pu", e.target.value)}
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="border rounded px-2 py-1 w-28 text-right"
+                          value={it.dscto}
+                          onChange={(e) =>
+                            actualizarItem(i, "dscto", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-2 text-right">{subtotal.toFixed(2)}</td>
+                      <td className="p-2 text-right">
+                        <button
+                          type="button"
+                          className="text-red-600 hover:underline"
+                          onClick={() => eliminarItem(i)}
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {form.items.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center text-gray-500 py-6">
+                      Sin ítems
                     </td>
                   </tr>
-                ))}
-                {form.items.length === 0 && (
-                  <tr><td colSpan={8} className="text-center text-gray-500 py-6">Sin ítems</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          {/* IGV / Resumen */}
+          {/* Resumen */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <div>
-              <label className="block text-sm font-medium">Moneda</label>
-              <select
-                value={form.moneda}
-                onChange={(e) => handleChange("moneda", e.target.value)}
-                className="border rounded px-2 py-1 w-full"
-              >
-                <option value="PEN">PEN (S/.)</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium">IGV</label>
-              <input
-                type="number"
-                step="0.01"
-                value={form.igv}
-                onChange={(e) => handleChange("igv", e.target.value)}
-                className="border rounded px-2 py-1 w-full"
-              />
-            </div>
-            <div className="text-right md:text-right">
-              <div className="text-sm">SubTotal: <strong>{totals.sub.toFixed(2)}</strong></div>
-              <div className="text-sm">IGV: <strong>{totals.igvMonto.toFixed(2)}</strong></div>
-              <div className="text-base">Total: <strong>{totals.total.toFixed(2)}</strong></div>
+            <div className="md:col-span-2" />
+            <div className="text-right">
+              <div className="text-sm">
+                SubTotal: <strong>{totals.sub.toFixed(2)}</strong>
+              </div>
+              <div className="text-sm">
+                IGV (18%): <strong>{totals.igv.toFixed(2)}</strong>
+              </div>
+              <div className="text-base">
+                Total: <strong>{(totals.sub + totals.igv).toFixed(2)}</strong>
+              </div>
             </div>
           </div>
         </div>

@@ -41,3 +41,9 @@ export const generarCodigoRequerimiento = async () => {
   const siguienteNumero = total + 1;
   return `RQ-${siguienteNumero.toString().padStart(5, "0")}`;
 };
+
+// ✅ nuevo en src/firebase/requerimientosHelpers.js
+export const obtenerRequerimientosAll = async () => {
+  const snap = await getDocs(collection(db, "requerimientos"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
