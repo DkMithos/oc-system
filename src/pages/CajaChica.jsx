@@ -17,7 +17,7 @@ import { useUsuario } from "../context/UsuarioContext";
 const ROLES_PERMITIDOS = [
   "admin",
   "gerencia",
-  "operaciones_proyectos",
+  "gerencia operaciones",
   "operaciones",
   "administracion",
   "coordinador",
@@ -30,14 +30,14 @@ const CAJAS = [
 ];
 
 function cajaPorDefecto(rol) {
-  if (rol === "operaciones_proyectos") return "op_proyectos";
+  if (rol === "gerencia operaciones") return "op_proyectos";
   if (rol === "operaciones" || rol === "coordinador") return "operaciones";
   if (rol === "administracion") return "administracion";
   return "administracion";
 }
 function cajasPermitidas(rol) {
   if (rol === "admin" || rol === "gerencia") return CAJAS.map((c) => c.key);
-  if (rol === "operaciones_proyectos") return ["op_proyectos"];
+  if (rol === "gerencia operaciones") return ["op_proyectos"];
   if (rol === "operaciones" || rol === "coordinador") return ["operaciones"];
   if (rol === "administracion") return ["administracion"];
   return [];

@@ -32,7 +32,7 @@ const AppRoutes = () => {
         <Route
           index
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "legal", "administracion"]}>
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "legal", "administracion", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <Home />
             </RutaProtegida>
           }
@@ -41,7 +41,7 @@ const AppRoutes = () => {
         <Route
           path="historial"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia"]}>
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <Historial />
             </RutaProtegida>
           }
@@ -49,7 +49,7 @@ const AppRoutes = () => {
         <Route
           path="ver"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas"]}>
+            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "finanzas", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <VerOC />
             </RutaProtegida>
           }
@@ -89,7 +89,7 @@ const AppRoutes = () => {
         <Route
           path="firmar"
           element={
-            <RutaProtegida rolesPermitidos={["operaciones", "gerencia", "finanzas"]}>
+            <RutaProtegida rolesPermitidos={["operaciones", "gerencia", "finanzas", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <FirmarOC />
             </RutaProtegida>
           }
@@ -99,7 +99,7 @@ const AppRoutes = () => {
         <Route
           path="mi-firma"
           element={
-            <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","finanzas","legal","administracion"]}>
+            <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","finanzas","legal","administracion", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <MiFirma />
             </RutaProtegida>
           }
@@ -148,7 +148,7 @@ const AppRoutes = () => {
         <Route
           path="caja"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "operaciones", "administracion"]}>
+            <RutaProtegida rolesPermitidos={["admin", "operaciones", "administracion", "gerencia operaciones"]}>
               <CajaChica />
             </RutaProtegida>
           }
@@ -188,7 +188,7 @@ const AppRoutes = () => {
         <Route
           path="soporte"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administracion", "operaciones", "comprador"]}>
+            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia", "administracion", "operaciones", "comprador", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
               <Tickets />
             </RutaProtegida>
           }

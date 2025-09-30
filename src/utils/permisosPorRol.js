@@ -76,32 +76,20 @@ const permisosPorRol = {
   operaciones: [
     ...comunes,
     "/firmar",
-    "/requerimientos",
-    "/cotizaciones",
-    "/crear",
     "/caja",
-    "/resumen",
-    "/indicadores",
   ],
 
   // Gerencia de Operaciones y Proyectos
   "gerencia operaciones": [
     ...comunes,
     "/firmar",
-    "/requerimientos",
-    "/cotizaciones",
-    "/crear",
     "/caja",
-    "/resumen",
-    "/indicadores",
   ],
 
   // Gerencia General
   "gerencia general": [
     ...comunes,
     "/firmar",
-    "/resumen",
-    "/indicadores",
     // Si habilitas acceso al dashboard en AppRoutes para este rol, añade "/dashboard".
   ],
 
@@ -112,7 +100,6 @@ const permisosPorRol = {
     "/requerimientos",
     "/cotizaciones",
     "/caja",
-    "/dashboard",
     "/pago",
     "/pagos",
   ],
@@ -121,10 +108,7 @@ const permisosPorRol = {
   "gerencia finanzas": [
     ...comunes,
     "/firmar",
-    "/requerimientos",
-    "/cotizaciones",
     "/caja",
-    "/dashboard",
     "/pago",
     "/pagos",
   ],
