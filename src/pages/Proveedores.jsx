@@ -1,5 +1,5 @@
 // ✅ src/pages/Proveedores.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   obtenerProveedores,
   agregarProveedor,
@@ -11,6 +11,18 @@ import CuentaBancariaForm from "../components/CuentaBancariaForm";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useUsuario } from "../context/UsuarioContext";
+
+const esRucValido = (raw) => {
+  const ruc = (raw || "").replace(/\D/g, "");
+  if (ruc.length !== 11) return false;
+  // checksum rápido (mod 11)
+  const factores = [5,4,3,2,7,6,5,4,3,2];
+  const suma = factores.reduce((acc, f, i) => acc + f * parseInt(ruc[i], 10), 0);
+  const resto = suma % 11;
+  const dig = 11 - resto;
+  const dv = (dig === 10) ? 0 : (dig === 11 ? 1 : dig);
+  return dv === parseInt(ruc[10], 10);
+};
 
 const Proveedores = () => {
   const { usuario, loading } = useUsuario();
@@ -29,43 +41,69 @@ const Proveedores = () => {
   });
   const [editandoId, setEditandoId] = useState(null);
   const [cuenta, setCuenta] = useState({ nombre: "", cuenta: "", cci: "", moneda: "" });
+
   const [busqueda, setBusqueda] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
   const porPagina = 10;
 
+  // estados lookup SUNAT
+  const [buscandoRuc, setBuscandoRuc] = useState(false);
+  const [errorSunat, setErrorSunat] = useState("");
+
   useEffect(() => {
     if (!loading && usuario) cargarProveedores();
   }, [usuario, loading]);
-
-  useEffect(() => {
-    const buscarProveedor = async () => {
-      if (form.ruc.length === 11 && form.razonSocial.trim() === "") {
-        try {
-          // usa tu util, ver opción B para proxy
-          const data = await consultarSunat(form.ruc);
-          setForm((prev) => ({ ...prev, razonSocial: data.razonSocial, direccion: data.direccion }));
-        } catch (error) {
-          console.warn("SUNAT CORS/Fetch falló, continúa manual:", error);
-          // No alert, para no molestar; deja que el usuario escriba manual.
-        }
-      }
-    };
-    buscarProveedor();
-  }, [form.ruc]);
 
   const cargarProveedores = async () => {
     const lista = await obtenerProveedores();
     const normalizados = (lista || []).map((p) => ({
       ...p,
       estado: p.estado || "Activo",
-      bancos: Array.isArray(p.bancos) ? p.bancos : [], // seguridad
+      bancos: Array.isArray(p.bancos) ? p.bancos : [],
     }));
     setProveedores(normalizados);
+  };
+
+  // --- Handlers RUC ---
+  const handleRucChange = (e) => {
+    const onlyDigits = e.target.value.replace(/\D/g, "").slice(0, 11);
+    setForm((prev) => ({ ...prev, ruc: onlyDigits }));
+    setErrorSunat("");
+  };
+
+  const handleRucBlur = async () => {
+    if (!form.ruc || form.ruc.length !== 11) return;
+    if (!esRucValido(form.ruc)) {
+      setErrorSunat("RUC inválido. Verifica los 11 dígitos.");
+      return;
+    }
+    // evita sobreescribir datos en edición si ya existe razón social
+    if (form.razonSocial?.trim()) return;
+
+    try {
+      setBuscandoRuc(true);
+      setErrorSunat("");
+      const data = await consultarSunat(form.ruc);
+      setForm((prev) => ({
+        ...prev,
+        razonSocial: data.razonSocial || prev.razonSocial,
+        direccion: data.direccion || prev.direccion,
+      }));
+    } catch (error) {
+      console.error("Fallo consulta SUNAT:", error);
+      setErrorSunat("No se pudo validar con SUNAT. Completa los campos manualmente.");
+    } finally {
+      setBuscandoRuc(false);
+    }
   };
 
   const guardar = async () => {
     if (!form.ruc || !form.razonSocial) {
       alert("El RUC y la razón social son obligatorios");
+      return;
+    }
+    if (!esRucValido(form.ruc)) {
+      alert("RUC inválido. Verifica los 11 dígitos.");
       return;
     }
 
@@ -104,15 +142,23 @@ const Proveedores = () => {
     });
     setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
     setEditandoId(null);
+    setErrorSunat("");
+    setBuscandoRuc(false);
   };
 
   const cargarParaEditar = (prov) => {
     setForm({ ...prov, motivoCambio: "" });
     setEditandoId(prov.id);
+    setErrorSunat("");
+    setBuscandoRuc(false);
   };
 
-  const proveedoresFiltrados = proveedores.filter((p) =>
-    `${p.ruc} ${p.razonSocial}`.toLowerCase().includes(busqueda.toLowerCase())
+  const proveedoresFiltrados = useMemo(
+    () =>
+      (proveedores || []).filter((p) =>
+        `${p.ruc} ${p.razonSocial}`.toLowerCase().includes(busqueda.toLowerCase())
+      ),
+    [proveedores, busqueda]
   );
 
   const totalPaginas = Math.ceil(proveedoresFiltrados.length / porPagina);
@@ -120,14 +166,12 @@ const Proveedores = () => {
   const fin = inicio + porPagina;
   const proveedoresPaginados = proveedoresFiltrados.slice(inicio, fin);
 
-  // ✅ Exportación en 2 hojas: "Proveedores" y "Cuentas"
+  // Exportación en 2 hojas
   const exportarExcel = () => {
     if (!proveedoresFiltrados.length) {
       alert("No hay proveedores para exportar");
       return;
     }
-
-    // Hoja 1: Proveedores (datos generales)
     const dataProveedores = proveedoresFiltrados.map((p) => ({
       RUC: p.ruc,
       "Razón Social": p.razonSocial,
@@ -136,11 +180,8 @@ const Proveedores = () => {
       Email: p.email,
       Contacto: p.contacto,
       Estado: p.estado || "Activo",
-      // Opcional: conteo de cuentas
       "Nº Cuentas": Array.isArray(p.bancos) ? p.bancos.length : 0,
     }));
-
-    // Hoja 2: Cuentas (una fila por cada cuenta)
     const dataCuentas = [];
     proveedoresFiltrados.forEach((p) => {
       (p.bancos || []).forEach((b) => {
@@ -156,36 +197,15 @@ const Proveedores = () => {
           EstadoProveedor: p.estado || "Activo",
         });
       });
-      // Si un proveedor no tiene cuentas y quieres que aparezca igual en la hoja Cuentas,
-      // descomenta esto:
-      // if (!(p.bancos || []).length) {
-      //   dataCuentas.push({
-      //     RUC: p.ruc,
-      //     "Razón Social": p.razonSocial,
-      //     Banco: "",
-      //     Moneda: "",
-      //     Cuenta: "",
-      //     CCI: "",
-      //     Contacto: p.contacto || "",
-      //     Email: p.email || "",
-      //     EstadoProveedor: p.estado || "Activo",
-      //   });
-      // }
     });
 
     const wb = XLSX.utils.book_new();
-
-    const wsProv = XLSX.utils.json_to_sheet(dataProveedores);
-    XLSX.utils.book_append_sheet(wb, wsProv, "Proveedores");
-
-    const wsCtas = XLSX.utils.json_to_sheet(dataCuentas);
-    XLSX.utils.book_append_sheet(wb, wsCtas, "Cuentas");
-
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataProveedores), "Proveedores");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataCuentas), "Cuentas");
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-
     saveAs(blob, `Proveedores_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
@@ -199,13 +219,26 @@ const Proveedores = () => {
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input
-          type="text"
-          placeholder="RUC"
-          value={form.ruc}
-          onChange={(e) => setForm({ ...form, ruc: e.target.value })}
-          className="border p-2 rounded"
-        />
+        <div>
+          <input
+            type="text"
+            placeholder="RUC"
+            value={form.ruc}
+            onChange={handleRucChange}
+            onBlur={handleRucBlur}
+            inputMode="numeric"
+            pattern="\d{11}"
+            maxLength={11}
+            className="border p-2 rounded w-full"
+          />
+          <div className="h-5 mt-1 text-sm">
+            {buscandoRuc && <span className="text-gray-500">Consultando SUNAT…</span>}
+            {!buscandoRuc && errorSunat && (
+              <span className="text-red-600">{errorSunat}</span>
+            )}
+          </div>
+        </div>
+
         <input
           type="text"
           placeholder="Razón Social"
