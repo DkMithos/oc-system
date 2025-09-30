@@ -1,24 +1,22 @@
-// ✅ functions/sunatProxy.js (Node 18, v2)
+// functions/sunatProxy.js
+import fetch from "node-fetch";
 import { onRequest } from "firebase-functions/v2/https";
 
-export const sunatProxy = onRequest({ cors: true }, async (req, res) => {
+export const sunatProxy = onRequest({ cors: true, region: "us-central1" }, async (req, res) => {
+  // CORS extra por si usas otro hosting/CDN delante
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
   try {
-    const ruc = String(req.query.ruc || "").replace(/\D/g, "");
+    const ruc = req.query.ruc;
     if (!ruc) return res.status(400).json({ error: "Falta ruc" });
 
     const url = `https://api.apis.net.pe/v1/ruc?numero=${encodeURIComponent(ruc)}`;
+    const resp = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!resp.ok) return res.status(resp.status).send(await resp.text());
 
-    const headers = { Accept: "application/json" };
-    // Si usas token privado, colócalo como variable de entorno:
-    // functions:config:set apis.token="TU_TOKEN"
-    const token = process.env.APIS_TOKEN;
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const resp = await fetch(url, { headers, method: "GET" });
-    if (!resp.ok) {
-      const text = await resp.text();
-      return res.status(resp.status).send(text);
-    }
     const data = await resp.json();
     res.set("Cache-Control", "public, max-age=3600");
     return res.json(data);

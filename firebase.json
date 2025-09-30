@@ -8,9 +8,20 @@
     ],
     "rewrites": [
       {
+        "source": "/api/sunat",
+        "function": {
+          "region": "us-central1",
+          "name": "sunatProxy"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs18"
   }
 }

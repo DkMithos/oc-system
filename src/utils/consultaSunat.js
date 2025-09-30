@@ -1,8 +1,4 @@
-// ✅ src/utils/consultaSunat.js
-// Intenta 3 rutas en este orden:
-// 1) VITE_FUNCTIONS_URL (e.g. https://us-central1-tu-proyecto.cloudfunctions.net)
-// 2) Ruta relativa si tienes rewrites en Hosting: /api/sunat?ruc=...
-// 3) Fallback directo al endpoint público (puede fallar por CORS o requerir token)
+// src/utils/consultaSunat.js
 const tryJson = async (url, init = {}) => {
   const r = await fetch(url, init);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -13,25 +9,27 @@ export const consultarSunat = async (ruc) => {
   const trimmed = String(ruc || "").replace(/\D/g, "");
   if (trimmed.length !== 11) throw new Error("RUC inválido");
 
-  const base = (import.meta.env?.VITE_FUNCTIONS_URL || "").replace(/\/$/, "");
-  const candidates = [];
+  // 1) Same-origin (Hosting rewrite)
+  const url1 = `/api/sunat?ruc=${encodeURIComponent(trimmed)}`;
 
-  if (base) candidates.push(`${base}/sunatProxy?ruc=${encodeURIComponent(trimmed)}`);
-  candidates.push(`/api/sunat?ruc=${encodeURIComponent(trimmed)}`); // requiere rewrite opcional
-  candidates.push(`https://api.apis.net.pe/v1/ruc?numero=${encodeURIComponent(trimmed)}`);
+  // 2) (Opcional) Llamada directa a la Function si estás en otro hosting
+  const base = (import.meta.env?.VITE_FUNCTIONS_URL || "").replace(/\/$/, "");
+  const url2 = base ? `${base}/sunatProxy?ruc=${encodeURIComponent(trimmed)}` : null;
+
+  // No más fallback al endpoint público para evitar CORS
+  const candidates = [url1, url2].filter(Boolean);
 
   let lastErr;
   for (const url of candidates) {
     try {
       const data = await tryJson(url);
-      // normaliza campos
-      const razon = data.razonSocial || data.nombre || "";
-      const direccion = data.direccion || data.direccionFiscal || "";
-      const numero = data.numeroDocumento || data.numero || trimmed;
-      return { ruc: numero, razonSocial: razon, direccion };
+      return {
+        ruc: data.numeroDocumento || data.numero || trimmed,
+        razonSocial: data.razonSocial || data.nombre || "",
+        direccion: data.direccion || data.direccionFiscal || "",
+      };
     } catch (e) {
       lastErr = e;
-      // prueba el siguiente
     }
   }
   throw lastErr || new Error("No se pudo consultar SUNAT");

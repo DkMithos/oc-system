@@ -54,11 +54,9 @@ const Requerimientos = () => {
     unidad: "",
   });
 
-  // CARGA DE CENTROS (independiente de requerimientos)
+  // CARGA DE CENTROS
   useEffect(() => {
-    if (loading) return;
-    if (!usuario) return;
-
+    if (loading || !usuario) return;
     let alive = true;
     (async () => {
       setCentrosLoading(true);
@@ -72,22 +70,17 @@ const Requerimientos = () => {
         setCentrosOptions(options);
       } catch (e) {
         console.error("Error cargando centros de costo:", e);
-        setCentrosOptions([]); // no bloqueamos la pantalla
+        setCentrosOptions([]);
       } finally {
         if (alive) setCentrosLoading(false);
       }
     })();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [loading, usuario]);
 
-  // CARGA DE REQS + CÓDIGO (separado para no tumbar centros si falla)
+  // CARGA DE REQS + CÓDIGO
   useEffect(() => {
-    if (loading) return;
-    if (!usuario?.email) return;
-
+    if (loading || !usuario?.email) return;
     let alive = true;
     (async () => {
       try {
@@ -96,22 +89,18 @@ const Requerimientos = () => {
           generarCodigoRequerimiento(),
         ]);
         if (!alive) return;
-
         setRequerimientos(reqs || []);
         setForm((prev) => ({
           ...prev,
-          codigo: cod,
+          codigo: cod || prev.codigo,
           solicitante: usuario.email,
         }));
       } catch (e) {
         console.error("Error cargando requerimientos/código:", e);
-        // aun si falla, no afecta centros; dejamos lo que haya
+        // si falla, dejamos que el guardado regenere
       }
     })();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [loading, usuario?.email]);
 
   const requerimientosFiltrados = useMemo(() => {
@@ -156,22 +145,34 @@ const Requerimientos = () => {
     }
     setForm((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        { ...itemActual, cantidad: Number(itemActual.cantidad) },
-      ],
+      items: [...prev.items, { ...itemActual, cantidad: Number(itemActual.cantidad) }],
     }));
     setItemActual({ nombre: "", cantidad: 1, unidad: "" });
   };
 
+  // Genera un código si aún no existe (con fallback seguro)
+  const ensureCodigo = async () => {
+    if (form.codigo) return form.codigo;
+    try {
+      const cod = await generarCodigoRequerimiento();
+      setForm((prev) => ({ ...prev, codigo: cod }));
+      return cod;
+    } catch {
+      const fallback = `RQ-${new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12)}`;
+      setForm((prev) => ({ ...prev, codigo: fallback }));
+      return fallback;
+    }
+  };
+
   const validarForm = () => {
-    if (!form.codigo) return "Falta el código.";
+    // ⚠️ ya no validamos 'codigo' aquí; se garantiza con ensureCodigo()
     if (!form.centroCosto) return "Selecciona un centro de costo.";
     if (!form.items.length) return "Agrega al menos un ítem.";
     return null;
   };
 
   const guardar = async () => {
+    await ensureCodigo();
     const v = validarForm();
     if (v) return alert(v);
 
@@ -187,13 +188,13 @@ const Requerimientos = () => {
       alert("Requerimiento guardado ✅");
 
       const [cod, lista] = await Promise.all([
-        generarCodigoRequerimiento(),
+        generarCodigoRequerimiento().catch(() => null),
         usuario?.email ? obtenerRequerimientosPorUsuario(usuario.email) : [],
       ]);
 
       setRequerimientos(lista || []);
       setForm({
-        codigo: cod,
+        codigo: cod || `RQ-${new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12)}`,
         fecha: new Date().toISOString().split("T")[0],
         solicitante: usuario.email,
         centroCosto: "",
@@ -217,13 +218,23 @@ const Requerimientos = () => {
 
       {/* Formulario (tarjeta) */}
       <div className="bg-white p-6 rounded shadow mb-6">
-        {/* Fecha de Emisión y Centro de Costo alineados */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Código, Fecha y Centro de Costo alineados */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Código (solo lectura) */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Código</label>
+            <input
+              type="text"
+              value={form.codigo || ""}
+              readOnly
+              className="border p-2 rounded w-full bg-gray-50"
+              placeholder="Generando…"
+            />
+          </div>
+
           {/* Fecha de Emisión */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Fecha de Emisión
-            </label>
+            <label className="block text-sm font-medium mb-1">Fecha de Emisión</label>
             <input
               type="date"
               disabled
@@ -234,23 +245,15 @@ const Requerimientos = () => {
 
           {/* Centro de Costo */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Centro de Costo
-            </label>
+            <label className="block text-sm font-medium mb-1">Centro de Costo</label>
             <Select
               styles={selectStyles}
-              menuPortalTarget={
-                typeof document !== "undefined" ? document.body : null
-              }
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
               options={centrosOptions}
               isLoading={centrosLoading}
               isClearable
               isSearchable
-              placeholder={
-                centrosLoading
-                  ? "Cargando..."
-                  : "Selecciona / escribe para buscar..."
-              }
+              placeholder={centrosLoading ? "Cargando..." : "Selecciona / escribe para buscar..."}
               value={
                 form.centroCosto
                   ? { value: form.centroCostoId, label: form.centroCosto }
@@ -270,29 +273,25 @@ const Requerimientos = () => {
           </div>
 
           {/* Detalle (a lo ancho) */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <input
               type="text"
               placeholder="Detalle (opcional)"
               value={form.detalle}
-              onChange={(e) =>
-                setForm({ ...form, detalle: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, detalle: e.target.value })}
               className="border p-2 rounded w-full"
             />
           </div>
 
           {/* Ítems */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <p className="font-bold mb-2">Agregar ítems</p>
             <div className="flex flex-col md:flex-row gap-2 mb-2">
               <input
                 type="text"
                 placeholder="Ítem"
                 value={itemActual.nombre}
-                onChange={(e) =>
-                  setItemActual({ ...itemActual, nombre: e.target.value })
-                }
+                onChange={(e) => setItemActual({ ...itemActual, nombre: e.target.value })}
                 className="border p-2 rounded flex-1"
               />
               <input
@@ -312,9 +311,7 @@ const Requerimientos = () => {
                 type="text"
                 placeholder="Unidad"
                 value={itemActual.unidad}
-                onChange={(e) =>
-                  setItemActual({ ...itemActual, unidad: e.target.value })
-                }
+                onChange={(e) => setItemActual({ ...itemActual, unidad: e.target.value })}
                 className="border p-2 rounded w-32"
               />
               <button
@@ -335,7 +332,7 @@ const Requerimientos = () => {
           </div>
 
           {/* Botón guardar alineado a la derecha */}
-          <div className="md:col-span-2 flex justify-end">
+          <div className="md:col-span-3 flex justify-end">
             <button
               onClick={guardar}
               className="text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
