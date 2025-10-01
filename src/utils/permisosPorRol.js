@@ -76,6 +76,8 @@ const permisosPorRol = {
   operaciones: [
     ...comunes,
     "/firmar",
+    "/cotizaciones",
+    "/requerimientos",
     "/caja",
   ],
 

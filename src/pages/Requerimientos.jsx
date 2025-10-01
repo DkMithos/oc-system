@@ -85,7 +85,7 @@ const Requerimientos = () => {
     (async () => {
       try {
         const [reqs, cod] = await Promise.all([
-          obtenerRequerimientosPorUsuario(usuario.email),
+          obtenerRequerimientosPorUsuario(usuario.email),  // busca por campo "usuario"
           generarCodigoRequerimiento(),
         ]);
         if (!alive) return;
@@ -97,7 +97,7 @@ const Requerimientos = () => {
         }));
       } catch (e) {
         console.error("Error cargando requerimientos/código:", e);
-        // si falla, dejamos que el guardado regenere
+        // si falla, dejamos el form como está y el fallback se maneja al guardar
       }
     })();
     return () => { alive = false; };
@@ -150,37 +150,38 @@ const Requerimientos = () => {
     setItemActual({ nombre: "", cantidad: 1, unidad: "" });
   };
 
-  // Genera un código si aún no existe (con fallback seguro)
-  const ensureCodigo = async () => {
-    if (form.codigo) return form.codigo;
-    try {
-      const cod = await generarCodigoRequerimiento();
-      setForm((prev) => ({ ...prev, codigo: cod }));
-      return cod;
-    } catch {
-      const fallback = `RQ-${new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12)}`;
-      setForm((prev) => ({ ...prev, codigo: fallback }));
-      return fallback;
-    }
-  };
-
   const validarForm = () => {
-    // ⚠️ ya no validamos 'codigo' aquí; se garantiza con ensureCodigo()
+    if (!form.codigo) return "Falta el código.";
     if (!form.centroCosto) return "Selecciona un centro de costo.";
     if (!form.items.length) return "Agrega al menos un ítem.";
     return null;
   };
 
   const guardar = async () => {
-    await ensureCodigo();
+    // asegurar código incluso si el fetch de correlativo falló por reglas o red
+    let codigo = form.codigo;
+    if (!codigo) {
+      try {
+        codigo = await generarCodigoRequerimiento();
+      } catch {
+        codigo = `RQ-${Date.now()}`; // fallback seguro
+      }
+      setForm((prev) => ({ ...prev, codigo })); // reflejar en UI
+    }
+
     const v = validarForm();
     if (v) return alert(v);
 
     const nuevo = {
       ...form,
+      codigo,
       estado: "Pendiente",
-      centroCosto: form.centroCosto,        // compat
+      centroCosto: form.centroCosto,
       centroCostoId: form.centroCostoId || null,
+      // Campos de compatibilidad / reglas
+      usuario: usuario.email,            // <- para obtenerRequerimientosPorUsuario(...)
+      creadoPor: usuario.email,
+      creadoEn: new Date().toISOString(),
     };
 
     try {
@@ -188,13 +189,13 @@ const Requerimientos = () => {
       alert("Requerimiento guardado ✅");
 
       const [cod, lista] = await Promise.all([
-        generarCodigoRequerimiento().catch(() => null),
+        generarCodigoRequerimiento().catch(() => `RQ-${Date.now()}`),
         usuario?.email ? obtenerRequerimientosPorUsuario(usuario.email) : [],
       ]);
 
       setRequerimientos(lista || []);
       setForm({
-        codigo: cod || `RQ-${new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 12)}`,
+        codigo: cod,
         fecha: new Date().toISOString().split("T")[0],
         solicitante: usuario.email,
         centroCosto: "",
@@ -216,19 +217,19 @@ const Requerimientos = () => {
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Requerimientos de Compra</h2>
 
-      {/* Formulario (tarjeta) */}
+      {/* Card del formulario */}
       <div className="bg-white p-6 rounded shadow mb-6">
-        {/* Código, Fecha y Centro de Costo alineados */}
+        {/* Fila: Código / Fecha / Centro (alineados) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Código (solo lectura) */}
           <div>
             <label className="block text-sm font-medium mb-1">Código</label>
             <input
               type="text"
-              value={form.codigo || ""}
+              value={form.codigo}
               readOnly
               className="border p-2 rounded w-full bg-gray-50"
-              placeholder="Generando…"
+              placeholder="Cargando…"
             />
           </div>
 
@@ -331,7 +332,7 @@ const Requerimientos = () => {
             </ul>
           </div>
 
-          {/* Botón guardar alineado a la derecha */}
+          {/* Guardar */}
           <div className="md:col-span-3 flex justify-end">
             <button
               onClick={guardar}
