@@ -1,4 +1,4 @@
-// ✅ src/pages/Requerimientos.jsx
+// ✅ src/pages/Requerimientos.jsx (tabla de ítems con encabezados)
 import React, { useState, useEffect, useMemo } from "react";
 import {
   agregarRequerimiento,
@@ -11,6 +11,10 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useUsuario } from "../context/UsuarioContext";
 import Select from "react-select";
+
+// (Opcional) Si quieres tiempo real, habilita estas líneas y el import de db:
+// import { collection, query, where, onSnapshot } from "firebase/firestore";
+// import { db } from "../firebase/config";
 
 const selectStyles = {
   control: (base) => ({
@@ -45,7 +49,7 @@ const Requerimientos = () => {
     centroCosto: "",
     centroCostoId: "",
     detalle: "",
-    items: [],
+    items: [], // [{nombre, cantidad, unidad}]
   });
 
   const [itemActual, setItemActual] = useState({
@@ -78,17 +82,19 @@ const Requerimientos = () => {
     return () => { alive = false; };
   }, [loading, usuario]);
 
-  // CARGA DE REQS + CÓDIGO
+  // CÓDIGO inicial + cargar lista del usuario
   useEffect(() => {
     if (loading || !usuario?.email) return;
     let alive = true;
     (async () => {
       try {
         const [reqs, cod] = await Promise.all([
-          obtenerRequerimientosPorUsuario(usuario.email),  // busca por campo "usuario"
+          obtenerRequerimientosPorUsuario(usuario.email),
           generarCodigoRequerimiento(),
         ]);
         if (!alive) return;
+        // Orden local (más recientes primero si tienen creadoEn ISO)
+        (reqs || []).sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
         setRequerimientos(reqs || []);
         setForm((prev) => ({
           ...prev,
@@ -97,11 +103,25 @@ const Requerimientos = () => {
         }));
       } catch (e) {
         console.error("Error cargando requerimientos/código:", e);
-        // si falla, dejamos el form como está y el fallback se maneja al guardar
       }
     })();
     return () => { alive = false; };
   }, [loading, usuario?.email]);
+
+  // Si quieres TIEMPO REAL, descomenta y quita la carga una sola vez de arriba:
+  // useEffect(() => {
+  //   if (loading || !usuario?.email) return;
+  //   const qRef = query(
+  //     collection(db, "requerimientos"),
+  //     where("usuario", "==", usuario.email)
+  //   );
+  //   const unsubscribe = onSnapshot(qRef, (snap) => {
+  //     const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  //     lista.sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
+  //     setRequerimientos(lista);
+  //   });
+  //   return () => unsubscribe();
+  // }, [loading, usuario?.email]);
 
   const requerimientosFiltrados = useMemo(() => {
     const q = (busqueda || "").toLowerCase().trim();
@@ -158,15 +178,15 @@ const Requerimientos = () => {
   };
 
   const guardar = async () => {
-    // asegurar código incluso si el fetch de correlativo falló por reglas o red
+    // asegurar código incluso si el fetch de correlativo falló
     let codigo = form.codigo;
     if (!codigo) {
       try {
         codigo = await generarCodigoRequerimiento();
       } catch {
-        codigo = `RQ-${Date.now()}`; // fallback seguro
+        codigo = `RQ-${Date.now()}`; // fallback
       }
-      setForm((prev) => ({ ...prev, codigo })); // reflejar en UI
+      setForm((prev) => ({ ...prev, codigo })); // reflejo en UI
     }
 
     const v = validarForm();
@@ -178,8 +198,7 @@ const Requerimientos = () => {
       estado: "Pendiente",
       centroCosto: form.centroCosto,
       centroCostoId: form.centroCostoId || null,
-      // Campos de compatibilidad / reglas
-      usuario: usuario.email,            // <- para obtenerRequerimientosPorUsuario(...)
+      usuario: usuario.email, // importante para jalar por usuario
       creadoPor: usuario.email,
       creadoEn: new Date().toISOString(),
     };
@@ -188,14 +207,15 @@ const Requerimientos = () => {
       await agregarRequerimiento(nuevo);
       alert("Requerimiento guardado ✅");
 
-      const [cod, lista] = await Promise.all([
+      // refresco de lista + nuevo correlativo
+      const [next, lista] = await Promise.all([
         generarCodigoRequerimiento().catch(() => `RQ-${Date.now()}`),
-        usuario?.email ? obtenerRequerimientosPorUsuario(usuario.email) : [],
+        obtenerRequerimientosPorUsuario(usuario.email).catch(() => []),
       ]);
-
+      (lista || []).sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
       setRequerimientos(lista || []);
       setForm({
-        codigo: cod,
+        codigo: next,
         fecha: new Date().toISOString().split("T")[0],
         solicitante: usuario.email,
         centroCosto: "",
@@ -219,7 +239,7 @@ const Requerimientos = () => {
 
       {/* Card del formulario */}
       <div className="bg-white p-6 rounded shadow mb-6">
-        {/* Fila: Código / Fecha / Centro (alineados) */}
+        {/* Fila: Código / Fecha / Centro */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Código (solo lectura) */}
           <div>
@@ -273,7 +293,7 @@ const Requerimientos = () => {
             />
           </div>
 
-          {/* Detalle (a lo ancho) */}
+          {/* Detalle */}
           <div className="md:col-span-3">
             <input
               type="text"
@@ -284,52 +304,130 @@ const Requerimientos = () => {
             />
           </div>
 
-          {/* Ítems */}
+          {/* Ítems (tabla con encabezados) */}
           <div className="md:col-span-3">
-            <p className="font-bold mb-2">Agregar ítems</p>
-            <div className="flex flex-col md:flex-row gap-2 mb-2">
-              <input
-                type="text"
-                placeholder="Ítem"
-                value={itemActual.nombre}
-                onChange={(e) => setItemActual({ ...itemActual, nombre: e.target.value })}
-                className="border p-2 rounded flex-1"
-              />
-              <input
-                type="number"
-                placeholder="Cantidad"
-                min={1}
-                value={itemActual.cantidad}
-                onChange={(e) =>
-                  setItemActual({
-                    ...itemActual,
-                    cantidad: parseInt(e.target.value || "0", 10),
-                  })
-                }
-                className="border p-2 rounded w-32"
-              />
-              <input
-                type="text"
-                placeholder="Unidad"
-                value={itemActual.unidad}
-                onChange={(e) => setItemActual({ ...itemActual, unidad: e.target.value })}
-                className="border p-2 rounded w-32"
-              />
-              <button
-                onClick={agregarItem}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded"
-                title="Agregar ítem"
-              >
-                <PlusCircle size={18} />
-              </button>
+            <p className="font-bold mb-2">Ítems del Requerimiento</p>
+
+            <div className="overflow-x-auto border rounded">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 border text-left">Ítem</th>
+                    <th className="p-2 border text-center">Cantidad</th>
+                    <th className="p-2 border text-center">Unidad</th>
+                    <th className="p-2 border text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((item, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-2 border">
+                        <input
+                          type="text"
+                          value={item.nombre}
+                          onChange={(e) => {
+                            const nuevos = [...form.items];
+                            nuevos[i].nombre = e.target.value;
+                            setForm({ ...form, items: nuevos });
+                          }}
+                          placeholder="Ej: Monitor, teclado..."
+                          className="border rounded px-2 py-1 w-full"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.cantidad}
+                          onChange={(e) => {
+                            const nuevos = [...form.items];
+                            nuevos[i].cantidad = parseInt(e.target.value || "0", 10);
+                            setForm({ ...form, items: nuevos });
+                          }}
+                          className="border rounded px-2 py-1 w-20 text-right"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input
+                          type="text"
+                          value={item.unidad}
+                          onChange={(e) => {
+                            const nuevos = [...form.items];
+                            nuevos[i].unidad = e.target.value;
+                            setForm({ ...form, items: nuevos });
+                          }}
+                          placeholder="UND, Caja, Paquete"
+                          className="border rounded px-2 py-1 w-24 text-center"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <button
+                          onClick={() => {
+                            setForm((prev) => ({
+                              ...prev,
+                              items: prev.items.filter((_, idx) => idx !== i),
+                            }));
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Fila de agregar nuevo ítem */}
+                  <tr className="border-t bg-gray-50">
+                    <td className="p-2 border">
+                      <input
+                        type="text"
+                        placeholder="Ítem"
+                        value={itemActual.nombre}
+                        onChange={(e) => setItemActual({ ...itemActual, nombre: e.target.value })}
+                        className="border rounded px-2 py-1 w-full"
+                      />
+                    </td>
+                    <td className="p-2 border text-center">
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Cant."
+                        value={itemActual.cantidad}
+                        onChange={(e) =>
+                          setItemActual({ ...itemActual, cantidad: parseInt(e.target.value || "0", 10) })
+                        }
+                        className="border rounded px-2 py-1 w-20 text-right"
+                      />
+                    </td>
+                    <td className="p-2 border text-center">
+                      <input
+                        type="text"
+                        placeholder="Unidad"
+                        value={itemActual.unidad}
+                        onChange={(e) => setItemActual({ ...itemActual, unidad: e.target.value })}
+                        className="border rounded px-2 py-1 w-24 text-center"
+                      />
+                    </td>
+                    <td className="p-2 border text-center">
+                      <button
+                        onClick={agregarItem}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                      >
+                        <PlusCircle size={18} />
+                      </button>
+                    </td>
+                  </tr>
+
+                  {form.items.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="text-center text-gray-500 p-4">
+                        Sin ítems. Agrega al menos uno.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <ul className="text-sm list-disc ml-6">
-              {form.items.map((item, i) => (
-                <li key={i}>
-                  {item.nombre} - {item.cantidad} {item.unidad}
-                </li>
-              ))}
-            </ul>
           </div>
 
           {/* Guardar */}
@@ -392,7 +490,7 @@ const Requerimientos = () => {
           </thead>
           <tbody>
             {requerimientosFiltrados.map((r, i) => (
-              <tr key={i} className="border-t">
+              <tr key={r.id || i} className="border-t">
                 <td className="p-2">{r.codigo}</td>
                 <td className="p-2">{r.fecha}</td>
                 <td className="p-2">{r.centroCosto}</td>

@@ -1,21 +1,41 @@
 // src/firebase/config.js
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
+const requiredEnv = [
+  "VITE_API_KEY",
+  "VITE_AUTH_DOMAIN",
+  "VITE_PROJECT_ID",
+  "VITE_STORAGE_BUCKET",
+  "VITE_MESSAGING_SENDER_ID",
+  "VITE_APP_ID",
+];
+
+const missing = requiredEnv.filter((k) => !import.meta.env[k]);
+if (missing.length) {
+  // Lanzamos un error claro en dev para que no te rompas la cabeza.
+  throw new Error(
+    `[Firebase Config] Faltan variables en .env.local: ${missing.join(", ")}`
+  );
+}
+
 export const firebaseConfig = {
-  apiKey: "AIzaSyAjljNiqn9ywPZeJmqJrE-y-Q_0QS1qGck",
-  authDomain: "oc-system-3910d.firebaseapp.com",
-  projectId: "oc-system-3910d",
-  storageBucket: "oc-system-3910d.firebasestorage.app",
-  messagingSenderId: "12901498656",
-  appId: "1:12901498656:web:93c4d28bad0cd31786e145"
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET, // debe terminar en appspot.com
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID,
+  // measurementId: import.meta.env.VITE_MEASUREMENT_ID, // opcional
 };
 
-const app = initializeApp(firebaseConfig);
+// Evita doble init en HMR
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+
 const db = getFirestore(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 
-export { app, db, storage };
-export const auth = getAuth(app);
+export { app, db, storage, auth };

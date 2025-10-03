@@ -14,6 +14,7 @@ import {
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers"; // combo de Cotización
+import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers"; // ⬅️ para listar requerimientos por código
 
 const selectStyles = {
   control: (base) => ({
@@ -42,6 +43,7 @@ const CrearOC = () => {
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
   const [cotizaciones, setCotizaciones] = useState([]);
+  const [requerimientos, setRequerimientos] = useState([]); // ⬅️ lista de RQ del usuario
 
   // Derivados de proveedor
   const [bancosProveedor, setBancosProveedor] = useState([]);
@@ -63,9 +65,10 @@ const CrearOC = () => {
     proveedorId: null,
     condicionPagoId: null,
     centroCostoId: null,
-    requerimientoId: null,
-    cotizacionId: null,      // ID
-    cotizacionCodigo: "",    // Código legible
+    requerimientoId: null,     // ID
+    requerimientoCodigo: "",   // ⬅️ Código legible (RQ-001)
+    cotizacionId: null,        // ID
+    cotizacionCodigo: "",      // Código legible
 
     // Entrega
     lugarEntrega: "",
@@ -80,7 +83,7 @@ const CrearOC = () => {
     items: [], // [{codigo, descripcion, cantidad, um, pu, dscto}]
   });
 
-  // Totales (igv 18%)
+  // Totales (igv 18%): mismo cálculo que usas en todas las vistas
   const totals = useMemo(() => {
     const sub = form.items.reduce(
       (acc, it) =>
@@ -98,12 +101,13 @@ const CrearOC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const [prov, cc, cp, correl, cots] = await Promise.all([
+        const [prov, cc, cp, correl, cots, rqs] = await Promise.all([
           obtenerProveedores(),
           obtenerCentrosCosto(),
           obtenerCondicionesPago(),
           obtenerSiguienteNumeroOrden(),
           obtenerCotizaciones(),
+          obtenerRequerimientosPorUsuario(usuario?.email || ""), // ⬅️ trae RQ para el Select
         ]);
 
         setProveedores(
@@ -121,6 +125,8 @@ const CrearOC = () => {
         );
 
         setCotizaciones(cots || []);
+        setRequerimientos(rqs || []); // ⬅️ guardamos RQ
+
         setNumero(correl?.numero || correl?.numeroOC || "");
 
         // Si vienes desde “Generar orden”
@@ -137,19 +143,23 @@ const CrearOC = () => {
 
             // map items de la COT → items del formulario
             const mappedItems = (cot.items || []).map((it) => ({
-              codigo: "",
+              codigo: it.codigo || "",
               descripcion: it.nombre || "",
               cantidad: Number(it.cantidad || 0),
-              um: "UND",
+              um: it.unidad || "UND",
               pu: Number(it.precioUnitario || 0),
-              dscto: 0,
+              dscto: Number(it.descuento || 0),
             }));
+
+            // ⬅️ Resolver RQ: id + código legible
+            const rqObj = (rqs || []).find((r) => r.id === (cot.requerimientoId || "")) || null;
 
             setForm((f) => ({
               ...f,
               cotizacionId: cot.id,
               cotizacionCodigo: cot.codigo || "",
-              requerimientoId: cot.requerimientoId || f.requerimientoId,
+              requerimientoId: rqObj?.id || f.requerimientoId,
+              requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo, // ⬅️ mostrarás el código
               proveedorId: proveedorId,
               items: mappedItems.length ? mappedItems : f.items,
             }));
@@ -243,7 +253,12 @@ const CrearOC = () => {
 
   const handleSeleccionCotizacion = (opt) => {
     if (!opt) {
-      setForm((f) => ({ ...f, cotizacionId: null, cotizacionCodigo: "" }));
+      setForm((f) => ({
+        ...f,
+        cotizacionId: null,
+        cotizacionCodigo: "",
+        // no tocar requerimiento aquí
+      }));
       return;
     }
     const c = opt.raw;
@@ -252,21 +267,48 @@ const CrearOC = () => {
       prov?.id ?? prov?.ruc ?? prov?.email ?? prov?.razonSocial ?? null;
 
     const mappedItems = (c.items || []).map((it) => ({
-      codigo: "",
+      codigo: it.codigo || "",
       descripcion: it.nombre || "",
       cantidad: Number(it.cantidad || 0),
-      um: "UND",
+      um: it.unidad || "UND",
       pu: Number(it.precioUnitario || 0),
-      dscto: 0,
+      dscto: Number(it.descuento || 0),
     }));
+
+    // Resolver RQ: id + código legible
+    const rqObj = (requerimientos || []).find((r) => r.id === (c.requerimientoId || ""));
 
     setForm((f) => ({
       ...f,
       cotizacionId: c.id,
       cotizacionCodigo: c.codigo || "",
-      requerimientoId: c.requerimientoId || f.requerimientoId,
+      // Si la cotización está enlazada a un RQ, setearlo visualmente por código
+      requerimientoId: rqObj?.id || f.requerimientoId,
+      requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo,
       proveedorId: proveedorId || f.proveedorId,
       items: mappedItems.length ? mappedItems : f.items,
+    }));
+  };
+
+  // Opciones de RQ (muestra código legible)
+  const rqOptions = useMemo(() => {
+    const list = requerimientos || [];
+    return list.map((r) => ({
+      value: r.id,
+      label: r.codigo || r.id, // ⬅️ muestra RQ-001; fallback al id
+      raw: r,
+    }));
+  }, [requerimientos]);
+
+  const handleSeleccionRQ = (opt) => {
+    if (!opt) {
+      setForm((f) => ({ ...f, requerimientoId: null, requerimientoCodigo: "" }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      requerimientoId: opt.value,
+      requerimientoCodigo: opt.raw?.codigo || "",
     }));
   };
 
@@ -279,10 +321,10 @@ const CrearOC = () => {
     if (form.tipoOrden !== "OI") {
       if (!form.proveedorId) return "Selecciona un proveedor.";
       if (!form.cotizacionId) return "Selecciona la cotización.";
+      if (!form.requerimientoId) return "Selecciona el requerimiento.";
       if (!bancoSeleccionado) return "Selecciona el banco del proveedor.";
       if (!monedaSeleccionada) return "Selecciona la moneda para el pago.";
       if (!cuentaSel?.cuenta) return "No se encontró la cuenta del proveedor.";
-      if (!form.requerimientoId) return "Vincula el requerimiento.";
     }
     return null;
   };
@@ -313,8 +355,9 @@ const CrearOC = () => {
         tipoOrden: form.tipoOrden,
         fechaEmision: form.fechaEmision,
 
-        // Enlaces (guardamos ambos, id y código)
+        // Enlaces (guardamos ambos, id y código/código legible)
         requerimientoId: form.requerimientoId || "",
+        requerimiento: form.requerimientoCodigo || "", // ⬅️ campo legible para mostrar (RQ-001)
         cotizacionId: form.cotizacionId || "",
         cotizacion: form.cotizacionCodigo || "",
 
@@ -434,16 +477,29 @@ const CrearOC = () => {
         {/* Requerimiento / Cotización (solo OC/OS) */}
         {form.tipoOrden !== "OI" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* ⬅️ Requerimiento por CÓDIGO */}
             <div>
               <label className="block text-sm font-medium">Requerimiento</label>
-              {/* Si luego quieres, cambiamos por un Select de requerimientos aprobados */}
-              <input
-                placeholder="Código o ID de Requerimiento"
-                value={form.requerimientoId || ""}
-                onChange={(e) => handleChange("requerimientoId", e.target.value)}
-                className="border rounded w-full px-2 py-1"
+              <Select
+                styles={selectStyles}
+                options={rqOptions}
+                value={
+                  rqOptions.find((o) => o.value === form.requerimientoId) ||
+                  null
+                }
+                onChange={handleSeleccionRQ}
+                placeholder="Selecciona requerimiento (muestra código)..."
+                isClearable
+                isSearchable
               />
+              {form.requerimientoCodigo && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Seleccionado: <b>{form.requerimientoCodigo}</b>
+                </p>
+              )}
             </div>
+
+            {/* Cotización por CÓDIGO */}
             <div>
               <label className="block text-sm font-medium">Cotización</label>
               <Select

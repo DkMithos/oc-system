@@ -1,32 +1,50 @@
 import React from "react";
 import { formatearMoneda } from "../utils/formatearMoneda";
 
-const ItemTable = ({ items, setItems, moneda }) => {
+/**
+ * ItemTable
+ * - Clarifica columnas: Código, Descripción, Cant., U.M., P.Unit, Dscto, Neto, Total
+ * - Cálculo por fila consistente con CrearOC.jsx:
+ *     totalItem = (cantidad * precioUnitario) - descuento
+ *     netoUnitario = precioUnitario - descuento
+ * - 'moneda' acepta "Soles" | "Dólares"
+ */
+const num = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const ItemTable = ({ items, setItems, moneda = "Soles" }) => {
   const handleChange = (index, field, value) => {
     const updated = [...items];
-    updated[index][field] =
-      field === "nombre" ? value : parseFloat(value) || 0;
+    if (["cantidad", "precioUnitario", "descuento"].includes(field)) {
+      updated[index][field] = num(value);
+    } else {
+      updated[index][field] = value;
+    }
     setItems(updated);
   };
 
   const addItem = () => {
     const newItem = {
-      id: Date.now(), // aseguramos ID único
+      id: Date.now(),
+      codigo: "",
       nombre: "",
-      cantidad: 0,
+      unidad: "UND",
+      cantidad: 1,
       precioUnitario: 0,
-      descuento: 0,
+      descuento: 0, // monto
     };
-    setItems([...items, newItem]);
+    setItems([...(items || []), newItem]);
   };
 
   const removeItem = (index) => {
-    const updated = items.filter((_, i) => i !== index);
-    setItems(updated);
+    setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const calcularNeto = (item) =>
-    (item.precioUnitario - item.descuento) * item.cantidad;
+  // Totales por fila (idéntico criterio a CrearOC.jsx)
+  const netoUnitario = (it) => num(it.precioUnitario) - num(it.descuento);
+  const totalItem = (it) => netoUnitario(it) * num(it.cantidad);
 
   return (
     <div className="bg-white p-6 rounded shadow mb-6">
@@ -39,69 +57,99 @@ const ItemTable = ({ items, setItems, moneda }) => {
           <thead>
             <tr className="bg-[#F5F5F5] text-left">
               <th className="p-2 border">#</th>
-              <th className="p-2 border">Nombre</th>
-              <th className="p-2 border text-center">Cantidad</th>
-              <th className="p-2 border text-center">P. Unitario</th>
-              <th className="p-2 border text-center">Descuento</th>
+              <th className="p-2 border">Código</th>
+              <th className="p-2 border">Descripción</th>
+              <th className="p-2 border text-center">Cant.</th>
+              <th className="p-2 border text-center">U.M.</th>
+              <th className="p-2 border text-center">P. Unit.</th>
+              <th className="p-2 border text-center">Dscto (monto)</th>
               <th className="p-2 border text-center">P. Neto</th>
               <th className="p-2 border text-center">Total</th>
               <th className="p-2 border text-center">Acción</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, i) => {
-              const netoUnitario = item.precioUnitario - item.descuento;
-              const totalItem = calcularNeto(item);
-
+            {(items || []).map((item, i) => {
+              const neto = netoUnitario(item);
+              const total = totalItem(item);
               return (
-                <tr key={item.id} className="border-t text-center">
+                <tr key={item.id ?? i} className="border-t text-center">
                   <td className="p-2 border">{i + 1}</td>
+
                   <td className="p-2 border">
                     <input
                       type="text"
-                      value={item.nombre}
-                      onChange={(e) =>
-                        handleChange(i, "nombre", e.target.value)
-                      }
-                      className="w-full border rounded px-2 py-1"
+                      value={item.codigo || ""}
+                      onChange={(e) => handleChange(i, "codigo", e.target.value)}
+                      className="w-28 border rounded px-2 py-1"
+                      placeholder="Cód."
                     />
                   </td>
+
+                  <td className="p-2 border">
+                    <input
+                      type="text"
+                      value={item.nombre || ""}
+                      onChange={(e) => handleChange(i, "nombre", e.target.value)}
+                      className="w-full border rounded px-2 py-1"
+                      placeholder="Descripción del ítem"
+                    />
+                  </td>
+
                   <td className="p-2 border">
                     <input
                       type="number"
-                      value={item.cantidad}
-                      onChange={(e) =>
-                        handleChange(i, "cantidad", e.target.value)
-                      }
+                      min="0"
+                      step="1"
+                      value={item.cantidad ?? 0}
+                      onChange={(e) => handleChange(i, "cantidad", e.target.value)}
                       className="w-20 border rounded px-2 text-right"
                     />
                   </td>
+
+                  <td className="p-2 border">
+                    <input
+                      type="text"
+                      value={item.unidad || "UND"}
+                      onChange={(e) => handleChange(i, "unidad", e.target.value)}
+                      className="w-20 border rounded px-2 text-center"
+                      placeholder="UND"
+                    />
+                  </td>
+
                   <td className="p-2 border">
                     <input
                       type="number"
-                      value={item.precioUnitario}
+                      min="0"
+                      step="0.01"
+                      value={item.precioUnitario ?? 0}
                       onChange={(e) =>
                         handleChange(i, "precioUnitario", e.target.value)
                       }
-                      className="w-24 border rounded px-2 text-right"
+                      className="w-28 border rounded px-2 text-right"
                     />
                   </td>
+
                   <td className="p-2 border">
                     <input
                       type="number"
-                      value={item.descuento}
-                      onChange={(e) =>
-                        handleChange(i, "descuento", e.target.value)
-                      }
-                      className="w-24 border rounded px-2 text-right"
+                      min="0"
+                      step="0.01"
+                      value={item.descuento ?? 0}
+                      onChange={(e) => handleChange(i, "descuento", e.target.value)}
+                      className="w-28 border rounded px-2 text-right"
+                      placeholder="0.00"
                     />
                   </td>
+
                   <td className="p-2 border text-right">
-                    {formatearMoneda(netoUnitario, moneda)}
+                    {formatearMoneda(neto, moneda)}
                   </td>
+
                   <td className="p-2 border text-right">
-                    {formatearMoneda(totalItem, moneda)}
+                    {formatearMoneda(total, moneda)}
                   </td>
+
                   <td className="p-2 border">
                     <button
                       onClick={() => removeItem(i)}
@@ -113,6 +161,13 @@ const ItemTable = ({ items, setItems, moneda }) => {
                 </tr>
               );
             })}
+            {(items || []).length === 0 && (
+              <tr>
+                <td colSpan={10} className="text-center text-gray-500 py-6">
+                  Sin ítems. Agrega al menos uno.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -130,4 +185,3 @@ const ItemTable = ({ items, setItems, moneda }) => {
 };
 
 export default ItemTable;
-

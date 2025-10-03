@@ -1,4 +1,4 @@
-// ✅ src/pages/Cotizaciones.jsx
+// ✅ src/pages/Cotizaciones.jsx (editable)
 import React, { useEffect, useMemo, useState } from "react";
 import {
   obtenerCotizaciones,
@@ -6,7 +6,7 @@ import {
   actualizarCotizacion,
   eliminarCotizacion,
 } from "../firebase/cotizacionesHelpers";
-import { obtenerProveedores } from "../firebase/proveedoresHelpers"; // usa este único helper de proveedores
+import { obtenerProveedores } from "../firebase/proveedoresHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { PlusCircle, Trash2, ExternalLink } from "lucide-react";
 import Select from "react-select";
@@ -17,7 +17,20 @@ import { storage } from "../firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
 import { useNavigate } from "react-router-dom";
-import EditCotizacionModal from "../components/EditCotizacionModal"; // si no lo usarás, elimina este import y el botón "Editar"
+import EditCotizacionModal from "../components/EditCotizacionModal";
+
+const UNIDADES = [
+  "UND","CJ","PAQ","PAR","JGO","PZA","KIT",
+  "KG","g","TON",
+  "LT","ML","GLN",
+  "M","MT2","MT3","ROLLO",
+  "SERV","HRS","DIA","MES","AÑO"
+];
+
+const num = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 const Cotizaciones = () => {
   const navigate = useNavigate();
@@ -39,13 +52,17 @@ const Cotizaciones = () => {
     proveedorId: "",
     requerimientoId: "",
     detalle: "",
+    moneda: "Soles",
     items: [],
   });
 
   const [itemActual, setItemActual] = useState({
+    codigo: "",
     nombre: "",
+    unidad: "UND",
     cantidad: 1,
     precioUnitario: 0,
+    descuento: 0,
   });
 
   // Modal de edición rápida
@@ -56,16 +73,16 @@ const Cotizaciones = () => {
   useEffect(() => {
     if (!loading && usuario) {
       (async () => {
-        const [listaCot, listaProv] = await Promise.all([
+        const [listaCot, listaProv, listaRq] = await Promise.all([
           obtenerCotizaciones(),
           obtenerProveedores(),
+          obtenerRequerimientosPorUsuario(usuario.email),
         ]);
         setCotizaciones(listaCot || []);
         setProveedores(listaProv || []);
-
-        // requerimientos del usuario (si luego quieres admin=all, agrega un helper obtenerRequerimientosAll)
-        const rqs = await obtenerRequerimientosPorUsuario(usuario.email);
-        setRequerimientos(rqs || []);
+        // Ordena RQ por fecha de creación (desc) si existe
+        (listaRq || []).sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
+        setRequerimientos(listaRq || []);
       })();
     }
   }, [usuario, loading]);
@@ -85,6 +102,7 @@ const Cotizaciones = () => {
       (requerimientos || []).map((r) => ({
         value: r.id,
         label: `${r.codigo} — ${r.centroCosto || ""}`,
+        raw: r,
       })),
     [requerimientos]
   );
@@ -92,9 +110,46 @@ const Cotizaciones = () => {
   const proveedorSeleccionado = proveedores.find((p) => p.id === form.proveedorId);
   const rqSeleccionado = requerimientos.find((r) => r.id === form.requerimientoId);
 
+  // ========== Importar ítems del RQ ==========
+  const mapRqItemsToCot = (rq) => {
+    const src = Array.isArray(rq?.items) ? rq.items : [];
+    return src.map((it) => ({
+      codigo: "",
+      nombre: it.nombre || "",
+      unidad: it.unidad || "UND",
+      cantidad: Number(it.cantidad || 0),
+      precioUnitario: 0,
+      descuento: 0,
+    }));
+  };
+
+  const importarItemsDesdeRQ = (rq) => {
+    if (!rq) return;
+    const mapped = mapRqItemsToCot(rq);
+    if (!mapped.length) {
+      alert("El requerimiento seleccionado no tiene ítems.");
+      return;
+    }
+    setForm((prev) => ({ ...prev, items: mapped }));
+  };
+
+  const onSeleccionarRQ = (op) => {
+    if (!op) {
+      setForm((prev) => ({ ...prev, requerimientoId: "" }));
+      return;
+    }
+    const rq = op.raw;
+    if (!form.items.length) importarItemsDesdeRQ(rq);
+    else if (confirm("¿Reemplazar los ítems actuales por los del requerimiento?")) {
+      importarItemsDesdeRQ(rq);
+    }
+    setForm((prev) => ({ ...prev, requerimientoId: op.value }));
+  };
+
+  // ======= ítems (alta rápida + edición en línea) =======
   const agregarItem = () => {
-    if (!itemActual.nombre || Number(itemActual.precioUnitario) <= 0) {
-      alert("Completa nombre y precio del ítem");
+    if (!itemActual.nombre) {
+      alert("Ingresa al menos la descripción del ítem.");
       return;
     }
     setForm((prev) => ({
@@ -102,17 +157,48 @@ const Cotizaciones = () => {
       items: [
         ...prev.items,
         {
-          ...itemActual,
-          cantidad: Number(itemActual.cantidad || 0),
+          codigo: itemActual.codigo || "",
+          nombre: itemActual.nombre || "",
+          unidad: itemActual.unidad || "UND",
+          cantidad: num(itemActual.cantidad),
+          precioUnitario: num(itemActual.precioUnitario),
+          descuento: num(itemActual.descuento),
         },
       ],
     }));
-    setItemActual({ nombre: "", cantidad: 1, precioUnitario: 0 });
+    setItemActual({
+      codigo: "",
+      nombre: "",
+      unidad: "UND",
+      cantidad: 1,
+      precioUnitario: 0,
+      descuento: 0,
+    });
   };
 
+  const updateItem = (idx, field, value) => {
+    setForm((prev) => {
+      const items = [...prev.items];
+      let v = value;
+      if (["cantidad", "precioUnitario", "descuento"].includes(field)) {
+        v = num(value);
+      }
+      items[idx] = { ...items[idx], [field]: v };
+      return { ...prev, items };
+    });
+  };
+
+  const removeItem = (idx) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== idx),
+    }));
+  };
+
+  // Totales (consistentes con CrearOC.jsx)
   const totalCot = (cot) =>
     (cot.items || []).reduce(
-      (acc, it) => acc + Number(it.cantidad || 0) * Number(it.precioUnitario || 0),
+      (acc, it) => acc + num(it.cantidad) * num(it.precioUnitario) - num(it.descuento),
       0
     );
 
@@ -133,10 +219,11 @@ const Cotizaciones = () => {
       return {
         Código: cot.codigo,
         Fecha: cot.fecha,
+        Moneda: cot.moneda || "Soles",
         Proveedor: proveedor?.razonSocial || "—",
         Detalle: cot.detalle || "",
         "N° Ítems": cot.items?.length || 0,
-        Total: formatearMoneda(totalCot(cot)),
+        Total: formatearMoneda(totalCot(cot), cot.moneda || "Soles"),
         "Tiene Archivo": cot.archivoUrl ? "Sí" : "No",
       };
     });
@@ -156,7 +243,6 @@ const Cotizaciones = () => {
       alert("Completa código, proveedor, requerimiento y agrega ítems.");
       return;
     }
-    // código único
     const yaExiste = cotizaciones.some(
       (c) => String(c.codigo || "").trim().toLowerCase() === form.codigo.trim().toLowerCase()
     );
@@ -171,15 +257,19 @@ const Cotizaciones = () => {
         codigo: form.codigo.trim(),
         fecha: form.fecha,
         proveedorId: form.proveedorId,
-        requerimientoId: form.requerimientoId, // enlace a RQ
+        requerimientoId: form.requerimientoId,
         detalle: form.detalle || "",
+        moneda: form.moneda || "Soles",
         items: form.items.map((i) => ({
+          codigo: i.codigo || "",
           nombre: i.nombre,
-          cantidad: Number(i.cantidad || 0),
-          precioUnitario: Number(i.precioUnitario || 0),
+          unidad: i.unidad || "UND",
+          cantidad: num(i.cantidad),
+          precioUnitario: num(i.precioUnitario),
+          descuento: num(i.descuento),
         })),
         archivoUrl: "",
-        estado: "Pendiente de Operaciones", // opcional: arranca el flujo de aprobación
+        estado: "Pendiente de Operaciones",
         creadoPor: usuario?.email || "",
         creadoEn: new Date().toISOString(),
       };
@@ -203,6 +293,7 @@ const Cotizaciones = () => {
         proveedorId: "",
         requerimientoId: "",
         detalle: "",
+        moneda: "Soles",
         items: [],
       });
       setArchivoCotizacion(null);
@@ -219,10 +310,7 @@ const Cotizaciones = () => {
 
   // ======= acciones fila =======
   const generarOrden = (cot) => {
-    // navega a CrearOC con la cotización preseleccionada
-    navigate("/crear", {
-      state: { desdeCotizacion: { cotizacionId: cot.id } },
-    });
+    navigate("/crear", { state: { desdeCotizacion: { cotizacionId: cot.id } } });
   };
 
   const borrar = async (cot) => {
@@ -286,17 +374,56 @@ const Cotizaciones = () => {
           />
         </div>
 
-        {/* Requerimiento */}
+        {/* Requerimiento (importa ítems) */}
         <div className="md:col-span-2">
           <Select
             options={rqOptions}
             value={
-              rqSeleccionado ? { value: rqSeleccionado.id, label: `${rqSeleccionado.codigo} — ${rqSeleccionado.centroCosto || ""}` } : null
+              rqSeleccionado
+                ? { value: rqSeleccionado.id, label: `${rqSeleccionado.codigo} — ${rqSeleccionado.centroCosto || ""}` }
+                : null
             }
-            onChange={(op) => setForm((prev) => ({ ...prev, requerimientoId: op?.value || "" }))}
-            placeholder="Selecciona requerimiento..."
+            onChange={onSeleccionarRQ}
+            placeholder="Selecciona requerimiento (importa ítems)..."
             isClearable isSearchable
           />
+          {rqSeleccionado && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => importarItemsDesdeRQ(rqSeleccionado)}
+                className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
+                title="Reemplaza los ítems actuales por los del RQ seleccionado"
+              >
+                Importar ítems del requerimiento
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Moneda */}
+        <div className="md:col-span-2">
+          <label className="text-sm text-gray-600 mb-1 block">Moneda</label>
+          <div className="flex gap-3">
+            <label className="inline-flex items-center gap-1">
+              <input
+                type="radio"
+                name="moneda"
+                checked={form.moneda === "Soles"}
+                onChange={() => setForm((f) => ({ ...f, moneda: "Soles" }))}
+              />
+              <span>Soles</span>
+            </label>
+            <label className="inline-flex items-center gap-1">
+              <input
+                type="radio"
+                name="moneda"
+                checked={form.moneda === "Dólares"}
+                onChange={() => setForm((f) => ({ ...f, moneda: "Dólares" }))}
+              />
+              <span>Dólares</span>
+            </label>
+          </div>
         </div>
 
         <input
@@ -315,53 +442,182 @@ const Cotizaciones = () => {
             onChange={(e) => setArchivoCotizacion(e.target.files?.[0] || null)}
             className="border p-2 rounded w-full"
           />
-          <p className="text-xs text-gray-500 mt-1">(Sube PDF/Word/Excel o imagen; idealmente archivos no escaneados)</p>
+          <p className="text-xs text-gray-500 mt-1">
+            (Sube PDF/Word/Excel o imagen; idealmente archivos no escaneados)
+          </p>
         </div>
 
-        {/* Ítems */}
+        {/* Ítems (alta rápida) */}
         <div className="md:col-span-2 border-t pt-4">
-          <p className="font-bold mb-2">Agregar ítems:</p>
-          <div className="flex flex-col md:flex-row gap-2 mb-2">
+          <p className="font-bold mb-2">Ítems de la Cotización</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-2">
             <input
               type="text"
-              placeholder="Ítem"
+              placeholder="Código"
+              value={itemActual.codigo}
+              onChange={(e) => setItemActual({ ...itemActual, codigo: e.target.value })}
+              className="border p-2 rounded"
+            />
+            <input
+              type="text"
+              placeholder="Ítem / Descripción"
               value={itemActual.nombre}
               onChange={(e) => setItemActual({ ...itemActual, nombre: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className="border p-2 rounded md:col-span-2"
             />
+            <select
+              value={itemActual.unidad}
+              onChange={(e) => setItemActual({ ...itemActual, unidad: e.target.value })}
+              className="border p-2 rounded"
+              title="Unidad de medida"
+            >
+              {UNIDADES.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
             <input
               type="number"
               placeholder="Cantidad"
-              min={1}
+              min={0}
               value={itemActual.cantidad}
-              onChange={(e) => setItemActual({ ...itemActual, cantidad: parseInt(e.target.value || "0", 10) })}
-              className="border p-2 rounded w-32"
+              onChange={(e) => setItemActual({ ...itemActual, cantidad: e.target.value })}
+              className="border p-2 rounded"
             />
             <input
               type="number"
-              placeholder="Precio Unitario"
+              placeholder="P. Unitario"
               step="0.01"
               value={itemActual.precioUnitario}
-              onChange={(e) => setItemActual({ ...itemActual, precioUnitario: parseFloat(e.target.value || "0") })}
-              className="border p-2 rounded w-48"
+              onChange={(e) => setItemActual({ ...itemActual, precioUnitario: e.target.value })}
+              className="border p-2 rounded"
             />
-            <button onClick={agregarItem} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded" title="Agregar ítem">
-              <PlusCircle size={18} />
-            </button>
+            <input
+              type="number"
+              placeholder="Dscto (monto)"
+              step="0.01"
+              value={itemActual.descuento}
+              onChange={(e) => setItemActual({ ...itemActual, descuento: e.target.value })}
+              className="border p-2 rounded"
+            />
           </div>
-          <ul className="text-sm list-disc ml-6">
-            {form.items.map((it, i) => (
-              <li key={i}>
-                {it.nombre} — {it.cantidad} x {formatearMoneda(it.precioUnitario)}
-              </li>
-            ))}
-          </ul>
+          <button
+            onClick={agregarItem}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded flex items-center gap-2"
+            title="Agregar ítem"
+            type="button"
+          >
+            <PlusCircle size={18} /> Agregar ítem
+          </button>
+
+          {/* Tabla editable */}
+          <div className="mt-3 overflow-auto">
+            <table className="w-full text-sm border">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-2 border">Código</th>
+                  <th className="p-2 border text-left">Descripción</th>
+                  <th className="p-2 border">U.M.</th>
+                  <th className="p-2 border text-right">Cant.</th>
+                  <th className="p-2 border text-right">P. Unit.</th>
+                  <th className="p-2 border text-right">Dscto</th>
+                  <th className="p-2 border text-right">Total</th>
+                  <th className="p-2 border text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(form.items || []).map((it, i) => {
+                  const total = num(it.cantidad) * num(it.precioUnitario) - num(it.descuento);
+                  return (
+                    <tr key={i}>
+                      <td className="p-2 border">
+                        <input
+                          type="text"
+                          value={it.codigo || ""}
+                          onChange={(e) => updateItem(i, "codigo", e.target.value)}
+                          className="border rounded px-2 py-1 w-full"
+                        />
+                      </td>
+                      <td className="p-2 border">
+                        <input
+                          type="text"
+                          value={it.nombre}
+                          onChange={(e) => updateItem(i, "nombre", e.target.value)}
+                          className="border rounded px-2 py-1 w-full"
+                        />
+                      </td>
+                      <td className="p-2 border">
+                        <select
+                          value={it.unidad || "UND"}
+                          onChange={(e) => updateItem(i, "unidad", e.target.value)}
+                          className="border rounded px-2 py-1 w-full"
+                          title="Unidad de medida"
+                        >
+                          {UNIDADES.map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 border text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          value={it.cantidad}
+                          onChange={(e) => updateItem(i, "cantidad", e.target.value)}
+                          className="border rounded px-2 py-1 w-24 text-right"
+                        />
+                      </td>
+                      <td className="p-2 border text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={it.precioUnitario}
+                          onChange={(e) => updateItem(i, "precioUnitario", e.target.value)}
+                          className="border rounded px-2 py-1 w-28 text-right"
+                        />
+                      </td>
+                      <td className="p-2 border text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={it.descuento || 0}
+                          onChange={(e) => updateItem(i, "descuento", e.target.value)}
+                          className="border rounded px-2 py-1 w-28 text-right"
+                        />
+                      </td>
+                      <td className="p-2 border text-right">
+                        {formatearMoneda(total, form.moneda)}
+                      </td>
+                      <td className="p-2 border text-center">
+                        <button
+                          onClick={() => removeItem(i)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"
+                          title="Eliminar"
+                          type="button"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {(form.items || []).length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center text-gray-500 p-3">
+                      Sin ítems.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <button
           onClick={guardar}
           disabled={guardando}
-          className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-fit disabled:opacity-60"
+          className="text-sm bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 w-fit disabled:opacity-60 md:col-span-2"
+          type="button"
         >
           {guardando ? "Guardando..." : "Guardar Cotización"}
         </button>
@@ -391,7 +647,7 @@ const Cotizaciones = () => {
         </button>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla general */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
@@ -400,6 +656,7 @@ const Cotizaciones = () => {
               <th className="p-2">Proveedor</th>
               <th className="p-2">Requerimiento</th>
               <th className="p-2">Fecha</th>
+              <th className="p-2">Moneda</th>
               <th className="p-2">Detalle</th>
               <th className="p-2">Ítems</th>
               <th className="p-2">Total</th>
@@ -410,26 +667,34 @@ const Cotizaciones = () => {
           <tbody>
             {cotizacionesFiltradas.length === 0 ? (
               <tr>
-                <td colSpan="9" className="text-center text-gray-500 p-4">No hay cotizaciones registradas.</td>
+                <td colSpan="10" className="text-center text-gray-500 p-4">
+                  No hay cotizaciones registradas.
+                </td>
               </tr>
             ) : (
               cotizacionesFiltradas.map((cot) => {
                 const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
                 const rq = requerimientos.find((r) => r.id === cot.requerimientoId);
-                const total = formatearMoneda(totalCot(cot));
+                const total = formatearMoneda(totalCot(cot), cot.moneda || "Soles");
                 return (
                   <tr key={cot.id} className="text-center border-t">
                     <td className="p-2">{cot.codigo}</td>
                     <td className="p-2">{proveedor?.razonSocial || "—"}</td>
                     <td className="p-2">{rq?.codigo || "—"}</td>
                     <td className="p-2">{cot.fecha}</td>
+                    <td className="p-2">{cot.moneda || "Soles"}</td>
                     <td className="p-2">{cot.detalle}</td>
                     <td className="p-2">{cot.items?.length || 0}</td>
                     <td className="p-2">{total}</td>
                     <td className="p-2">
                       {cot.archivoUrl ? (
-                        <a href={cot.archivoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 justify-center">
-                          <ExternalLink size={16}/> Ver
+                        <a
+                          href={cot.archivoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center gap-1 justify-center"
+                        >
+                          <ExternalLink size={16} /> Ver
                         </a>
                       ) : "—"}
                     </td>
@@ -438,21 +703,18 @@ const Cotizaciones = () => {
                         <button
                           onClick={() => editar(cot)}
                           className="px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
-                          title="Editar cotización"
                         >
                           Editar
                         </button>
                         <button
                           onClick={() => generarOrden(cot)}
                           className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                          title="Generar orden"
                         >
                           Generar orden
                         </button>
                         <button
                           onClick={() => borrar(cot)}
                           className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                          title="Eliminar"
                         >
                           <Trash2 size={16}/>
                         </button>

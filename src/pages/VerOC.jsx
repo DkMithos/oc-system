@@ -1,5 +1,5 @@
-// ✅ src/pages/VerOC.jsx
-import React, { useEffect, useState } from "react";
+// ✅ src/pages/VerOC.jsx (stable hooks + guards)
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2pdf from "html2pdf.js";
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
@@ -8,16 +8,22 @@ import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole } from "../utils/aprobaciones";
 
+// Detecta cuenta de detracción en bancos
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
-  const nameMatches = (n = "") =>
-    n.toUpperCase().includes("DETRACC") ||
-    n.toUpperCase() === "BN" ||
-    n.toUpperCase().includes("BANCO DE LA NACION");
-  return bancos.find((b) => nameMatches(b?.nombre)) || null;
+  const up = (s = "") => s.toUpperCase();
+  return (
+    bancos.find(
+      (b) =>
+        up(b?.nombre).includes("DETRACC") ||
+        up(b?.nombre) === "BN" ||
+        up(b?.nombre).includes("BANCO DE LA NACION")
+    ) || null
+  );
 };
 
-const pick = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
+// Compat firmas (soporta {firmaX} plano y oc.firmas.{x})
+const pickFirma = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 
 const VerOC = () => {
   const location = useLocation();
@@ -29,55 +35,86 @@ const VerOC = () => {
   const { usuario, loading } = useUsuario();
   const [oc, setOC] = useState(null);
 
+  // Cargar OC (si no llegó por state)
   useEffect(() => {
-    const cargar = async () => {
+    let alive = true;
+    (async () => {
       if (stateOC) {
-        setOC(stateOC);
-      } else if (ocId) {
-        const encontrada = await obtenerOCporId(ocId);
-        setOC(encontrada || null);
+        if (alive) setOC(stateOC);
+        return;
       }
-    };
-    cargar();
+      if (ocId) {
+        const encontrada = await obtenerOCporId(ocId);
+        if (alive) setOC(encontrada || null);
+      }
+    })();
+    return () => { alive = false; };
   }, [ocId, stateOC]);
 
-  if (loading) return <div className="p-6">Cargando usuario...</div>;
-  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
-  if (!oc) return <div className="p-6">Cargando orden...</div>;
-  if (!Array.isArray(oc.items)) return <div className="p-6">Orden no válida.</div>;
+  // ====== Datos derivados SIEMPRE (sin condicionales de hooks) ======
+  // Asegura que items sea siempre array (para OS puede venir vacío)
+  const items = useMemo(() => (Array.isArray(oc?.items) ? oc.items : []), [oc?.items]);
 
-  const calcularNeto = (item) =>
-    (Number(item.precioUnitario) - Number(item.descuento || 0)) *
-    Number(item.cantidad || 0);
-  const subtotal = oc.items.reduce((acc, it) => acc + calcularNeto(it), 0);
-  const igv = subtotal * 0.18;
-  const otros = Number(oc.resumen?.otros || 0);
-  const total = subtotal + igv + otros;
-  const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
+  // Moneda (texto de formatearMoneda ya maneja ambos)
+  const simbolo = useMemo(
+    () => (oc?.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles"),
+    [oc?.monedaSeleccionada]
+  );
 
-  const detraccionCuenta = oc.detraccion || findDetraccion(oc.proveedor?.bancos);
+  // Cálculo consistente con CrearOC.jsx:
+  // sum(cant*PU - dscto) = subtotal; igv = 18% del subtotal; total = subtotal + igv
+  const { subtotal, igv, total } = useMemo(() => {
+    const sub = items.reduce(
+      (acc, it) =>
+        acc +
+        (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) -
+          Number(it.descuento || 0)),
+      0
+    );
+    const igvCalc = Math.round(sub * 0.18 * 100) / 100;
+    const totalCalc = Math.round((sub + igvCalc) * 100) / 100;
+    return { subtotal: sub, igv: igvCalc, total: totalCalc };
+  }, [items]);
 
-  const puedeExportar = oc.estado === "Aprobado";
-  const puedeFirmar = ocPendingForRole(oc, usuario.rol, usuario.email);
+  const detraccionCuenta = useMemo(
+    () => oc?.detraccion || findDetraccion(oc?.proveedor?.bancos),
+    [oc?.detraccion, oc?.proveedor?.bancos]
+  );
+
+  const puedeExportar = useMemo(() => oc?.estado === "Aprobado", [oc?.estado]);
+  const puedeFirmar = useMemo(
+    () => (!!usuario && oc ? ocPendingForRole(oc, usuario.rol, usuario.email) : false),
+    [oc, usuario]
+  );
+
+  // Firmas (3 bloques)
+  const firmaOperaciones = useMemo(() => pickFirma(oc || {}, "firmaOperaciones", "operaciones"), [oc]);
+  const firmaGerOp = useMemo(() => pickFirma(oc || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"), [oc]);
+  const firmaGerGral = useMemo(() => pickFirma(oc || {}, "firmaGerenciaGeneral", "gerenciaGeneral"), [oc]);
 
   const exportarPDF = () => {
     const el = document.getElementById("contenido-oc");
-    if (!el) return alert("No se encontró el contenido.");
-    const opts = {
-      margin: [0.4, 0.4, 0.4, 0.4],
-      filename: `OC-${oc.numeroOC}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 3, scrollY: 0 },
-      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-      pagebreak: { mode: ["avoid-all"] },
-    };
-    html2pdf().set(opts).from(el).save();
+    if (!el) return;
+    const manyItems = (items.length || 0) > 18;
+    const jsPDF = { unit: "in", format: "a4", orientation: manyItems ? "landscape" : "portrait" };
+    html2pdf()
+      .set({
+        margin: [0.4, 0.4, 0.4, 0.4],
+        filename: `OC-${oc?.numeroOC || oc?.id || "orden"}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 3, scrollY: 0, useCORS: true },
+        jsPDF,
+        pagebreak: { mode: ["avoid-all"] },
+      })
+      .from(el)
+      .save();
   };
 
-  // Firmas
-  const firmaOperaciones = pick(oc, "firmaOperaciones", "operaciones");
-  const firmaGerOp = pick(oc, "firmaGerenciaOperaciones", "gerenciaOperaciones");
-  const firmaGerGral = pick(oc, "firmaGerenciaGeneral", "gerenciaGeneral");
+  // ====== Renders estáticos/tempranos (sin nuevos hooks debajo) ======
+  if (loading) return <div className="p-6">Cargando usuario...</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
+  if (oc === null) return <div className="p-6">Cargando orden...</div>;
+  if (!oc) return <div className="p-6">No se encontró la orden.</div>;
 
   return (
     <div className="p-4 md:p-6">
@@ -86,6 +123,7 @@ const VerOC = () => {
         className="text-xs leading-tight max-w-[794px] mx-auto p-4 bg-white text-black"
         style={{ fontSize: "10px", fontFamily: "Arial, sans-serif" }}
       >
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-start gap-4">
             <img src={Logo} alt="Logo Memphis" className="h-14" />
@@ -99,45 +137,51 @@ const VerOC = () => {
           </div>
           <div className="text-right">
             <h1 className="text-lg font-bold text-[#004990]">ORDEN</h1>
-            <p className="text-sm font-semibold text-blue-800">N° {oc.numeroOC || oc.id}</p>
+            <p className="text-sm font-semibold text-blue-800">
+              N° {oc.numeroOC || oc.id}
+            </p>
           </div>
         </div>
 
         {/* DATOS GENERALES */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DATOS GENERALES</h3>
         <div className="grid grid-cols-2 gap-3 mb-3 border p-3 rounded">
-          <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision}</div>
+          <div><strong>Fecha de Emisión:</strong> {oc.fechaEmision || "—"}</div>
           {oc.requerimiento && <div><strong>N° Requerimiento:</strong> {oc.requerimiento}</div>}
-          <div><strong>N° Cotización:</strong> {oc.cotizacion}</div>
-          <div><strong>Centro de Costo:</strong> {oc.centroCosto}</div>
+          <div><strong>N° Cotización:</strong> {oc.cotizacion || "—"}</div>
+          <div><strong>Centro de Costo:</strong> {oc.centroCosto || "—"}</div>
         </div>
 
         {/* PROVEEDOR */}
-        <h3 className="text-sm font-semibold mb-1 text-blue-900">PROVEEDOR</h3>
-        <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
-          <div><strong>Proveedor:</strong> {oc.proveedor?.razonSocial}</div>
-          <div><strong>RUC:</strong> {oc.proveedor?.ruc}</div>
-          <div><strong>Dirección:</strong> {oc.proveedor?.direccion}</div>
-          <div><strong>Contacto:</strong> {oc.proveedor?.contacto}</div>
-          <div><strong>Teléfono:</strong> {oc.proveedor?.telefono}</div>
-          <div><strong>Correo:</strong> {oc.proveedor?.email}</div>
-          <div><strong>Banco:</strong> {oc.bancoSeleccionado}</div>
-          <div><strong>Moneda:</strong> {oc.monedaSeleccionada}</div>
-          <div><strong>Cuenta:</strong> {oc.cuenta?.cuenta || "-"}</div>
-          <div><strong>CCI:</strong> {oc.cuenta?.cci || "-"}</div>
+        {oc.tipoOrden !== "OI" && (
+          <>
+            <h3 className="text-sm font-semibold mb-1 text-blue-900">PROVEEDOR</h3>
+            <div className="grid grid-cols-2 gap-3 mb-4 border p-3 rounded">
+              <div><strong>Proveedor:</strong> {oc.proveedor?.razonSocial || "—"}</div>
+              <div><strong>RUC:</strong> {oc.proveedor?.ruc || "—"}</div>
+              <div><strong>Dirección:</strong> {oc.proveedor?.direccion || "—"}</div>
+              <div><strong>Contacto:</strong> {oc.proveedor?.contacto || "—"}</div>
+              <div><strong>Teléfono:</strong> {oc.proveedor?.telefono || "—"}</div>
+              <div><strong>Correo:</strong> {oc.proveedor?.email || "—"}</div>
+              <div><strong>Banco:</strong> {oc.bancoSeleccionado || "—"}</div>
+              <div><strong>Moneda:</strong> {oc.monedaSeleccionada || simbolo}</div>
+              <div><strong>Cuenta:</strong> {oc.cuenta?.cuenta || "—"}</div>
+              <div><strong>CCI:</strong> {oc.cuenta?.cci || "—"}</div>
 
-          {detraccionCuenta && (
-            <>
-              <div className="col-span-2 mt-2 pt-2 border-t">
-                <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN)</span>
-              </div>
-              <div><strong>Cuenta:</strong> {detraccionCuenta.cuenta || "—"}</div>
-              <div><strong>CCI:</strong> {detraccionCuenta.cci || "—"}</div>
-            </>
-          )}
-        </div>
+              {detraccionCuenta && (
+                <>
+                  <div className="col-span-2 mt-2 pt-2 border-t">
+                    <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN)</span>
+                  </div>
+                  <div><strong>Cuenta:</strong> {detraccionCuenta.cuenta || "—"}</div>
+                  <div><strong>CCI:</strong> {detraccionCuenta.cci || "—"}</div>
+                </>
+              )}
+            </div>
+          </>
+        )}
 
-        {/* ÍTEMS */}
+        {/* DETALLE */}
         <h3 className="text-sm font-semibold mb-1 text-blue-900">DETALLE</h3>
         <table className="w-full text-[9px] border border-collapse mb-3" style={{ borderSpacing: "0" }}>
           <thead className="bg-gray-200 text-[9px]">
@@ -145,28 +189,35 @@ const VerOC = () => {
               <th className="border px-2 py-1">#</th>
               <th className="border px-2 py-1">Descripción</th>
               <th className="border px-2 py-1">Cantidad</th>
+              <th className="border px-2 py-1">U.M.</th>
               <th className="border px-2 py-1">P. Unit</th>
               <th className="border px-2 py-1">Descuento</th>
-              <th className="border px-2 py-1">Neto</th>
               <th className="border px-2 py-1">Total</th>
             </tr>
           </thead>
           <tbody>
-            {oc.items.map((it, i) => {
-              const neto = Number(it.precioUnitario) - Number(it.descuento || 0);
-              const totalItem = neto * Number(it.cantidad || 0);
+            {items.map((it, i) => {
+              const cantidad = Number(it.cantidad || 0);
+              const pu = Number(it.precioUnitario || 0);
+              const dscto = Number(it.descuento || 0);
+              const totalItem = cantidad * pu - dscto;
               return (
                 <tr key={i} className="text-center">
                   <td className="border px-2 py-1">{i + 1}</td>
-                  <td className="border px-2 py-1">{it.nombre}</td>
-                  <td className="border px-2 py-1">{it.cantidad}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(it.precioUnitario, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(it.descuento || 0, simbolo)}</td>
-                  <td className="border px-2 py-1">{formatearMoneda(neto, simbolo)}</td>
+                  <td className="border px-2 py-1">{it.nombre || it.descripcion || "—"}</td>
+                  <td className="border px-2 py-1">{cantidad}</td>
+                  <td className="border px-2 py-1">{it.unidad || "UND"}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(pu, simbolo)}</td>
+                  <td className="border px-2 py-1">{formatearMoneda(dscto, simbolo)}</td>
                   <td className="border px-2 py-1">{formatearMoneda(totalItem, simbolo)}</td>
                 </tr>
               );
             })}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center text-gray-500 py-3">Sin ítems.</td>
+              </tr>
+            )}
           </tbody>
         </table>
 
@@ -175,11 +226,12 @@ const VerOC = () => {
         <div className="text-right mb-4 pr-2 space-y-0.5">
           <p><strong>Subtotal:</strong> {formatearMoneda(subtotal, simbolo)}</p>
           <p><strong>IGV (18%):</strong> {formatearMoneda(igv, simbolo)}</p>
-          <p><strong>Otros:</strong> {formatearMoneda(otros, simbolo)}</p>
-          <p className="text-sm font-bold mt-1"><strong>Total:</strong> {formatearMoneda(total, simbolo)}</p>
+          <p className="text-sm font-bold mt-1">
+            <strong>Total:</strong> {formatearMoneda(total, simbolo)}
+          </p>
         </div>
 
-        {/* FIRMAS (3) */}
+        {/* FIRMAS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mt-12 text-[11px] font-sans">
           {[
             { rol: "Operaciones", src: firmaOperaciones },
@@ -201,7 +253,9 @@ const VerOC = () => {
         <div className="mt-4 text-[8px] leading-snug text-gray-700 border-t pt-2">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A:</p>
           <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
+            <li>
+              FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe
+            </li>
             <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 text-justify italic">
@@ -210,7 +264,7 @@ const VerOC = () => {
         </div>
       </div>
 
-      {/* BOTONES */}
+      {/* ACCIONES */}
       <div className="mt-4 flex gap-4">
         {puedeFirmar && (
           <button
