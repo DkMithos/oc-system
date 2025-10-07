@@ -1,14 +1,15 @@
-// ✅ src/pages/VerOC.jsx (1 hoja, máx. 15 ítems, firmas, cuenta BN bajo PROVEEDOR)
+// ✅ src/pages/VerOC.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2pdf from "html2pdf.js";
-import { obtenerOCporId } from "../firebase/firestoreHelpers";
+import { obtenerOCporId, suscribirOC } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole } from "../utils/aprobaciones";
 
-// === helpers ===
+// ── Helpers (fuera del componente para evitar re-creación)
+const ITEMS_MAX = 15;
 const up = (s = "") => s.toUpperCase();
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
@@ -23,11 +24,9 @@ const findDetraccion = (bancos = []) => {
 };
 const pickFirma = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 
-const ITEMS_MAX = 15; // 👈 límite duro para 1 hoja
-
 const VerOC = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const ocId = queryParams.get("id");
   const stateOC = location.state?.orden;
@@ -35,30 +34,30 @@ const VerOC = () => {
   const { usuario, loading } = useUsuario();
   const [oc, setOC] = useState(null);
 
-  // Carga OC
+  // Suscripción live a la OC (y pintura inmediata con state si vino desde navegación)
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (stateOC) {
-        if (alive) setOC(stateOC);
-      } else if (ocId) {
-        const encontrada = await obtenerOCporId(ocId);
-        if (alive) setOC(encontrada || null);
-      }
-    })();
-    return () => { alive = false; };
-  }, [ocId, stateOC]);
+    if (!ocId && !stateOC?.id) return;
+    const id = stateOC?.id || ocId;
 
-  // Derivados
+    if (stateOC) setOC(stateOC); // pinta de inmediato
+    const unsub = suscribirOC(id, (doc) => {
+      if (doc) setOC(doc);
+    });
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocId, stateOC?.id]);
+
+  // Derivados memoizados (evita cálculos innecesarios y mantiene orden de hooks)
   const items = useMemo(() => (Array.isArray(oc?.items) ? oc.items : []), [oc?.items]);
   const itemsToShow = useMemo(() => items.slice(0, ITEMS_MAX), [items]);
-
   const simbolo = useMemo(
     () => (oc?.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles"),
     [oc?.monedaSeleccionada]
   );
 
-  // Totales (idéntico a CrearOC.jsx)
+  // Totales — EXACTO al cálculo de CrearOC
   const { subtotal, igv, total } = useMemo(() => {
     const sub = items.reduce(
       (acc, it) =>
@@ -72,7 +71,6 @@ const VerOC = () => {
     return { subtotal: sub, igv: igvCalc, total: totalCalc };
   }, [items]);
 
-  // Cuenta BN de detracciones (solo mostrar en PROVEEDOR si existe)
   const detraccionCuenta = useMemo(
     () => oc?.detraccion?.cuenta || findDetraccion(oc?.proveedor?.bancos),
     [oc?.detraccion?.cuenta, oc?.proveedor?.bancos]
@@ -84,18 +82,27 @@ const VerOC = () => {
     [oc, usuario]
   );
 
-  // Firmas
-  const firmaOperaciones = useMemo(() => pickFirma(oc || {}, "firmaOperaciones", "operaciones"), [oc]);
-  const firmaGerOp = useMemo(() => pickFirma(oc || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"), [oc]);
-  const firmaGerGral = useMemo(() => pickFirma(oc || {}, "firmaGerenciaGeneral", "gerenciaGeneral"), [oc]);
+  // Firmas (compat nombres antiguos/nuevos)
+  const firmaOperaciones = useMemo(
+    () => pickFirma(oc || {}, "firmaOperaciones", "operaciones"),
+    [oc]
+  );
+  const firmaGerOp = useMemo(
+    () => pickFirma(oc || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"),
+    [oc]
+  );
+  const firmaGerGral = useMemo(
+    () => pickFirma(oc || {}, "firmaGerenciaGeneral", "gerenciaGeneral"),
+    [oc]
+  );
 
-  // Exportación 1 hoja A4 (márgenes mínimos + contenido compacto)
+  // Exportar en 1 hoja A4 (hasta 15 ítems)
   const exportarPDF = () => {
     const el = document.getElementById("contenido-oc");
     if (!el) return;
     html2pdf()
       .set({
-        margin: [0.25, 0.25, 0.25, 0.25], // pulgadas
+        margin: [0.25, 0.25, 0.25, 0.25],
         filename: `OC-${oc?.numeroOC || oc?.id || "orden"}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 3, scrollY: 0, useCORS: true },
@@ -109,8 +116,7 @@ const VerOC = () => {
   // Guards
   if (loading) return <div className="p-6">Cargando usuario…</div>;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
-  if (oc === null) return <div className="p-6">Cargando orden…</div>;
-  if (!oc) return <div className="p-6">No se encontró la orden.</div>;
+  if (!oc) return <div className="p-6">Cargando orden…</div>;
 
   return (
     <div className="p-3 md:p-4">
@@ -119,12 +125,12 @@ const VerOC = () => {
         className="max-w-[794px] mx-auto bg-white text-black"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "9px",            // 👈 compacto
-          lineHeight: "1.2",          // 👈 compacto
-          padding: "10px",            // 👈 compacto
+          fontSize: "9px",
+          lineHeight: "1.2",
+          padding: "10px",
         }}
       >
-        {/* ENCABEZADO (compacto) */}
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-start gap-3">
             <img src={Logo} alt="Logo Memphis" className="h-12" />
@@ -153,7 +159,7 @@ const VerOC = () => {
           </div>
         </div>
 
-        {/* PROVEEDOR (con cuenta BN de detracciones si existe) */}
+        {/* PROVEEDOR (con línea de detracción, sin box extra) */}
         {oc.tipoOrden !== "OI" && (
           <div className="mb-2">
             <h3 className="font-semibold text-blue-900 mb-1">PROVEEDOR</h3>
@@ -170,18 +176,19 @@ const VerOC = () => {
               <div><b>CCI:</b> {oc.cuenta?.cci || "—"}</div>
 
               {detraccionCuenta && (
-                <>
-                  <div className="col-span-2 mt-1 pt-1 border-t">
-                    <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN): </span>
-                    <span><b>Cuenta:</b> {detraccionCuenta.cuenta || "—"} &nbsp;&nbsp; <b>CCI:</b> {detraccionCuenta.cci || "—"}</span>
-                  </div>
-                </>
+                <div className="col-span-2 mt-1 pt-1 border-t">
+                  <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN): </span>
+                  <span>
+                    <b>Cuenta:</b> {detraccionCuenta.cuenta || "—"} &nbsp;&nbsp;
+                    <b>CCI:</b> {detraccionCuenta.cci || "—"}
+                  </span>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* DETALLE (tabla ajustada, máx 15 ítems) */}
+        {/* DETALLE (máx 15 ítems para 1 hoja) */}
         <div className="mb-2">
           <h3 className="font-semibold text-blue-900 mb-1">DETALLE</h3>
           <table className="w-full border border-collapse" style={{ tableLayout: "fixed" }}>
@@ -221,9 +228,6 @@ const VerOC = () => {
                   </td>
                 </tr>
               )}
-              {itemsToShow.length === 0 && (
-                <tr><td colSpan={7} className="text-center text-gray-500 py-2">Sin ítems.</td></tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -254,7 +258,7 @@ const VerOC = () => {
           </div>
         </div>
 
-        {/* FIRMAS (compactas) */}
+        {/* FIRMAS */}
         <div className="grid grid-cols-3 gap-4 text-center mt-3">
           {[
             { rol: "Operaciones", src: firmaOperaciones },
@@ -262,17 +266,24 @@ const VerOC = () => {
             { rol: "Gerencia General", src: firmaGerGral },
           ].map(({ rol, src }) => (
             <div key={rol} className="flex flex-col items-center">
-              {src ? <img src={src} alt={`Firma ${rol}`} className="h-14 object-contain mb-1" /> : <div className="h-14 mb-1" />}
+              {src ? (
+                <img src={src} alt={`Firma ${rol}`} className="h-14 object-contain mb-1" />
+              ) : (
+                <div className="h-14 mb-1" />
+              )}
               <p className="font-semibold">{rol}</p>
             </div>
           ))}
         </div>
 
-        {/* PIE (siempre exportable) */}
+        {/* PIE */}
         <div className="mt-2 text-[8px] leading-snug text-gray-700 border-t pt-1">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A:</p>
           <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
+            <li>
+              FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe |
+              {" "}facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe
+            </li>
             <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 italic">

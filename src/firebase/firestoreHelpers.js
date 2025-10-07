@@ -12,7 +12,9 @@ import {
   query,
   orderBy,
   runTransaction,
+  onSnapshot,
 } from "firebase/firestore";
+import { rolTokey, yaFirmo, nextEstadoAprobado } from "../utils/aprobaciones";
 import { db } from "./config";
 
 /** =========================
@@ -340,3 +342,77 @@ export const obtenerFacturasDeOrden = async (ordenId) => {
   const snap = await getDocs(collection(db, `${OC_COLLECTION}/${ordenId}/facturas`));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
+
+export function suscribirOC(ocId, callback) {
+  if (!ocId) return () => {};
+  const ref = doc(db, "ordenes", ocId);
+  return onSnapshot(ref, (snap) => callback(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+}
+
+function pushHist(hist = [], accion, por, extra = {}) {
+  return [...hist, { accion, por: por || "", fecha: new Date().toLocaleString("es-PE"), ...extra }];
+}
+
+// ✅ Aprobar (firmar) con transacción
+export async function firmarOrden(ocId, { userRol, userEmail, firmaUrl = "", comentario = "" }) {
+  const ref = doc(db, "ordenes", ocId);
+  await runTransaction(db, async (trx) => {
+    const snap = await trx.get(ref);
+    if (!snap.exists()) throw new Error("La orden no existe.");
+    const oc = snap.data();
+
+    const roleKey = rolToKey(userRol);
+    if (!roleKey) throw new Error("Tu rol no puede firmar.");
+    if (yaFirmo(oc, roleKey)) throw new Error("Ya firmaste esta orden.");
+
+    const estadoActual = oc.estado || "Pendiente de Operaciones";
+    const turnos = {
+      operaciones: ["Pendiente", "Pendiente de Operaciones"],
+      gerenciaOperaciones: ["Pendiente de Gerencia de Operaciones"],
+      gerenciaGeneral: ["Pendiente de Gerencia General"],
+    };
+    const puede = (turnos[roleKey] || []).includes(estadoActual);
+    if (!puede) throw new Error("Aún no te corresponde firmar.");
+
+    const next = nextEstadoAprobando(estadoActual);
+    const firmas = { ...(oc.firmas || {}) };
+    firmas[roleKey] = firmaUrl || true;
+
+    trx.update(ref, {
+      firmas,
+      estado: next,
+      historial: pushHist(oc.historial || [], `Aprobación (${roleKey})${comentario ? `: ${comentario}` : ""}`, userEmail),
+      actualizadoEn: serverTimestamp(),
+      ...(next === "Aprobado" ? { aprobadoEn: serverTimestamp() } : {}),
+    });
+  });
+}
+
+// ✅ Rechazar con transacción
+export async function rechazarOrden(ocId, { userRol, userEmail, comentario = "" }) {
+  const ref = doc(db, "ordenes", ocId);
+  await runTransaction(db, async (trx) => {
+    const snap = await trx.get(ref);
+    if (!snap.exists()) throw new Error("La orden no existe.");
+    const oc = snap.data();
+
+    const roleKey = rolToKey(userRol);
+    if (!roleKey) throw new Error("Tu rol no puede rechazar.");
+
+    const estadoActual = oc.estado || "Pendiente de Operaciones";
+    const turnos = {
+      operaciones: ["Pendiente", "Pendiente de Operaciones"],
+      gerenciaOperaciones: ["Pendiente de Gerencia de Operaciones"],
+      gerenciaGeneral: ["Pendiente de Gerencia General"],
+    };
+    const puede = (turnos[roleKey] || []).includes(estadoActual);
+    if (!puede) throw new Error("Aún no te corresponde esta acción.");
+
+    trx.update(ref, {
+      estado: "Rechazado",
+      historial: pushHist(oc.historial || [], `Rechazo (${roleKey})${comentario ? `: ${comentario}` : ""}`, userEmail),
+      actualizadoEn: serverTimestamp(),
+      rechazadoPor: userEmail,
+    });
+  });
+}

@@ -15,6 +15,7 @@ import {
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers"; // combo de Cotización
 import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers"; // ⬅️ para listar requerimientos por código
+import { estadoInicial } from "../utils/aprobaciones";
 
 const selectStyles = {
   control: (base) => ({
@@ -407,6 +408,7 @@ const CrearOC = () => {
 
         // Flags / historial
         permiteEdicion: false,
+        estadi: estadoInicial ({ tipoOrden: form.tipoOrden }),
         historial: [
           {
             accion: "Creación",
