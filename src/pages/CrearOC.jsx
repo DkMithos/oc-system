@@ -408,7 +408,7 @@ const CrearOC = () => {
 
         // Flags / historial
         permiteEdicion: false,
-        estadi: estadoInicial ({ tipoOrden: form.tipoOrden }),
+        estado: estadoInicial({ tipoOrden: form.tipoOrden }),
         historial: [
           {
             accion: "Creación",

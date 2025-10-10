@@ -14,7 +14,14 @@ import {
   runTransaction,
   onSnapshot,
 } from "firebase/firestore";
-import { rolTokey, yaFirmo, nextEstadoAprobado } from "../utils/aprobaciones";
+import {
+  rolToKey,
+  yaFirmo,
+  nextEstadoAprobado,     // 👈 ahora sí existe
+  nextEstadoAprobando,    // 👈 por si lo usabas en algún lugar
+  estadoInicial,
+  ESTADOS,
+} from "../utils/aprobaciones";
 import { db } from "./config";
 
 /** =========================
@@ -34,7 +41,7 @@ const CORRELATIVOS_DOC = doc(db, "correlativos", "ordenes"); // correlativo úni
  *  USUARIOS
  * ========================= */
 export const obtenerUsuarios = async () => {
-  const snapshot = await getDocs(collection(db, "usuarios"));
+  const snapshot = await getDocs(collection(db, USUARIOS_COLLECTION));
   return snapshot.docs.map((docu) => {
     const data = docu.data() || {};
     return {
@@ -46,8 +53,6 @@ export const obtenerUsuarios = async () => {
   });
 };
 
-
-// Crear usuario con contraseña inicial (opcional)
 export const guardarUsuario = async ({ email, rol, password }) => {
   if (!email || !rol) throw new Error("El usuario debe tener correo y rol.");
   const userRef = doc(db, USUARIOS_COLLECTION, email);
@@ -81,13 +86,9 @@ export const actualizarRolUsuario = async (email, nuevoRol) => {
 /** =========================
  *  LOGS (auditoría)
  * ========================= */
-// Compatible con llamadas tipo registrarLog({ ... }) y también con registrarLog("accion", ocId, usuario, rol, comentario)
 export const registrarLog = async (payload = {}) => {
   try {
-    // Normaliza y acepta cualquier shape (accion, descripcion, ocId, usuario, rol, comentario, hechoPor, etc.)
-    const base = {
-      fecha: serverTimestamp(),
-    };
+    const base = { fecha: serverTimestamp() };
     await addDoc(collection(db, LOGS_COLLECTION), { ...base, ...payload });
   } catch (error) {
     console.error("Error registrando log:", error);
@@ -118,10 +119,7 @@ export const obtenerSiguienteNumeroOrden = async () => {
   return { siguiente, numero: `MM-${String(siguiente).padStart(6, "0")}` };
 };
 
-// Guarda OC/OS/OI con correlativo único y reglas de enlace (SP->COT->OC/OS)
-// - tipoOrden: "OC" | "OS" | "OI"
-// - OC/OS deben estar ligadas a una cotización, y la cotización a un requerimiento
-// - Estado inicial: "Pendiente", firmas nulas (comprador NO firma), soft-delete=false
+// Guarda OC/OS/OI con correlativo único y reglas de enlace
 export const guardarOrden = async (ordenData) => {
   const { tipoOrden, cotizacionId, requerimientoId } = ordenData || {};
   if (!["OC", "OS", "OI"].includes(tipoOrden)) {
@@ -143,17 +141,17 @@ export const guardarOrden = async (ordenData) => {
     const ref = doc(collection(db, OC_COLLECTION));
     tx.set(ref, {
       ...ordenData,
-      numero,
-      estado: "Pendiente",
+      numero,                // 👈 número estandar
+      numeroOC: numero,      // 👈 para compatibilidad con vistas que usan numeroOC
+      estado: estadoInicial({ tipoOrden }), // 👈 estado inicial correcto
       firmas: {
-        comprador: null,            // comprador ya NO firma
         operaciones: null,
         gerenciaOperaciones: null,
         gerenciaGeneral: null,
-        finanzas: null,
+        finanzas: null, // si aún no la usas, quedará null
       },
       creadaEn: serverTimestamp(),
-      eliminada: false,            // “nada se elimina” → soft-delete
+      eliminada: false, // soft-delete
     });
 
     tx.set(CORRELATIVOS_DOC, { ultimo: siguiente }, { merge: true });
@@ -170,7 +168,6 @@ export const guardarOrden = async (ordenData) => {
   return newId;
 };
 
-// Obtener todas las órdenes (excluye eliminadas) y ordena por correlativo (desc)
 export const obtenerOCs = async () => {
   const snapshot = await getDocs(collection(db, OC_COLLECTION));
   const lista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
@@ -196,7 +193,6 @@ export const actualizarOC = async (id, nuevaData) => {
   await updateDoc(ref, { ...nuevaData, actualizadoEn: new Date().toISOString() });
 };
 
-// Soft-delete (no elimina físicamente)
 export const eliminarOrdenLogico = async (id, usuarioEmail = "") => {
   const ref = doc(db, OC_COLLECTION, id);
   await updateDoc(ref, {
@@ -228,7 +224,7 @@ export const obtenerProveedores = async () => {
 };
 
 /** =========================
- *  MAESTROS: Centros de Costo / Condiciones de Pago
+ *  MAESTROS
  * ========================= */
 export const obtenerCentrosCosto = async () => {
   const snap = await getDocs(collection(db, CENTROS_COSTO_COLLECTION));
@@ -238,11 +234,9 @@ export const obtenerCentrosCosto = async () => {
 export const guardarCentroCosto = async (centro) => {
   await addDoc(collection(db, CENTROS_COSTO_COLLECTION), centro);
 };
-
 export const editarCentroCosto = async (id, nombre) => {
   await updateDoc(doc(db, CENTROS_COSTO_COLLECTION, id), { nombre });
 };
-
 export const eliminarCentroCosto = async (id) => {
   await deleteDoc(doc(db, CENTROS_COSTO_COLLECTION, id));
 };
@@ -250,16 +244,13 @@ export const eliminarCentroCosto = async (id) => {
 export const guardarCondicionPago = async (condicion) => {
   await addDoc(collection(db, CONDICIONES_PAGO_COLLECTION), condicion);
 };
-
 export const obtenerCondicionesPago = async () => {
   const snap = await getDocs(collection(db, CONDICIONES_PAGO_COLLECTION));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
-
 export const editarCondicionPago = async (id, nombre) => {
   await updateDoc(doc(db, CONDICIONES_PAGO_COLLECTION, id), { nombre });
 };
-
 export const eliminarCondicionPago = async (id) => {
   await deleteDoc(doc(db, CONDICIONES_PAGO_COLLECTION, id));
 };
@@ -343,19 +334,32 @@ export const obtenerFacturasDeOrden = async (ordenId) => {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
+/** =========================
+ *  Suscripción en vivo a una OC
+ * ========================= */
 export function suscribirOC(ocId, callback) {
   if (!ocId) return () => {};
-  const ref = doc(db, "ordenes", ocId);
-  return onSnapshot(ref, (snap) => callback(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+  const ref = doc(db, OC_COLLECTION, ocId); // 👈 misma colección
+  return onSnapshot(ref, (snap) =>
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+  );
 }
 
+/** =========================
+ *  Aprobar / Rechazar con transacción
+ * ========================= */
 function pushHist(hist = [], accion, por, extra = {}) {
-  return [...hist, { accion, por: por || "", fecha: new Date().toLocaleString("es-PE"), ...extra }];
+  return [
+    ...hist,
+    { accion, por: por || "", fecha: new Date().toLocaleString("es-PE"), ...extra },
+  ];
 }
 
-// ✅ Aprobar (firmar) con transacción
-export async function firmarOrden(ocId, { userRol, userEmail, firmaUrl = "", comentario = "" }) {
-  const ref = doc(db, "ordenes", ocId);
+export async function firmarOrden(
+  ocId,
+  { userRol, userEmail, firmaUrl = "", comentario = "" }
+) {
+  const ref = doc(db, OC_COLLECTION, ocId);
   await runTransaction(db, async (trx) => {
     const snap = await trx.get(ref);
     if (!snap.exists()) throw new Error("La orden no existe.");
@@ -365,52 +369,62 @@ export async function firmarOrden(ocId, { userRol, userEmail, firmaUrl = "", com
     if (!roleKey) throw new Error("Tu rol no puede firmar.");
     if (yaFirmo(oc, roleKey)) throw new Error("Ya firmaste esta orden.");
 
-    const estadoActual = oc.estado || "Pendiente de Operaciones";
+    const estadoActual = oc.estado || ESTADOS.PEND_OP;
     const turnos = {
-      operaciones: ["Pendiente", "Pendiente de Operaciones"],
-      gerenciaOperaciones: ["Pendiente de Gerencia de Operaciones"],
-      gerenciaGeneral: ["Pendiente de Gerencia General"],
+      operaciones: [ESTADOS.PEND_OP, ESTADOS.PENDIENTE],
+      gerenciaOperaciones: [ESTADOS.PEND_GOP],
+      gerenciaGeneral: [ESTADOS.PEND_GGRAL],
     };
     const puede = (turnos[roleKey] || []).includes(estadoActual);
     if (!puede) throw new Error("Aún no te corresponde firmar.");
 
-    const next = nextEstadoAprobando(estadoActual);
+    const next = nextEstadoAprobado(estadoActual);
     const firmas = { ...(oc.firmas || {}) };
     firmas[roleKey] = firmaUrl || true;
 
     trx.update(ref, {
       firmas,
       estado: next,
-      historial: pushHist(oc.historial || [], `Aprobación (${roleKey})${comentario ? `: ${comentario}` : ""}`, userEmail),
+      historial: pushHist(
+        oc.historial || [],
+        `Aprobación (${roleKey})${comentario ? `: ${comentario}` : ""}`,
+        userEmail
+      ),
       actualizadoEn: serverTimestamp(),
-      ...(next === "Aprobado" ? { aprobadoEn: serverTimestamp() } : {}),
+      ...(next === ESTADOS.APROBADO ? { aprobadoEn: serverTimestamp() } : {}),
     });
   });
 }
 
-// ✅ Rechazar con transacción
-export async function rechazarOrden(ocId, { userRol, userEmail, comentario = "" }) {
-  const ref = doc(db, "ordenes", ocId);
+export async function rechazarOrden(
+  ocId,
+  { userRol, userEmail, comentario = "" }
+) {
+  const ref = doc(db, OC_COLLECTION, ocId);
   await runTransaction(db, async (trx) => {
     const snap = await trx.get(ref);
     if (!snap.exists()) throw new Error("La orden no existe.");
-    const oc = snap.data();
 
+    const oc = snap.data();
     const roleKey = rolToKey(userRol);
     if (!roleKey) throw new Error("Tu rol no puede rechazar.");
 
-    const estadoActual = oc.estado || "Pendiente de Operaciones";
+    const estadoActual = oc.estado || ESTADOS.PEND_OP;
     const turnos = {
-      operaciones: ["Pendiente", "Pendiente de Operaciones"],
-      gerenciaOperaciones: ["Pendiente de Gerencia de Operaciones"],
-      gerenciaGeneral: ["Pendiente de Gerencia General"],
+      operaciones: [ESTADOS.PEND_OP, ESTADOS.PENDIENTE],
+      gerenciaOperaciones: [ESTADOS.PEND_GOP],
+      gerenciaGeneral: [ESTADOS.PEND_GGRAL],
     };
     const puede = (turnos[roleKey] || []).includes(estadoActual);
     if (!puede) throw new Error("Aún no te corresponde esta acción.");
 
     trx.update(ref, {
-      estado: "Rechazado",
-      historial: pushHist(oc.historial || [], `Rechazo (${roleKey})${comentario ? `: ${comentario}` : ""}`, userEmail),
+      estado: ESTADOS.RECHAZADO,
+      historial: pushHist(
+        oc.historial || [],
+        `Rechazo (${roleKey})${comentario ? `: ${comentario}` : ""}`,
+        userEmail
+      ),
       actualizadoEn: serverTimestamp(),
       rechazadoPor: userEmail,
     });

@@ -1,62 +1,91 @@
-// ✅ src/utils/aprobaciones.js (unificado)
+// src/utils/aprobaciones.js
 
-export const ROLE_KEYS = {
-  operaciones: "operaciones",
-  gerenciaOperaciones: "gerenciaOperaciones",
-  gerenciaGeneral: "gerenciaGeneral",
+// -----------------------------
+// Estados canónicos del flujo
+// -----------------------------
+export const ESTADOS = {
+  PEND_OP: "Pendiente de Operaciones",
+  PEND_GOP: "Pendiente de Gerencia Operaciones",
+  PEND_GGRAL: "Pendiente de Gerencia General",
+  APROBADO: "Aprobado",
+  RECHAZADO: "Rechazado",
+  PENDIENTE: "Pendiente", // compatibilidad antigua / fallback para OI
 };
 
-// Estado inicial recomendado al crear OC/OS
-export function estadoInicial(oc) {
-  if (oc?.tipoOrden === "OI") return "Pendiente de Gerencia General";
-  return "Pendiente de Operaciones";
-}
-
-// mapear rol de usuario → clave interna
-export function rolToKey(userRol = "") {
-  const r = String(userRol || "").toLowerCase();
-  if (r.includes("operac") && !r.includes("gerencia")) return ROLE_KEYS.operaciones;
-  if (r.includes("gerencia") && r.includes("operac")) return ROLE_KEYS.gerenciaOperaciones;
-  if (r.includes("gerencia") && (r.includes("general") || r.includes("gral"))) return ROLE_KEYS.gerenciaGeneral;
+// -----------------------------
+// Roles y utilitarios
+// -----------------------------
+export function rolToKey(rol = "") {
+  const r = String(rol || "").toLowerCase().trim();
+  if (r.includes("operac")) return "operaciones";
+  if (r.includes("gerencia general")) return "gerenciaGeneral";
+  if (r.includes("gerencia")) return "gerenciaOperaciones";
+  if (r.includes("finanzas")) return "finanzas";
   return null;
 }
+// alias para evitar imports rotos en código legado
+export const rolTokey = rolToKey;
 
-export function yaFirmo(oc, roleKey) {
-  return Boolean(oc?.firmas?.[roleKey]);
+// ¿el rol participa del flujo de aprobación?
+export function isApprovalRole(rol = "") {
+  const k = rolToKey(rol);
+  return ["operaciones", "gerenciaOperaciones", "gerenciaGeneral", "finanzas"].includes(k || "");
 }
 
-// ¿puede firmar este usuario?
-export function ocPendingForRole(oc, userRol, userEmail) {
-  if (!oc || !userRol || !userEmail) return false;
-
-  const estado = oc.estado || "Pendiente de Operaciones";
-  const rolKey = rolToKey(userRol);
-  if (!rolKey) return false;
-  if (yaFirmo(oc, rolKey)) return false;
-
-  if (estado === "Pendiente" || estado === "Pendiente de Operaciones")
-    return rolKey === ROLE_KEYS.operaciones;
-
-  if (estado === "Pendiente de Gerencia de Operaciones")
-    return rolKey === ROLE_KEYS.gerenciaOperaciones;
-
-  if (estado === "Pendiente de Gerencia General")
-    return rolKey === ROLE_KEYS.gerenciaGeneral;
-
-  return false;
+// -----------------------------
+// Estado inicial y transición
+// -----------------------------
+export function estadoInicial({ tipoOrden } = {}) {
+  if (tipoOrden === "OC" || tipoOrden === "OS") return ESTADOS.PEND_OP;
+  return ESTADOS.PENDIENTE; // OI u otros
 }
 
-// estado siguiente al aprobar
-export function nextEstadoAprobando(actual = "") {
-  switch (actual) {
-    case "Pendiente":
-    case "Pendiente de Operaciones":
-      return "Pendiente de Gerencia de Operaciones";
-    case "Pendiente de Gerencia de Operaciones":
-      return "Pendiente de Gerencia General";
-    case "Pendiente de Gerencia General":
-      return "Aprobado";
+export function nextEstadoAprobando(estadoActual = "") {
+  switch (estadoActual) {
+    case ESTADOS.PEND_OP:
+    case "Pendiente": // compatibilidad con datos viejos
+      return ESTADOS.PEND_GOP;
+    case ESTADOS.PEND_GOP:
+      return ESTADOS.PEND_GGRAL;
+    case ESTADOS.PEND_GGRAL:
+      return ESTADOS.APROBADO;
     default:
-      return actual;
+      return estadoActual;
   }
+}
+// alias para evitar errores de import
+export const nextEstadoAprobado = nextEstadoAprobando;
+
+// -----------------------------
+// Firmas y permisos
+// -----------------------------
+export function yaFirmo(oc = {}, roleKey = "") {
+  const f = oc.firmas || {};
+  return !!f[roleKey];
+}
+
+// ¿La orden está pendiente para el rol dado?
+export function ocPendingForRole(oc = {}, rol = "", _email = "") {
+  const k = rolToKey(rol);
+  if (!k) return false;
+
+  const estado = oc.estado || ESTADOS.PEND_OP;
+
+  if (k === "operaciones") {
+    return (
+      [ESTADOS.PEND_OP, ESTADOS.PENDIENTE].includes(estado) &&
+      !yaFirmo(oc, "operaciones")
+    );
+  }
+  if (k === "gerenciaOperaciones") {
+    return estado === ESTADOS.PEND_GOP && !yaFirmo(oc, "gerenciaOperaciones");
+  }
+  if (k === "gerenciaGeneral") {
+    return estado === ESTADOS.PEND_GGRAL && !yaFirmo(oc, "gerenciaGeneral");
+  }
+  if (k === "finanzas") {
+    // Si más adelante incluyes firma de finanzas, ajusta el estado aquí.
+    return false;
+  }
+  return false;
 }
