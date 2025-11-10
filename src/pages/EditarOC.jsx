@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+// ✅ src/pages/EditarOC.jsx
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
 import {
@@ -13,16 +14,6 @@ import Logo from "../assets/logo-navbar.png";
 import Select from "react-select";
 import { useUsuario } from "../context/UsuarioContext";
 
-// Busca cuenta de detracciones en arreglo de bancos del proveedor
-const findDetraccion = (bancos = []) => {
-  if (!Array.isArray(bancos)) return null;
-  const nameMatches = (n = "") =>
-    n.toUpperCase().includes("DETRACC") ||
-    n.toUpperCase() === "BN" ||
-    n.toUpperCase().includes("BANCO DE LA NACION");
-  return bancos.find((b) => nameMatches(b?.nombre)) || null;
-};
-
 const selectStyles = {
   control: (base) => ({
     ...base,
@@ -35,15 +26,6 @@ const selectStyles = {
   valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
   indicatorsContainer: (base) => ({ ...base, height: 32 }),
   menu: (base) => ({ ...base, zIndex: 30, fontSize: 14 }),
-  option: (base, state) => ({
-    ...base,
-    backgroundColor: state.isSelected
-      ? "#E5F0FF"
-      : state.isFocused
-      ? "#F3F4F6"
-      : "white",
-    color: "#111827",
-  }),
 };
 
 const EditarOC = () => {
@@ -51,8 +33,7 @@ const EditarOC = () => {
   const location = useLocation();
   const { usuario, loading } = useUsuario();
 
-  const queryParams = new URLSearchParams(location.search);
-  const ocId = queryParams.get("id");
+  const ocId = new URLSearchParams(location.search).get("id");
 
   const [formData, setFormData] = useState(null);
   const [items, setItems] = useState([]);
@@ -62,7 +43,7 @@ const EditarOC = () => {
   const [proveedores, setProveedores] = useState([]);
 
   useEffect(() => {
-    const cargarDatos = async () => {
+    const cargar = async () => {
       const oc = await obtenerOCporId(ocId);
       if (!oc || oc.estado !== "Rechazado") {
         alert("Esta orden no puede ser editada.");
@@ -75,7 +56,10 @@ const EditarOC = () => {
         return;
       }
 
-      setFormData(oc);
+      setFormData({
+        ...oc,
+        notas: oc.notas || oc.observaciones || "", // 👈 compat
+      });
       setItems(oc.items || []);
       setOtros(Number(oc.resumen?.otros || 0));
 
@@ -90,12 +74,11 @@ const EditarOC = () => {
       setProveedores(listaProveedores);
     };
 
-    if (!loading) cargarDatos();
+    if (!loading) cargar();
   }, [ocId, navigate, usuario, loading]);
 
   if (!formData || loading) return <div className="p-6">Cargando orden...</div>;
 
-  // Proveedor/bancos/monedas
   const bancosDisponibles = formData.proveedor?.bancos || [];
   const monedasDisponibles = bancosDisponibles
     .filter((b) => b.nombre === formData.bancoSeleccionado)
@@ -107,10 +90,6 @@ const EditarOC = () => {
       b.moneda === formData.monedaSeleccionada
   );
 
-  // Detracción fija si existe
-  const detraccionCuenta = findDetraccion(bancosDisponibles);
-
-  // Totales
   const subtotal = items.reduce(
     (acc, item) =>
       acc +
@@ -119,7 +98,6 @@ const EditarOC = () => {
     0
   );
   const igv = subtotal * 0.18;
-  const valorVenta = subtotal;
   const totalFinal = subtotal + igv + Number(otros || 0);
 
   const validarFormulario = () => {
@@ -152,24 +130,13 @@ const EditarOC = () => {
       resumen: {
         subtotal,
         igv,
-        valorVenta,
+        valorVenta: subtotal,
         otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
-      // 🔁 Nuevo: reencola al flujo en Operaciones
+      // Reencola en el flujo
       estado: "Pendiente de Operaciones",
-
-      // Limpia firmas de la cadena
-      firmaOperaciones: null,
-      firmaGerenciaOperaciones: null,
-      firmaGerenciaGeneral: null,
-      firmas: {
-        ...(formData.firmas || {}),
-        operaciones: null,
-        gerenciaOperaciones: null,
-        gerenciaGeneral: null,
-      },
-
+      // notas ya viene en formData.notas
       historial: [
         ...(formData.historial || []),
         {
@@ -178,6 +145,11 @@ const EditarOC = () => {
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],
+      // limpiar firmas
+      firmaOperaciones: null,
+      firmaGerenciaOperaciones: null,
+      firmaGerenciaGeneral: null,
+      firmas: { operaciones: null, gerenciaOperaciones: null, gerenciaGeneral: null },
     };
 
     try {
@@ -209,27 +181,19 @@ const EditarOC = () => {
       {/* Datos generales + proveedor */}
       <div className="bg-[#f4f4f4] p-6 rounded shadow mb-6 grid grid-cols-2 md:grid-cols-3 gap-4">
         <input type="date" disabled value={formData.fechaEmision} />
-
         <input
           type="text"
           placeholder="N° Cotización"
           value={formData.cotizacion || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, cotizacion: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, cotizacion: e.target.value })}
         />
-
         <input
           type="date"
           value={formData.fechaEntrega || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, fechaEntrega: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, fechaEntrega: e.target.value })}
         />
-
         <input type="text" disabled value={formData.comprador || ""} />
 
-        {/* Proveedor (react-select) */}
         <div className="col-span-2 md:col-span-3">
           <Select
             value={
@@ -246,14 +210,14 @@ const EditarOC = () => {
               label: `${p.ruc} - ${p.razonSocial}`,
               data: p,
             }))}
-            onChange={(opcion) => {
+            onChange={(op) =>
               setFormData((prev) => ({
                 ...prev,
-                proveedor: opcion?.data || {},
+                proveedor: op?.data || {},
                 bancoSeleccionado: "",
                 monedaSeleccionada: "",
-              }));
-            }}
+              }))
+            }
             isSearchable
             placeholder="Selecciona proveedor"
             styles={selectStyles}
@@ -266,7 +230,6 @@ const EditarOC = () => {
         <input disabled value={formData.proveedor?.telefono || ""} />
         <input disabled value={formData.proveedor?.contacto || ""} />
 
-        {/* Banco / Moneda */}
         <select
           value={formData.bancoSeleccionado || ""}
           onChange={(e) =>
@@ -299,32 +262,11 @@ const EditarOC = () => {
           ))}
         </select>
 
-        {/* Cuenta normal selecionada */}
         {cuentaSeleccionada && (
           <>
             <input disabled value={cuentaSeleccionada.cuenta || ""} />
             <input disabled value={cuentaSeleccionada.cci || ""} />
           </>
-        )}
-
-        {/* Detracciones fija si existe */}
-        {detraccionCuenta && (
-          <div className="col-span-2 grid grid-cols-2 gap-2 mt-2">
-            <input
-              disabled
-              value={detraccionCuenta.cuenta || ""}
-              className="border p-2 rounded bg-yellow-50"
-              placeholder="Cuenta detracciones BN"
-              title="Cuenta de detracciones (BN)"
-            />
-            <input
-              disabled
-              value={detraccionCuenta.cci || ""}
-              className="border p-2 rounded bg-yellow-50"
-              placeholder="CCI detracciones"
-              title="CCI detracciones (si aplica)"
-            />
-          </div>
         )}
 
         <input
@@ -338,20 +280,13 @@ const EditarOC = () => {
         />
       </div>
 
-      {/* Ítems */}
-      <ItemTable
-        items={items}
-        setItems={setItems}
-        moneda={formData.monedaSeleccionada}
-      />
+      <ItemTable items={items} setItems={setItems} moneda={formData.monedaSeleccionada} />
 
-      {/* Centro de costo / Condición de pago / Observaciones */}
+      {/* Centro de costo / Condición / Notas */}
       <div className="bg-[#f4f4f4] p-6 rounded shadow mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
         <select
           value={formData.centroCosto || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, centroCosto: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, centroCosto: e.target.value })}
         >
           <option value="">Centro de Costo</option>
           {centrosCosto.map((cc) => (
@@ -363,9 +298,7 @@ const EditarOC = () => {
 
         <select
           value={formData.condicionPago || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, condicionPago: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, condicionPago: e.target.value })}
         >
           <option value="">Condición de Pago</option>
           {condicionesPago.map((cp) => (
@@ -376,11 +309,9 @@ const EditarOC = () => {
         </select>
 
         <textarea
-          placeholder="Observaciones"
-          value={formData.observaciones || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, observaciones: e.target.value })
-          }
+          placeholder="Notas (observaciones)"
+          value={formData.notas || ""}      // 👈 ahora usa 'notas'
+          onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
           className="col-span-2 md:col-span-3 border p-2 rounded"
         />
       </div>
@@ -394,10 +325,6 @@ const EditarOC = () => {
         <p className="flex justify-between text-sm">
           <span>IGV (18%):</span>
           <span>{formatearMoneda(igv, formData.monedaSeleccionada)}</span>
-        </p>
-        <p className="flex justify-between text-sm">
-          <span>Valor Venta:</span>
-          <span>{formatearMoneda(valorVenta, formData.monedaSeleccionada)}</span>
         </p>
         <p className="flex justify-between text-sm items-center">
           <span>Otros:</span>

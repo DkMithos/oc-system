@@ -1,22 +1,43 @@
 // ✅ src/pages/Indicadores.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { obtenerOCs, obtenerCentrosCosto } from "../firebase/firestoreHelpers";
-import { obtenerMovimientosTodas } from "../firebase/cajaChicaHelpers";
+import {
+  obtenerMovimientosTodas, // ← ahora existente en helpers
+} from "../firebase/cajaChicaHelpers";
 import { obtenerUsuarios } from "../firebase/indicadoresHelpers";
 import { parseISO, isAfter, isBefore } from "date-fns";
 import {
-  PieChart, Pie, Cell, Tooltip, BarChart, Bar,
-  XAxis, YAxis, ResponsiveContainer
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
 } from "recharts";
 import { useUsuario } from "../context/UsuarioContext";
 
-const colores = ["#60A5FA", "#F87171", "#34D399", "#FBBF24", "#A78BFA", "#fb923c", "#10b981", "#0ea5e9"];
+// Paleta simple
+const colores = [
+  "#60A5FA",
+  "#F87171",
+  "#34D399",
+  "#FBBF24",
+  "#A78BFA",
+  "#fb923c",
+  "#10b981",
+  "#0ea5e9",
+];
 
+// ─────────────────────────────────────────────────────────────
 // Helpers de normalización
+// ─────────────────────────────────────────────────────────────
 const parseDateSafe = (v) => {
   if (!v) return null;
   try {
-    const d = v?.toDate ? v.toDate() : (typeof v === "string" ? parseISO(v) : new Date(v));
+    const d = v?.toDate ? v.toDate() : typeof v === "string" ? parseISO(v) : new Date(v);
     const t = d?.getTime?.();
     return Number.isFinite(t) ? d : null;
   } catch {
@@ -27,19 +48,25 @@ const parseDateSafe = (v) => {
 const getFechaOC = (oc) =>
   parseDateSafe(oc?.fechaEmision) || parseDateSafe(oc?.fecha) || parseDateSafe(oc?.creadoEn);
 
+const getCentroOC = (oc) => oc?.centroCostoNombre || oc?.centroCosto || "—";
+
 const calcTotalOC = (oc) => {
   const t = Number(oc?.resumen?.total ?? 0);
   if (t > 0) return t;
   const items = Array.isArray(oc?.items) ? oc.items : [];
   return items.reduce((acc, it) => {
-    const parcial = Number(it?.total ?? (Number(it?.cantidad || 0) * Number(it?.precio || 0)));
+    const parcial = Number(it?.total ?? Number(it?.cantidad || 0) * Number(it?.precio || 0));
     return acc + (Number.isFinite(parcial) ? parcial : 0);
   }, 0);
 };
 
 const estadoEsAprobado = (estado = "") =>
-  String(estado).toLowerCase().includes("aprobado") || String(estado).toLowerCase() === "pagado";
+  String(estado).toLowerCase().includes("aprobado") ||
+  String(estado).toLowerCase() === "pagado";
 
+// ─────────────────────────────────────────────────────────────
+// Componente
+// ─────────────────────────────────────────────────────────────
 const Indicadores = () => {
   const { usuario } = useUsuario();
 
@@ -52,13 +79,14 @@ const Indicadores = () => {
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
 
+  // Carga inicial
   useEffect(() => {
     (async () => {
       const [ocs, movs, usrs, ccs] = await Promise.all([
         obtenerOCs(),
         obtenerMovimientosTodas(), // TODAS las cajas
         obtenerUsuarios(),
-        obtenerCentrosCosto()
+        obtenerCentrosCosto(),
       ]);
       setOrdenes(ocs || []);
       setMovimientos(movs || []);
@@ -73,33 +101,45 @@ const Indicadores = () => {
       const fecha = getterFecha(item);
       const desde = filtroDesde ? parseISO(filtroDesde) : null;
       const hasta = filtroHasta ? parseISO(filtroHasta) : null;
-      const okDesde = desde ? (fecha ? (isAfter(fecha, desde) || +fecha === +desde) : true) : true;
-      const okHasta = hasta ? (fecha ? (isBefore(fecha, hasta) || +fecha === +hasta) : true) : true;
+      const okDesde = desde ? (fecha ? isAfter(fecha, desde) || +fecha === +desde : true) : true;
+      const okHasta = hasta ? (fecha ? isBefore(fecha, hasta) || +fecha === +hasta : true) : true;
       return okDesde && okHasta;
     });
   };
 
-  // Aplica centro + fechas
+  // Aplica centro + fechas (OCs)
   const ordenesFiltradas = useMemo(() => {
-    const base = (ordenes || []).filter((o) => !filtroCentro || o.centroCosto === filtroCentro);
+    const base = (ordenes || []).filter((o) => !filtroCentro || getCentroOC(o) === filtroCentro);
     return filtrarPorFechas(base, getFechaOC);
   }, [ordenes, filtroCentro, filtroDesde, filtroHasta]);
 
+  // Aplica centro + fechas (Caja Chica)
+  const fechaMov = (m) =>
+    (typeof m?.fechaISO === "string" ? parseISO(m.fechaISO) : null) ||
+    parseDateSafe(m?.fechaCreacion);
+
   const movimientosFiltrados = useMemo(() => {
-    const base = (movimientos || []).filter((m) => !filtroCentro || m.centroCosto === filtroCentro);
-    const fechaMov = (m) => parseDateSafe(m?.fecha) || parseDateSafe(m?.creadoEn);
+    const base = (movimientos || []).filter(
+      (m) => !filtroCentro || m.centroCostoNombre === filtroCentro
+    );
     return filtrarPorFechas(base, fechaMov);
   }, [movimientos, filtroCentro, filtroDesde, filtroHasta]);
 
+  // ─────────────────────────────────────────────────────────────
   // KPIs
+  // ─────────────────────────────────────────────────────────────
   const totalOCs = ordenesFiltradas.length;
+
   const montoTotalOCs = ordenesFiltradas.reduce((acc, o) => acc + calcTotalOC(o), 0);
-  const ocObservadas = ordenesFiltradas
-    .filter((o) => String(o?.estado || "").toLowerCase() === "observada").length;
+
+  const ocObservadas = ordenesFiltradas.filter(
+    (o) => String(o?.estado || "").toLowerCase() === "observada"
+  ).length;
 
   const promedioItems = (() => {
-    const arr = ordenesFiltradas.map((o) => Array.isArray(o?.items) ? o.items.length : 0);
+    const arr = ordenesFiltradas.map((o) => (Array.isArray(o?.items) ? o.items.length : 0));
     return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   })();
 
   const tiempoPromedioAprobacion = (() => {
@@ -128,15 +168,19 @@ const Indicadores = () => {
 
   const saldoCaja = ingresos - egresos;
 
-  const egresosSinComprobante = movimientosFiltrados
-    .filter((m) => String(m?.tipo || "").toLowerCase() === "egreso" && !m?.comprobanteUrl).length;
+  const egresosSinComprobante = movimientosFiltrados.filter(
+    (m) => String(m?.tipo || "").toLowerCase() === "egreso" && !m?.archivoUrl
+  ).length;
 
-  const ocEmergencia = ordenesFiltradas
-    .filter((o) => String(o?.prioridad || "").toLowerCase() === "alta").length;
+  const ocEmergencia = ordenesFiltradas.filter(
+    (o) => String(o?.prioridad || "").toLowerCase() === "alta"
+  ).length;
 
   const sinFirmaFinal = ordenesFiltradas.filter((o) => !o?.firmaGerencia).length;
 
+  // ─────────────────────────────────────────────────────────────
   // Distribuciones / rankings
+  // ─────────────────────────────────────────────────────────────
   const conteoPorCampo = (arr, campo) => {
     const result = {};
     (arr || []).forEach((el) => {
@@ -156,14 +200,24 @@ const Indicadores = () => {
     return result;
   };
 
-  const ocPorUsuario = conteoPorCampo(ordenesFiltradas, "creadoPor");
-  const movimientosPorUsuario = conteoPorCampo(movimientosFiltrados, "usuario");
-  const ocPorProveedor = conteoPorCampo(ordenesFiltradas, (o) => o?.proveedor?.razonSocial || "—");
-  const egresosPorCentro = sumaPorCampo(
-    movimientosFiltrados.filter((m) => String(m?.tipo || "").toLowerCase() === "egreso"),
-    "centroCosto"
+  const ocPorUsuario = conteoPorCampo(
+    ordenesFiltradas,
+    (o) => o?.creadoPorEmail || o?.creadoPor || "—"
   );
 
+  const movimientosPorUsuario = conteoPorCampo(movimientosFiltrados, "creadoPorEmail");
+
+  const ocPorProveedor = conteoPorCampo(
+    ordenesFiltradas,
+    (o) => o?.proveedor?.razonSocial || "—"
+  );
+
+  const egresosPorCentro = sumaPorCampo(
+    movimientosFiltrados.filter((m) => String(m?.tipo || "").toLowerCase() === "egreso"),
+    "centroCostoNombre"
+  );
+
+  // Roles permitidos
   if (
     !usuario ||
     ![
@@ -178,11 +232,14 @@ const Indicadores = () => {
       "finanzas",
       "administracion",
       "legal",
-    ].includes(usuario.rol)
+    ].includes((usuario.rol || "").toLowerCase())
   ) {
     return <div className="p-6">Acceso no autorizado</div>;
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">📊 Indicadores del Sistema</h2>
@@ -196,7 +253,9 @@ const Indicadores = () => {
         >
           <option value="">Todos los centros</option>
           {centros.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
 
@@ -219,7 +278,10 @@ const Indicadores = () => {
         <Indicador titulo="Total de OCs" valor={totalOCs} />
         <Indicador titulo="Monto total de OCs" valor={`S/ ${montoTotalOCs.toFixed(2)}`} />
         <Indicador titulo="OCs observadas" valor={ocObservadas} />
-        <Indicador titulo="Tiempo promedio aprobación" valor={`${tiempoPromedioAprobacion.toFixed(1)} días`} />
+        <Indicador
+          titulo="Tiempo promedio aprobación"
+          valor={`${tiempoPromedioAprobacion.toFixed(1)} días`}
+        />
         <Indicador titulo="Promedio ítems por OC" valor={promedioItems.toFixed(1)} />
         <Indicador
           titulo="Monto aprobado vs. solicitado"
@@ -245,7 +307,9 @@ const Indicadores = () => {
   );
 };
 
+// ─────────────────────────────────────────────────────────────
 // Subcomponentes UI
+// ─────────────────────────────────────────────────────────────
 const Indicador = ({ titulo, valor }) => (
   <div className="bg-white shadow p-4 rounded">
     <p className="text-sm text-gray-500">{titulo}</p>

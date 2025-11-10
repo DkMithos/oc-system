@@ -1,4 +1,4 @@
-// ✅ src/pages/VerOC.jsx (1 hoja, máx. 15 ítems, firmas, cuenta BN bajo PROVEEDOR)
+// ✅ src/pages/VerOC.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2pdf from "html2pdf.js";
@@ -8,7 +8,6 @@ import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole } from "../utils/aprobaciones";
 
-// === helpers ===
 const up = (s = "") => s.toUpperCase();
 const findDetraccion = (bancos = []) => {
   if (!Array.isArray(bancos)) return null;
@@ -23,19 +22,18 @@ const findDetraccion = (bancos = []) => {
 };
 const pickFirma = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 
-const ITEMS_MAX = 15; // 👈 límite duro para 1 hoja
+const ITEMS_MAX = 15;
 
 const VerOC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const queryParams = new URLSearchParams(location.search);
-  const ocId = queryParams.get("id");
+  const ocId = new URLSearchParams(location.search).get("id");
   const stateOC = location.state?.orden;
 
   const { usuario, loading } = useUsuario();
   const [oc, setOC] = useState(null);
 
-  // Carga OC
+  // Carga OC inicial
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -46,10 +44,26 @@ const VerOC = () => {
         if (alive) setOC(encontrada || null);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [ocId, stateOC]);
 
-  // Derivados
+  // 🔄 Refresco en vivo desde el modal (sin recargar página)
+  useEffect(() => {
+    const handler = (e) => {
+      const ocAct = e?.detail?.oc;
+      if (!ocAct) return;
+      // Refresca si es la misma OC
+      if (ocAct.id === ocId || ocAct.numeroOC === oc?.numeroOC) {
+        setOC((prev) => ({ ...(prev || {}), ...ocAct }));
+      }
+    };
+    window.addEventListener("oc-updated", handler);
+    return () => window.removeEventListener("oc-updated", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocId, oc?.numeroOC]);
+
   const items = useMemo(() => (Array.isArray(oc?.items) ? oc.items : []), [oc?.items]);
   const itemsToShow = useMemo(() => items.slice(0, ITEMS_MAX), [items]);
 
@@ -58,7 +72,6 @@ const VerOC = () => {
     [oc?.monedaSeleccionada]
   );
 
-  // Totales (idéntico a CrearOC.jsx)
   const { subtotal, igv, total } = useMemo(() => {
     const sub = items.reduce(
       (acc, it) =>
@@ -72,7 +85,6 @@ const VerOC = () => {
     return { subtotal: sub, igv: igvCalc, total: totalCalc };
   }, [items]);
 
-  // Cuenta BN de detracciones (solo mostrar en PROVEEDOR si existe)
   const detraccionCuenta = useMemo(
     () => oc?.detraccion?.cuenta || findDetraccion(oc?.proveedor?.bancos),
     [oc?.detraccion?.cuenta, oc?.proveedor?.bancos]
@@ -84,18 +96,16 @@ const VerOC = () => {
     [oc, usuario]
   );
 
-  // Firmas
   const firmaOperaciones = useMemo(() => pickFirma(oc || {}, "firmaOperaciones", "operaciones"), [oc]);
   const firmaGerOp = useMemo(() => pickFirma(oc || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"), [oc]);
   const firmaGerGral = useMemo(() => pickFirma(oc || {}, "firmaGerenciaGeneral", "gerenciaGeneral"), [oc]);
 
-  // Exportación 1 hoja A4 (márgenes mínimos + contenido compacto)
   const exportarPDF = () => {
     const el = document.getElementById("contenido-oc");
     if (!el) return;
     html2pdf()
       .set({
-        margin: [0.25, 0.25, 0.25, 0.25], // pulgadas
+        margin: [0.25, 0.25, 0.25, 0.25],
         filename: `OC-${oc?.numeroOC || oc?.id || "orden"}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 3, scrollY: 0, useCORS: true },
@@ -106,7 +116,6 @@ const VerOC = () => {
       .save();
   };
 
-  // Guards
   if (loading) return <div className="p-6">Cargando usuario…</div>;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
   if (oc === null) return <div className="p-6">Cargando orden…</div>;
@@ -117,14 +126,9 @@ const VerOC = () => {
       <div
         id="contenido-oc"
         className="max-w-[794px] mx-auto bg-white text-black"
-        style={{
-          fontFamily: "Arial, sans-serif",
-          fontSize: "9px",            // 👈 compacto
-          lineHeight: "1.2",          // 👈 compacto
-          padding: "10px",            // 👈 compacto
-        }}
+        style={{ fontFamily: "Arial, sans-serif", fontSize: "9px", lineHeight: "1.2", padding: "10px" }}
       >
-        {/* ENCABEZADO (compacto) */}
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-start gap-3">
             <img src={Logo} alt="Logo Memphis" className="h-12" />
@@ -153,7 +157,7 @@ const VerOC = () => {
           </div>
         </div>
 
-        {/* PROVEEDOR (con cuenta BN de detracciones si existe) */}
+        {/* PROVEEDOR */}
         {oc.tipoOrden !== "OI" && (
           <div className="mb-2">
             <h3 className="font-semibold text-blue-900 mb-1">PROVEEDOR</h3>
@@ -170,18 +174,16 @@ const VerOC = () => {
               <div><b>CCI:</b> {oc.cuenta?.cci || "—"}</div>
 
               {detraccionCuenta && (
-                <>
-                  <div className="col-span-2 mt-1 pt-1 border-t">
-                    <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN): </span>
-                    <span><b>Cuenta:</b> {detraccionCuenta.cuenta || "—"} &nbsp;&nbsp; <b>CCI:</b> {detraccionCuenta.cci || "—"}</span>
-                  </div>
-                </>
+                <div className="col-span-2 mt-1 pt-1 border-t">
+                  <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN): </span>
+                  <span><b>Cuenta:</b> {detraccionCuenta.cuenta || "—"} &nbsp;&nbsp; <b>CCI:</b> {detraccionCuenta.cci || "—"}</span>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* DETALLE (tabla ajustada, máx 15 ítems) */}
+        {/* DETALLE */}
         <div className="mb-2">
           <h3 className="font-semibold text-blue-900 mb-1">DETALLE</h3>
           <table className="w-full border border-collapse" style={{ tableLayout: "fixed" }}>
@@ -228,7 +230,7 @@ const VerOC = () => {
           </table>
         </div>
 
-        {/* RESUMEN (box) */}
+        {/* RESUMEN */}
         <div className="mb-2 grid grid-cols-2 gap-2">
           <div />
           <div className="border rounded p-2">
@@ -243,7 +245,7 @@ const VerOC = () => {
           </div>
         </div>
 
-        {/* CONDICIONES (después del resumen) */}
+        {/* CONDICIONES */}
         <div className="mb-2">
           <h3 className="font-semibold text-blue-900 mb-1">CONDICIONES</h3>
           <div className="grid grid-cols-2 gap-2 border p-2 rounded">
@@ -254,7 +256,7 @@ const VerOC = () => {
           </div>
         </div>
 
-        {/* FIRMAS (compactas) */}
+        {/* FIRMAS */}
         <div className="grid grid-cols-3 gap-4 text-center mt-3">
           {[
             { rol: "Operaciones", src: firmaOperaciones },
@@ -268,16 +270,14 @@ const VerOC = () => {
           ))}
         </div>
 
-        {/* PIE (siempre exportable) */}
+        {/* PIE */}
         <div className="mt-2 text-[8px] leading-snug text-gray-700 border-t pt-1">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A:</p>
           <ul className="list-disc pl-4">
             <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
             <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
           </ul>
-          <p className="mt-1 italic">
-            El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.
-          </p>
+          <p className="mt-1 italic">El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.</p>
         </div>
       </div>
 

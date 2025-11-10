@@ -142,16 +142,17 @@ export const guardarOrden = async (ordenData) => {
     tx.set(ref, {
       ...ordenData,
       numero,
-      estado: "Pendiente",
+      // 👇 Al inicio pasa a Operaciones (coincide con cadena de firmas)
+      estado: "Pendiente de Operaciones",
       firmas: {
-        comprador: null,            // comprador ya NO firma
+        comprador: null,
         operaciones: null,
         gerenciaOperaciones: null,
         gerenciaGeneral: null,
         finanzas: null,
       },
       creadaEn: serverTimestamp(),
-      eliminada: false,            // “nada se elimina” → soft-delete
+      eliminada: false,
     });
 
     tx.set(CORRELATIVOS_DOC, { ultimo: siguiente }, { merge: true });

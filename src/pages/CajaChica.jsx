@@ -1,485 +1,628 @@
-// ✅ src/pages/CajaChica.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  obtenerMovimientosCaja,
-  agregarMovimientoCaja,
-  subirComprobanteCaja,
-  eliminarMovimientoCaja,
-  calcularResumen,
-} from "../firebase/cajaChicaHelpers";
-import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
-import { Upload, Search, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import * as XLSX from "xlsx";
+// ✅ src/pages/CajaChica.jsx (MULTI-CAJA con control por rol + realtime)
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Select from "react-select";
 import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 import { useUsuario } from "../context/UsuarioContext";
+import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import {
+  crearMovimientoCaja,
+  obtenerTiposDocumento,
+  subirArchivoCaja,
+  obtenerEstadoCajaActual,
+  abrirCaja,
+  cerrarCaja,
+  filtrarMovsPorPeriodo,
+  onMovimientosPorCaja,         // ⬅️ realtime
+} from "../firebase/cajaChicaHelpers";
 
-const ROLES_PERMITIDOS = [
-  "admin",
-  "gerencia",
-  "gerencia operaciones",
-  "operaciones",
-  "administracion",
-  "coordinador",
-];
-
+// ─────────────────────────────────────────────────────────────
 const CAJAS = [
-  { key: "op_proyectos", label: "Operaciones y Proyectos" },
-  { key: "operaciones", label: "Operaciones" },
-  { key: "administracion", label: "Administración" },
+  { id: "operaciones", label: "Operaciones" },
+  { id: "administracion", label: "Administración" },
+  { id: "proyectos", label: "Proyectos" },
 ];
 
-function cajaPorDefecto(rol) {
-  if (rol === "gerencia operaciones") return "op_proyectos";
-  if (rol === "operaciones" || rol === "coordinador") return "operaciones";
-  if (rol === "administracion") return "administracion";
-  return "administracion";
-}
-function cajasPermitidas(rol) {
-  if (rol === "admin" || rol === "gerencia") return CAJAS.map((c) => c.key);
-  if (rol === "gerencia operaciones") return ["op_proyectos"];
-  if (rol === "operaciones" || rol === "coordinador") return ["operaciones"];
-  if (rol === "administracion") return ["administracion"];
+const normalizaRol = (rol) => String(rol || "").trim().toLowerCase();
+const cajaPorDefectoRol = (rol) => {
+  const r = normalizaRol(rol);
+  if (r === "operaciones") return "operaciones";
+  if (r === "administracion" || r === "administración") return "administracion";
+  if (r === "gerencia operaciones" || r === "gerencia de operaciones") return "proyectos";
+  if (r === "admin" || r === "soporte") return "proyectos";
+  return "proyectos";
+};
+const cajasPermitidasRol = (rol) => {
+  const r = normalizaRol(rol);
+  if (r === "operaciones") return ["operaciones"];
+  if (r === "administracion" || r === "administración") return ["administracion"];
+  if (["gerencia operaciones", "gerencia de operaciones", "admin", "soporte"].includes(r))
+    return CAJAS.map((c) => c.id);
   return [];
-}
-const money = (n) =>
-  new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(Number(n || 0));
+};
+const puedeCambiarCajaRol = (rol) => {
+  const r = normalizaRol(rol);
+  return ["admin", "soporte", "gerencia operaciones", "gerencia de operaciones"].includes(r);
+};
+
+// Estilos select
+const selectStyles = {
+  control: (base) => ({ ...base, minHeight: 38, borderColor: "#d1d5db", boxShadow: "none", ":hover": { borderColor: "#9ca3af" }, fontSize: 14 }),
+  valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
+  indicatorsContainer: (base) => ({ ...base, height: 34 }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  menu: (base) => ({ ...base, zIndex: 9999 }),
+};
+
+// Popover simple
+const Popover = ({ open, onClose, anchorRef, children }) => {
+  if (!open) return null;
+  const rect = anchorRef?.current?.getBoundingClientRect?.();
+  const style = rect
+    ? { position: "fixed", top: rect.bottom + 8, left: Math.min(rect.left, window.innerWidth - 360), width: 340, zIndex: 10000 }
+    : { position: "fixed", top: 80, right: 24, width: 340, zIndex: 10000 };
+  return (
+    <div className="bg-white rounded-lg shadow-xl border p-3" style={style}>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold">Filtros avanzados</h4>
+        <button onClick={onClose} className="text-sm px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Cerrar</button>
+      </div>
+      {children}
+    </div>
+  );
+};
 
 const CajaChica = () => {
-  const { usuario, cargando: loadingUser } = useUsuario();
+  const { usuario, cargando } = useUsuario();
+  const rol = usuario?.rol || "";
+  const puedeCambiarCaja = useMemo(() => puedeCambiarCajaRol(rol), [rol]);
+  const permitidas = useMemo(() => cajasPermitidasRol(rol), [rol]);
 
-  const [cajaSeleccionada, setCajaSeleccionada] = useState("administracion");
+  // Caja seleccionada
+  const [cajaId, setCajaId] = useState(cajaPorDefectoRol(rol));
+
+  // Datos estáticos
   const [centros, setCentros] = useState([]);
-  const [movimientos, setMovimientos] = useState([]);
-  const [resumen, setResumen] = useState({ ingresos: 0, egresos: 0, saldo: 0 });
-  const [guardando, setGuardando] = useState(false);
+  const [tiposDoc, setTiposDoc] = useState([]);
 
-  // Filtros
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroCentro, setFiltroCentro] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroDesde, setFiltroDesde] = useState("");
-  const [filtroHasta, setFiltroHasta] = useState("");
-  const [soloSinComprobante, setSoloSinComprobante] = useState(false);
+  // Estado de caja (apertura/cierre)
+  const [estadoCaja, setEstadoCaja] = useState(null);
+  const [loadingEstado, setLoadingEstado] = useState(true);
 
-  // Paginación simple
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
+  // Movimientos
+  const [movs, setMovs] = useState([]);
+  const [cargandoMovs, setCargandoMovs] = useState(true);
+
+  // Búsqueda/filtrado
+  const [q, setQ] = useState("");
+  const [filtros, setFiltros] = useState({
+    tipo: "",
+    tipoDocumentoId: "",
+    centroCostoId: "",
+    fechaDesde: "",
+    fechaHasta: "",
+    minMonto: "",
+    maxMonto: "",
+    creadoPorEmail: "",
+  });
+  const [openFilters, setOpenFilters] = useState(false);
+  const btnFiltroRef = useRef(null);
 
   // Formulario
   const [form, setForm] = useState({
-    tipo: "egreso",
+    cajaId,
+    tipo: "Ingreso",
     monto: "",
+    fecha: new Date().toISOString().slice(0, 10),
+    centroCostoId: "",
+    centroCostoNombre: "",
+    razonSocial: "",
+    tipoDocumentoId: "",
+    tipoDocumentoNombre: "",
+    comprobante: "",
     descripcion: "",
-    centroCosto: "",
-    fecha: new Date().toISOString().split("T")[0],
-    archivo: null,
+    archivoFile: null,
   });
 
+  // Sincronizar caja por rol/permitidas
   useEffect(() => {
-    if (!usuario) return;
-    setCajaSeleccionada(cajaPorDefecto(usuario.rol));
-  }, [usuario]);
+    if (!permitidas.includes(cajaId)) {
+      const def = cajaPorDefectoRol(rol);
+      setCajaId(def);
+      setForm((f) => ({ ...f, cajaId: def }));
+    }
+  }, [permitidas, rol]); // eslint-disable-line
 
+  useEffect(() => { setForm((f) => ({ ...f, cajaId })); }, [cajaId]);
+
+  // Catálogos
   useEffect(() => {
-    const cargar = async () => {
-      const centrosDB = await obtenerCentrosCosto();
-      setCentros((centrosDB || []).map((c) => c.nombre));
+    let alive = true;
+    (async () => {
+      try {
+        const [cent, tipos] = await Promise.all([
+          obtenerCentrosCosto().catch(() => []),
+          obtenerTiposDocumento().catch(() => []),
+        ]);
+        if (!alive) return;
+        setCentros((cent || []).filter((c) => !!c?.nombre).map((c) => ({ value: c.id, label: c.nombre })));
+        setTiposDoc((tipos || []).filter((t) => !!t?.nombre).map((t) => ({ value: t.id, label: t.nombre })));
+      } catch (e) { console.error(e); }
+    })();
+    return () => { alive = false; };
+  }, []);
 
-      if (cajaSeleccionada) {
-        const lista = await obtenerMovimientosCaja(cajaSeleccionada, {
-          desde: filtroDesde || undefined,
-          hasta: filtroHasta || undefined,
-        });
-        setMovimientos(lista);
-        setResumen(calcularResumen(lista));
-        setPage(1);
-      }
-    };
-    if (usuario) cargar();
+  // Estado de caja (por cajaId)
+  const cargarEstadoCaja = async (targetCajaId = cajaId) => {
+    setLoadingEstado(true);
+    try {
+      const est = await obtenerEstadoCajaActual(targetCajaId);
+      setEstadoCaja(est);
+    } catch (e) {
+      console.error("Estado caja:", e);
+      setEstadoCaja(null);
+    } finally {
+      setLoadingEstado(false);
+    }
+  };
+
+  // Suscripción a movimientos (realtime) por caja
+  useEffect(() => {
+    if (!usuario || cargando || !cajaId) return;
+    setCargandoMovs(true);
+    const unsub = onMovimientosPorCaja(cajaId, (list) => {
+      setMovs(list || []);
+      setCargandoMovs(false);
+    });
+    return () => unsub && unsub();
+  }, [usuario?.email, cargando, cajaId]);
+
+  // Cargar estado cuando cambian usuario/caja
+  useEffect(() => {
+    if (!usuario || cargando || !cajaId) return;
+    cargarEstadoCaja(cajaId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cajaSeleccionada, usuario, filtroDesde, filtroHasta]);
+  }, [usuario?.email, cargando, cajaId]);
 
-  const handleGuardar = async () => {
-    if (!form.monto || !form.centroCosto || !form.descripcion) {
-      alert("Completa todos los campos obligatorios.");
-      return;
-    }
-    if (!cajaSeleccionada) {
-      alert("Selecciona una caja.");
-      return;
-    }
-    if (form.tipo === "egreso" && !form.archivo) {
-      const cont = confirm("Estás registrando un EGRESO sin comprobante. ¿Continuar?");
-      if (!cont) return;
-    }
+  // Validación y guardado
+  const validar = () => {
+    if (!form.tipo) return "Selecciona Ingreso o Egreso.";
+    if (!form.monto || Number(form.monto) <= 0) return "Monto inválido.";
+    if (!form.fecha) return "Fecha requerida.";
+    if (!form.centroCostoId) return "Selecciona un Centro de Costo.";
+    if (!form.razonSocial.trim()) return "Ingresa la Razón Social.";
+    if (!form.tipoDocumentoId) return "Selecciona el Tipo de Documento.";
+    if (!form.comprobante.trim()) return "Ingresa el Comprobante.";
+    if (!form.cajaId) return "Caja inválida.";
+    return null;
+  };
 
-    const movimiento = {
-      ...form,
-      monto: parseFloat(form.monto),
-      usuario: usuario?.email,
-    };
-
-    setGuardando(true);
+  const onGuardar = async () => {
     try {
-      if (form.archivo) {
-        const nombreBase = `${Date.now()}_${(movimiento.usuario || "user").replace(/[@.]/g, "_")}`;
-        const url = await subirComprobanteCaja(cajaSeleccionada, form.archivo, nombreBase);
-        movimiento.comprobanteUrl = url;
+      if (!estadoCaja?.abierta) return alert("Debes abrir la caja antes de registrar movimientos.");
+      const v = validar();
+      if (v) return alert(v);
+
+      let archivoUrl = "";
+      let archivoNombre = "";
+      if (form.archivoFile) {
+        const up = await subirArchivoCaja(form.archivoFile, form.cajaId);
+        archivoUrl = up.url;
+        archivoNombre = up.nombre;
       }
 
-      await agregarMovimientoCaja(cajaSeleccionada, movimiento);
+      await crearMovimientoCaja({
+        ...form,
+        archivoUrl,
+        archivoNombre,
+        creadoPorEmail: usuario.email,
+      });
 
-      setForm({
-        tipo: "egreso",
+      alert("Movimiento registrado ✅");
+      setForm((prev) => ({
+        ...prev,
+        tipo: "Ingreso",
         monto: "",
+        fecha: new Date().toISOString().slice(0, 10),
+        centroCostoId: "",
+        centroCostoNombre: "",
+        razonSocial: "",
+        tipoDocumentoId: "",
+        tipoDocumentoNombre: "",
+        comprobante: "",
         descripcion: "",
-        centroCosto: "",
-        fecha: new Date().toISOString().split("T")[0],
-        archivo: null,
-      });
-
-      const lista = await obtenerMovimientosCaja(cajaSeleccionada, {
-        desde: filtroDesde || undefined,
-        hasta: filtroHasta || undefined,
-      });
-      setMovimientos(lista);
-      setResumen(calcularResumen(lista));
-      setPage(1);
-
-      alert("Movimiento guardado ✅");
+        archivoFile: null,
+      }));
+      // No hace falta recargar: onSnapshot ya refresca
     } catch (e) {
       console.error(e);
-      alert("Error al guardar");
-    }
-    setGuardando(false);
-  };
-
-  const borrarMovimiento = async (id) => {
-    if (!confirm("¿Eliminar este movimiento? Esta acción no se puede deshacer.")) return;
-    try {
-      await eliminarMovimientoCaja(cajaSeleccionada, id);
-      const lista = await obtenerMovimientosCaja(cajaSeleccionada, {
-        desde: filtroDesde || undefined,
-        hasta: filtroHasta || undefined,
-      });
-      setMovimientos(lista);
-      setResumen(calcularResumen(lista));
-      setPage(1);
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo eliminar.");
+      alert(e.message || "No se pudo registrar el movimiento.");
     }
   };
 
-  const movimientosFiltrados = useMemo(() => {
-    return (movimientos || []).filter((m) => {
-      const fechaObj = m.fecha?.toDate ? m.fecha.toDate() : new Date(m.fecha);
-      const fechaStr = isNaN(fechaObj) ? "" : format(fechaObj, "yyyy-MM-dd");
-      const texto = `${m.descripcion || ""} ${fechaStr}`.toLowerCase();
-      const matchBusqueda = texto.includes((busqueda || "").toLowerCase());
-      const matchCentro = filtroCentro ? m.centroCosto === filtroCentro : true;
-      const matchTipo = filtroTipo ? m.tipo === filtroTipo : true;
-      const matchComprobante = soloSinComprobante ? !m.comprobanteUrl : true;
-      return matchBusqueda && matchCentro && matchTipo && matchComprobante;
-    });
-  }, [movimientos, busqueda, filtroCentro, filtroTipo, soloSinComprobante]);
+  // Período y filtros
+  const movsPeriodo = useMemo(() => filtrarMovsPorPeriodo(movs, estadoCaja), [movs, estadoCaja]);
 
-  const pageCount = Math.max(1, Math.ceil(movimientosFiltrados.length / PAGE_SIZE));
-  const pageItems = movimientosFiltrados.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const movsFiltrados = useMemo(() => {
+    const texto = q.trim().toLowerCase();
 
+    const matchesTexto = (m) => {
+      if (!texto) return true;
+      const plano = [
+        m.tipo, m.monto, m.fechaISO, m.centroCostoNombre, m.razonSocial,
+        m.tipoDocumentoNombre, m.comprobante, m.descripcion, m.creadoPorEmail,
+      ].map((x) => String(x || "").toLowerCase()).join(" ");
+      return plano.includes(texto);
+    };
+
+    const matchesFiltro = (m) => {
+      if (filtros.tipo && m.tipo !== filtros.tipo) return false;
+      if (filtros.tipoDocumentoId && m.tipoDocumentoId !== filtros.tipoDocumentoId) return false;
+      if (filtros.centroCostoId && m.centroCostoId !== filtros.centroCostoId) return false;
+      if (filtros.creadoPorEmail && m.creadoPorEmail !== filtros.creadoPorEmail) return false;
+      if (filtros.fechaDesde && String(m.fechaISO) < filtros.fechaDesde) return false;
+      if (filtros.fechaHasta && String(m.fechaISO) > filtros.fechaHasta) return false;
+      const monto = Number(m.monto || 0);
+      if (filtros.minMonto && monto < Number(filtros.minMonto)) return false;
+      if (filtros.maxMonto && monto > Number(filtros.maxMonto)) return false;
+      return true;
+    };
+
+    const base = (movsPeriodo || []).filter((m) => matchesTexto(m) && matchesFiltro(m));
+    // Orden determinista por fechaISO desc (coincide con la query)
+    base.sort((a, b) => String(b.fechaISO || "").localeCompare(String(a.fechaISO || "")));
+    return base;
+  }, [movsPeriodo, q, filtros]);
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const ingresos = movsPeriodo.filter((m) => m.tipo === "Ingreso").reduce((acc, m) => acc + Number(m.monto || 0), 0);
+    const egresos = movsPeriodo.filter((m) => m.tipo === "Egreso").reduce((acc, m) => acc + Number(m.monto || 0), 0);
+    const saldoInicial = Number(estadoCaja?.aperturaSaldoInicial || 0);
+    const saldoActual = saldoInicial + ingresos - egresos;
+    return { ingresos, egresos, saldoInicial, saldoActual };
+  }, [movsPeriodo, estadoCaja]);
+
+  // Toolbar exportar
   const exportarExcel = () => {
-    if (!movimientosFiltrados.length) return alert("No hay movimientos para exportar");
-    const data = movimientosFiltrados.map((m) => {
-      const fechaObj = m.fecha?.toDate ? m.fecha.toDate() : new Date(m.fecha);
-      const fechaFmt = isNaN(fechaObj) ? "" : fechaObj.toLocaleDateString("es-PE");
-      return {
-        Caja: CAJAS.find((c) => c.key === cajaSeleccionada)?.label || cajaSeleccionada,
-        Fecha: fechaFmt,
-        Tipo: m.tipo,
-        Monto: Number(m.monto || 0),
-        "Centro de Costo": m.centroCosto,
-        Descripción: m.descripcion,
-        Usuario: m.usuario,
-        "Comprobante URL": m.comprobanteUrl || "—",
-      };
-    });
+    if (!movsFiltrados.length) return alert("No hay datos para exportar");
+    const cajaLabel = CAJAS.find((c) => c.id === cajaId)?.label || cajaId;
+    const data = movsFiltrados.map((m) => ({
+      Caja: cajaLabel,
+      Tipo: m.tipo,
+      Monto: m.monto,
+      Fecha: m.fechaISO,
+      "Centro de Costo": m.centroCostoNombre,
+      "Razón Social": m.razonSocial,
+      "Tipo de Documento": m.tipoDocumentoNombre,
+      Comprobante: m.comprobante,
+      Descripción: m.descripcion,
+      "Creado Por": m.creadoPorEmail,
+      "Archivo Nombre": m.archivoNombre || "",
+      "Archivo URL": m.archivoUrl || "",
+    }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Caja`);
+    XLSX.utils.book_append_sheet(wb, ws, "CajaChica");
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    saveAs(blob, `Caja_${cajaSeleccionada}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `CajaChica_${cajaId}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  if (loadingUser) return <div className="p-6">Cargando usuario...</div>;
-  if (!usuario || !ROLES_PERMITIDOS.includes(usuario?.rol)) {
-    return <div className="p-6">Acceso no autorizado</div>;
-  }
+  // Apertura / Cierre
+  const [saldoInicialInput, setSaldoInicialInput] = useState("");
+  const [saldoCierreInput, setSaldoCierreInput] = useState("");
+  useEffect(() => {
+    if (estadoCaja?.abierta) setSaldoCierreInput((kpis.saldoActual ?? 0).toFixed(2));
+  }, [estadoCaja?.abierta, kpis.saldoActual]);
 
-  const puedeCambiarCaja = ["admin", "gerencia"].includes(usuario.rol);
-  const visibles = CAJAS.filter((c) => cajasPermitidas(usuario.rol).includes(c.key));
+  const onAbrirCaja = async () => {
+    try {
+      const val = Number(saldoInicialInput || 0);
+      if (Number.isNaN(val)) return alert("Saldo inicial inválido.");
+      await abrirCaja({ cajaId, saldoInicial: val, fecha: new Date().toISOString().slice(0, 10), email: usuario.email });
+      await cargarEstadoCaja(cajaId);
+      setSaldoInicialInput("");
+      alert("Caja abierta ✅");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "No se pudo abrir la caja.");
+    }
+  };
+
+  const onCerrarCaja = async () => {
+    try {
+      const val = Number(saldoCierreInput);
+      if (Number.isNaN(val)) return alert("Saldo final inválido.");
+      await cerrarCaja({ cajaId, saldoFinal: val, fecha: new Date().toISOString().slice(0, 10), email: usuario.email });
+      await cargarEstadoCaja(cajaId);
+      alert("Caja cerrada ✅");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "No se pudo cerrar la caja.");
+    }
+  };
+
+  if (cargando) return <div className="p-6">Cargando…</div>;
+  if (!usuario || !permitidas.length) return <div className="p-6 text-red-600">Acceso no autorizado</div>;
+
+  const opcionesCaja = CAJAS.filter((c) => permitidas.includes(c.id));
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-        <h2 className="text-2xl font-bold">Control de Caja Chica</h2>
-
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="p-6 space-y-6">
+      {/* Encabezado */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Control de Caja Chica</h2>
+          <p className="text-xs text-gray-500">Rol: <b>{usuario?.rol || "—"}</b></p>
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">Caja:</span>
-          <select
-            value={cajaSeleccionada}
-            onChange={(e) => setCajaSeleccionada(e.target.value)}
-            className="border p-2 rounded"
-            disabled={!puedeCambiarCaja}
-            title={puedeCambiarCaja ? "Cambiar caja" : "Tu rol solo permite esta caja"}
-          >
-            {visibles.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {opt.label}
-              </option>
-            ))}
+          <select className="border p-2 rounded" value={cajaId} onChange={(e) => setCajaId(e.target.value)} disabled={!puedeCambiarCaja}
+            title={puedeCambiarCaja ? "Cambiar caja" : "Tu rol no puede cambiar de caja"}>
+            {opcionesCaja.map((c) => (<option key={c.id} value={c.id}>{c.label}</option>))}
           </select>
         </div>
       </div>
 
-      {/* Resumen */}
-      <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-        <div className="bg-green-100 p-4 rounded shadow">
-          <p className="text-sm text-green-700">Ingresos</p>
-          <p className="text-lg font-bold text-green-900">{money(resumen.ingresos)}</p>
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <p className="text-xs text-gray-500">Saldo Inicial</p>
+          <p className="text-2xl font-bold">S/ {kpis.saldoInicial.toFixed(2)}</p>
+          {loadingEstado ? <p className="text-xs text-gray-400 mt-1">Cargando estado…</p> :
+            estadoCaja?.aperturaFecha ? <p className="text-xs text-gray-500 mt-1">Apertura: {estadoCaja.aperturaFecha}</p> :
+              <p className="text-xs text-gray-400 mt-1">Sin apertura</p>}
         </div>
-        <div className="bg-red-100 p-4 rounded shadow">
-          <p className="text-sm text-red-700">Egresos</p>
-          <p className="text-lg font-bold text-red-900">{money(resumen.egresos)}</p>
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <p className="text-xs text-gray-500">Ingresos</p>
+          <p className="text-2xl font-bold text-green-700">S/ {kpis.ingresos.toFixed(2)}</p>
         </div>
-        <div className="bg-blue-100 p-4 rounded shadow col-span-2 md:col-span-1">
-          <p className="text-sm text-blue-700">Saldo Actual</p>
-          <p className="text-lg font-bold text-blue-900">{money(resumen.saldo)}</p>
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <p className="text-xs text-gray-500">Egresos</p>
+          <p className="text-2xl font-bold text-red-700">S/ {kpis.egresos.toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4 border">
+          <p className="text-xs text-gray-500">Saldo Actual</p>
+          <p className="text-2xl font-bold">S/ {kpis.saldoActual.toFixed(2)}</p>
+          {!loadingEstado && estadoCaja?.abierta === false && estadoCaja?.cierreFecha &&
+            <p className="text-xs text-gray-500 mt-1">Cerrada: {estadoCaja.cierreFecha}</p>}
+        </div>
+      </div>
+
+      {/* Estado de Caja */}
+      <div className="bg-white p-4 rounded shadow border">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">Estado de Caja</h3>
+            {loadingEstado ? (
+              <p className="text-sm text-gray-500">Cargando…</p>
+            ) : estadoCaja?.abierta ? (
+              <p className="text-sm text-green-700">
+                Abierta por {estadoCaja.aperturaPorEmail || "—"} (Saldo inicial: S/ {Number(estadoCaja.aperturaSaldoInicial || 0).toFixed(2)})
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600">Cerrada {estadoCaja?.cierreFecha ? `el ${estadoCaja.cierreFecha}` : ""}.</p>
+            )}
+          </div>
+
+          <div className="flex items-end gap-2">
+            {!estadoCaja?.abierta ? (
+              <>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Saldo inicial</label>
+                  <input type="number" className="border rounded p-2 w-40 text-right"
+                    value={saldoInicialInput} onChange={(e) => setSaldoInicialInput(e.target.value)} placeholder="0.00" />
+                </div>
+                <button onClick={onAbrirCaja} className="h-10 px-4 rounded bg-blue-600 hover:bg-blue-700 text-white">Abrir caja</button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Saldo final (sugerido)</label>
+                  <input type="number" className="border rounded p-2 w-40 text-right"
+                    value={saldoCierreInput} onChange={(e) => setSaldoCierreInput(e.target.value)} />
+                  <p className="text-[11px] text-gray-500 mt-1">Sugerido = Saldo Inicial + Ingresos − Egresos</p>
+                </div>
+                <button onClick={onCerrarCaja} className="h-10 px-4 rounded bg-rose-600 hover:bg-rose-700 text-white">Cerrar caja</button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Formulario */}
-      <div className="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <select
-          value={form.tipo}
-          onChange={(e) => setForm({ ...form, tipo: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="egreso">Egreso</option>
-          <option value="ingreso">Ingreso</option>
-        </select>
-
-        <input
-          type="number"
-          placeholder="Monto"
-          value={form.monto}
-          onChange={(e) => setForm({ ...form, monto: e.target.value })}
-          className="border p-2 rounded"
-        />
-
-        <select
-          value={form.centroCosto}
-          onChange={(e) => setForm({ ...form, centroCosto: e.target.value })}
-          className="border p-2 rounded"
-        >
-          <option value="">Centro de costo</option>
-          {centros.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={form.fecha}
-          onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          placeholder="Descripción"
-          value={form.descripcion}
-          onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-          className="border p-2 rounded"
-        />
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Upload size={18} />
-          <span className="text-sm">{form.archivo?.name || "Subir comprobante"}</span>
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) => setForm({ ...form, archivo: e.target.files?.[0] || null })}
-            className="hidden"
-          />
-        </label>
-
-        <button
-          onClick={handleGuardar}
-          disabled={guardando}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded col-span-1 md:col-span-3"
-        >
-          {guardando ? "Guardando..." : "Guardar movimiento"}
-        </button>
-      </div>
-
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-4 mb-4 items-end">
-        <div className="flex items-center gap-2">
-          <Search size={18} />
-          <input
-            type="text"
-            placeholder="Buscar por fecha (aaaa-mm-dd) o descripción"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="border px-3 py-2 rounded"
-          />
-        </div>
-
-        <select
-          value={filtroTipo}
-          onChange={(e) => setFiltroTipo(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
-          <option value="">Todos los tipos</option>
-          <option value="ingreso">Ingreso</option>
-          <option value="egreso">Egreso</option>
-        </select>
-
-        <select
-          value={filtroCentro}
-          onChange={(e) => setFiltroCentro(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
-          <option value="">Todos los centros</option>
-          {centros.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-500">Desde</label>
-            <input
-              type="date"
-              value={filtroDesde}
-              onChange={(e) => setFiltroDesde(e.target.value)}
-              className="border px-3 py-2 rounded"
+      <div className="bg-white p-4 rounded shadow">
+        <h2 className="text-lg font-semibold mb-3">Registrar movimiento</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Tipo</label>
+            <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} className="border p-2 rounded w-full">
+              <option>Ingreso</option>
+              <option>Egreso</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Monto</label>
+            <input type="number" min={0} value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })}
+              className="border p-2 rounded w-full text-right" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Fecha (emisión)</label>
+            <input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="border p-2 rounded w-full" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Centro de Costo</label>
+            <Select
+              styles={selectStyles}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              options={centros}
+              isClearable
+              isSearchable
+              placeholder="Selecciona / busca…"
+              value={form.centroCostoId ? { value: form.centroCostoId, label: form.centroCostoNombre } : null}
+              onChange={(op) => setForm({ ...form, centroCostoId: op?.value || "", centroCostoNombre: op?.label || "" })}
+              noOptionsMessage={() => "Sin resultados"}
             />
           </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-500">Hasta</label>
-            <input
-              type="date"
-              value={filtroHasta}
-              onChange={(e) => setFiltroHasta(e.target.value)}
-              className="border px-3 py-2 rounded"
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-medium mb-1">Razón Social</label>
+            <input type="text" value={form.razonSocial} onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
+              className="border p-2 rounded w-full" placeholder="Proveedor o colaborador" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Tipo de Documento</label>
+            <Select
+              styles={selectStyles}
+              menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+              options={tiposDoc}
+              isClearable
+              isSearchable
+              placeholder="Selecciona / busca…"
+              value={form.tipoDocumentoId ? { value: form.tipoDocumentoId, label: form.tipoDocumentoNombre } : null}
+              onChange={(op) => setForm({ ...form, tipoDocumentoId: op?.value || "", tipoDocumentoNombre: op?.label || "" })}
+              noOptionsMessage={() => "Sin resultados"}
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Comprobante</label>
+            <input type="text" value={form.comprobante} onChange={(e) => setForm({ ...form, comprobante: e.target.value })}
+              className="border p-2 rounded w-full" placeholder="Ej: F001-123456 / RH-4512 / PL-2025-09" />
+          </div>
+          <div className="lg:col-span-4">
+            <label className="block text-sm font-medium mb-1">Descripción</label>
+            <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              className="border p-2 rounded w-full" rows={2} placeholder="Detalle del gasto/ingreso" />
+          </div>
+          <div className="lg:col-span-4">
+            <label className="block text-sm font-medium mb-1">Adjuntar archivo (opcional)</label>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setForm({ ...form, archivoFile: e.target.files?.[0] || null })} className="block w-full" />
+            <p className="text-xs text-gray-500 mt-1">Acepta PDF/JPG/PNG. Máx 10MB.</p>
+          </div>
+          <div className="lg:col-span-4 flex justify-end">
+            <button onClick={onGuardar} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Guardar</button>
+          </div>
         </div>
-
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={soloSinComprobante}
-            onChange={(e) => setSoloSinComprobante(e.target.checked)}
-          />
-          <span className="text-sm">Solo sin comprobante</span>
-        </label>
-
-        <button
-          onClick={exportarExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Exportar a Excel
-        </button>
       </div>
 
-      {/* Listado */}
+      {/* Toolbar + Historial */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en todos los campos…"
+          className="border p-2 rounded w-full md:w-1/2" />
+        <div className="flex items-center gap-2">
+          <button ref={btnFiltroRef} onClick={() => setOpenFilters((s) => !s)}
+            className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm" title="Filtros avanzados">Filtros</button>
+          <button onClick={exportarExcel} className="px-3 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm">Exportar Excel</button>
+        </div>
+
+        <Popover open={openFilters} onClose={() => setOpenFilters(false)} anchorRef={btnFiltroRef}>
+          <div className="space-y-3 text-sm">
+            <div>
+              <label className="block text-xs font-medium mb-1">Tipo</label>
+              <select value={filtros.tipo} onChange={(e) => setFiltros((f) => ({ ...f, tipo: e.target.value }))}
+                className="border p-2 rounded w-full">
+                <option value="">(Todos)</option>
+                <option value="Ingreso">Ingreso</option>
+                <option value="Egreso">Egreso</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Tipo de Documento</label>
+              <Select styles={selectStyles} menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                options={tiposDoc} isClearable isSearchable placeholder="(Todos)"
+                value={filtros.tipoDocumentoId ? tiposDoc.find((t) => t.value === filtros.tipoDocumentoId) : null}
+                onChange={(op) => setFiltros((f) => ({ ...f, tipoDocumentoId: op?.value || "" }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Centro de Costo</label>
+              <Select styles={selectStyles} menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                options={centros} isClearable isSearchable placeholder="(Todos)"
+                value={filtros.centroCostoId ? centros.find((c) => c.value === filtros.centroCostoId) : null}
+                onChange={(op) => setFiltros((f) => ({ ...f, centroCostoId: op?.value || "" }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Desde</label>
+                <input type="date" value={filtros.fechaDesde} onChange={(e) => setFiltros((f) => ({ ...f, fechaDesde: e.target.value }))}
+                  className="border p-2 rounded w-full" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Hasta</label>
+                <input type="date" value={filtros.fechaHasta} onChange={(e) => setFiltros((f) => ({ ...f, fechaHasta: e.target.value }))}
+                  className="border p-2 rounded w-full" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Monto mín.</label>
+                <input type="number" value={filtros.minMonto} onChange={(e) => setFiltros((f) => ({ ...f, minMonto: e.target.value }))}
+                  className="border p-2 rounded w-full" placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Monto máx.</label>
+                <input type="number" value={filtros.maxMonto} onChange={(e) => setFiltros((f) => ({ ...f, maxMonto: e.target.value }))}
+                  className="border p-2 rounded w-full" placeholder="999999" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Creado Por (email)</label>
+              <input type="email" value={filtros.creadoPorEmail} onChange={(e) => setFiltros((f) => ({ ...f, creadoPorEmail: e.target.value }))}
+                className="border p-2 rounded w-full" placeholder="usuario@empresa.com" />
+            </div>
+            <div className="flex justify-between pt-2">
+              <button onClick={() => setFiltros({ tipo: "", tipoDocumentoId: "", centroCostoId: "", fechaDesde: "", fechaHasta: "", minMonto: "", maxMonto: "", creadoPorEmail: "" })}
+                className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm">Limpiar</button>
+              <button onClick={() => setOpenFilters(false)} className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm">Aplicar</button>
+            </div>
+          </div>
+        </Popover>
+      </div>
+
+      {/* Historial */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2">Fecha</th>
-              <th className="p-2">Tipo</th>
-              <th className="p-2">Monto</th>
-              <th className="p-2">Centro</th>
-              <th className="p-2">Descripción</th>
-              <th className="p-2">Comprobante</th>
-              <th className="p-2">Acciones</th>
+              <th className="p-2 border">Fecha</th>
+              <th className="p-2 border">Tipo</th>
+              <th className="p-2 border text-right">Monto</th>
+              <th className="p-2 border">Centro de Costo</th>
+              <th className="p-2 border">Razón Social</th>
+              <th className="p-2 border">Tipo Doc.</th>
+              <th className="p-2 border">Comprobante</th>
+              <th className="p-2 border">Descripción</th>
+              <th className="p-2 border">Archivo</th>
+              <th className="p-2 border">Creado Por</th>
             </tr>
           </thead>
           <tbody>
-            {pageItems.map((m) => {
-              const fechaObj = m.fecha?.toDate ? m.fecha.toDate() : new Date(m.fecha);
-              const fechaFmt = isNaN(fechaObj) ? "—" : format(fechaObj, "dd/MM/yyyy");
-              return (
-                <tr key={m.id} className="border-t">
-                  <td className="p-2">{fechaFmt}</td>
-                  <td className="p-2 capitalize">{m.tipo}</td>
-                  <td className="p-2">{money(m.monto)}</td>
-                  <td className="p-2">{m.centroCosto}</td>
-                  <td className="p-2">{m.descripcion}</td>
-                  <td className="p-2">
-                    {m.comprobanteUrl ? (
-                      <a
-                        href={m.comprobanteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        Ver
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="p-2">
-                    <button
-                      title="Eliminar"
-                      onClick={() => borrarMovimiento(m.id)}
-                      className="text-red-600 hover:text-red-700 inline-flex items-center gap-1"
-                    >
-                      <Trash2 size={16} />
-                      <span>Eliminar</span>
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {pageItems.length === 0 && (
-              <tr>
-                <td colSpan={7} className="p-4 text-center text-gray-500">
-                  No hay movimientos.
-                </td>
-              </tr>
+            {cargandoMovs && (
+              <tr><td className="p-3 text-center text-gray-500" colSpan={10}>Cargando movimientos…</td></tr>
             )}
+            {!cargandoMovs && movsFiltrados.length === 0 && (
+              <tr><td className="p-3 text-center text-gray-500" colSpan={10}>Sin resultados.</td></tr>
+            )}
+            {!cargandoMovs && movsFiltrados.map((m) => (
+              <tr key={m.id} className="border-t">
+                <td className="p-2 border whitespace-nowrap">{m.fechaISO || "—"}</td>
+                <td className="p-2 border">{m.tipo}</td>
+                <td className="p-2 border text-right">{Number(m.monto || 0).toFixed(2)}</td>
+                <td className="p-2 border">{m.centroCostoNombre}</td>
+                <td className="p-2 border">{m.razonSocial}</td>
+                <td className="p-2 border">{m.tipoDocumentoNombre}</td>
+                <td className="p-2 border">{m.comprobante}</td>
+                <td className="p-2 border">{m.descripcion}</td>
+                <td className="p-2 border">
+                  {m.archivoUrl ? (
+                    <a href={m.archivoUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline" title={m.archivoNombre || "Ver archivo"}>Ver</a>
+                  ) : <span className="text-gray-400">—</span>}
+                </td>
+                <td className="p-2 border">{m.creadoPorEmail}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      {/* Paginación */}
-      {pageCount > 1 && (
-        <div className="flex justify-center mt-4 gap-2">
-          {Array.from({ length: pageCount }, (_, i) => (
-            <button
-              key={i}
-              className={`px-3 py-1 border rounded ${
-                i + 1 === page ? "bg-[#004990] text-white" : "bg-white text-[#004990] border-[#004990]"
-              }`}
-              onClick={() => setPage(i + 1)}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

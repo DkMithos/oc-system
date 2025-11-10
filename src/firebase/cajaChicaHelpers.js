@@ -1,188 +1,215 @@
-// ✅ src/firebase/cajaChicaHelpers.js
 import {
-  collection,
   addDoc,
-  getDocs,
-  serverTimestamp,
-  query,
-  orderBy,
+  collection,
   doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
   updateDoc,
+  onSnapshot,              // ⬅️ realtime
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./config";
 
-// -----------------------------------------------------------------------------
-// Estructura base
-// -----------------------------------------------------------------------------
-const ROOT = "cajasChicas"; // colección raíz: cajasChicas/{caja}/movimientos
-export const CAJAS_KEYS = ["op_proyectos", "operaciones", "administracion"];
+/* ─────────────────────────────────────────────────────────────
+ * Colecciones base y helpers
+ * ───────────────────────────────────────────────────────────── */
+const TIPOS_DOC_COL = collection(db, "tiposDocumento"); // { nombre, activo?:bool, orden?:number }
 
-// Utilidad para validar la caja
-function validarCaja(caja) {
-  if (!CAJAS_KEYS.includes(caja)) {
-    throw new Error(`Caja inválida: "${caja}". Usa una de: ${CAJAS_KEYS.join(", ")}`);
-  }
+const cajaDocRef = (cajaId) => doc(db, "cajasChicas", cajaId);
+const movsColRef = (cajaId) => collection(db, "cajasChicas", cajaId, "movimientos");
+
+export const CAJAS_IDS = ["operaciones", "administracion", "proyectos"];
+
+/* ─────────────────────────────────────────────────────────────
+ * Tipos de Documento
+ * ───────────────────────────────────────────────────────────── */
+export async function obtenerTiposDocumento() {
+  const snap = await getDocs(TIPOS_DOC_COL);
+  const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  const vivos = lista.filter((x) => x.activo !== false);
+  vivos.sort((a, b) => {
+    const ao = a.orden ?? 9999;
+    const bo = b.orden ?? 9999;
+    if (ao !== bo) return ao - bo;
+    return String(a.nombre || "").localeCompare(String(b.nombre || ""));
+  });
+
+  return vivos;
 }
 
-// -----------------------------------------------------------------------------
-// Storage: subir comprobante
-// -----------------------------------------------------------------------------
-/**
- * Sube un comprobante a Storage en una carpeta por caja.
- * @param {'op_proyectos'|'operaciones'|'administracion'} caja
- * @param {File} file
- * @param {string} nombreArchivoBase - sin extensión
- * @returns {Promise<string>} URL de descarga
- */
-export const subirComprobanteCaja = async (caja, file, nombreArchivoBase) => {
-  validarCaja(caja);
-  if (!file) throw new Error("Archivo requerido para subir comprobante.");
+/* ─────────────────────────────────────────────────────────────
+ * Subida de archivos (Storage)
+ * ───────────────────────────────────────────────────────────── */
+const EXT_PERMITIDAS = ["image/png", "image/jpeg", "image/jpg", "application/pdf"];
+const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
-  const ext = (file.name?.split(".").pop() || "bin").toLowerCase();
-  const storageRef = ref(storage, `comprobantesCaja/${caja}/${nombreArchivoBase}.${ext}`);
-
+export async function subirArchivoCaja(file, cajaId = "proyectos") {
+  if (!file) return { url: "", nombre: "" };
+  if (!EXT_PERMITIDAS.includes(file.type)) {
+    throw new Error("Formato no permitido. Usa PDF o imagen (JPG/PNG).");
+  }
+  if (file.size > MAX_BYTES) {
+    throw new Error("Archivo muy pesado. Máximo 10MB.");
+  }
+  const ts = Date.now();
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const path = `caja-chica/${cajaId}/${ts}_${safeName}`;
+  const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file);
   const url = await getDownloadURL(storageRef);
-  return url;
-};
+  return { url, nombre: safeName, path };
+}
 
-// -----------------------------------------------------------------------------
-// Firestore: agregar movimiento
-// -----------------------------------------------------------------------------
-/**
- * Agrega un movimiento a la caja indicada.
- * @param {'op_proyectos'|'operaciones'|'administracion'} caja
- * @param {{
- *  tipo: 'ingreso'|'egreso',
- *  monto: number|string,
- *  descripcion: string,
- *  centroCosto: string,
- *  fecha: string|Date,   // "yyyy-mm-dd" o Date
- *  usuario: string,
- *  comprobanteUrl?: string
- * }} movimiento
+/* ─────────────────────────────────────────────────────────────
+ * Movimientos (crear) — esquema nuevo
+ * ─────────────────────────────────────────────────────────────
+ * data esperada:
+ * {
+ *   cajaId, tipo("Ingreso"|"Egreso"), monto, fecha(YYYY-MM-DD),
+ *   centroCostoId, centroCostoNombre,
+ *   razonSocial, tipoDocumentoId, tipoDocumentoNombre,
+ *   comprobante, descripcion,
+ *   archivoUrl?, archivoNombre?,
+ *   creadoPorEmail
+ * }
  */
-export const agregarMovimientoCaja = async (caja, movimiento) => {
-  validarCaja(caja);
-
-  // Normaliza fecha
-  let fechaFinal;
-  if (movimiento.fecha instanceof Date) {
-    fechaFinal = movimiento.fecha;
-  } else if (typeof movimiento.fecha === "string" && movimiento.fecha) {
-    // yyyy-mm-dd -> Date a medianoche local
-    const [y, m, d] = movimiento.fecha.split("-").map(Number);
-    fechaFinal = new Date(y || 1970, (m || 1) - 1, d || 1);
-  } else {
-    fechaFinal = new Date();
-  }
-
-  const colRef = collection(db, ROOT, caja, "movimientos");
+export async function crearMovimientoCaja(data) {
+  const cajaId = data.cajaId || "proyectos";
   const payload = {
-    tipo: (movimiento.tipo || "").toLowerCase() === "ingreso" ? "ingreso" : "egreso",
-    monto: Number(movimiento.monto) || 0,
-    descripcion: movimiento.descripcion || "",
-    centroCosto: movimiento.centroCosto || "",
-    fecha: fechaFinal, // Firestore lo serializa como Timestamp
-    usuario: movimiento.usuario || "",
-    comprobanteUrl: movimiento.comprobanteUrl || null,
-    creadoEn: serverTimestamp(),
-    anulado: false,
-    caja, // útil para trazabilidad y reporting
+    ...data,
+    monto: Number(data.monto || 0),
+    fechaISO: (data.fecha || "").slice(0, 10), // yyyy-mm-dd
+    fechaCreacion: serverTimestamp(),          // útil para auditoría
   };
+  delete payload.archivoFile;
+  await addDoc(movsColRef(cajaId), payload);
+}
 
-  await addDoc(colRef, payload);
-};
+/* ─────────────────────────────────────────────────────────────
+ * Movimientos (leer) — NORMALIZA docs viejos
+ * ───────────────────────────────────────────────────────────── */
+function normalizaMovimiento(raw, cajaId) {
+  const tipoRaw = String(raw.tipo || "").trim();
+  let tipo = tipoRaw.charAt(0).toUpperCase() + tipoRaw.slice(1).toLowerCase();
+  if (tipo !== "Ingreso" && tipo !== "Egreso") tipo = raw.tipo || "Ingreso";
 
-// -----------------------------------------------------------------------------
-// Firestore: obtener movimientos por caja
-// -----------------------------------------------------------------------------
-/**
- * Obtiene los movimientos de UNA caja, ordenados por fecha desc.
- * Excluye por defecto los anulados.
- * @param {'op_proyectos'|'operaciones'|'administracion'} caja
- * @param {{ incluirAnulados?: boolean }} [opts]
- * @returns {Promise<Array>}
- */
-export const obtenerMovimientosCaja = async (caja, opts = {}) => {
-  validarCaja(caja);
+  // fechaISO fijo
+  let fechaISO = raw.fechaISO;
+  if (!fechaISO && raw.fecha?.toDate) {
+    try { fechaISO = raw.fecha.toDate().toISOString().slice(0, 10); } catch { fechaISO = ""; }
+  }
+  if (!fechaISO && typeof raw.fecha === "string") fechaISO = raw.fecha.slice(0, 10);
 
-  const qRef = query(collection(db, ROOT, caja, "movimientos"), orderBy("fecha", "desc"));
-  const snapshot = await getDocs(qRef);
+  const centroCostoNombre = raw.centroCostoNombre || raw.centroCosto || "";
+  const tipoDocumentoNombre = raw.tipoDocumentoNombre || raw.tipoDocumento || "";
+  const tipoDocumentoId = raw.tipoDocumentoId || "";
+  const comprobante = raw.comprobante || raw.nroComprobante || "";
+  const descripcion = raw.descripcion || raw.detalle || "";
+  const archivoUrl = raw.archivoUrl ?? raw.comprobanteUrl ?? null;
+  const archivoNombre = raw.archivoNombre ?? raw.nombreArchivo ?? null;
+  const creadoPorEmail = raw.creadoPorEmail || raw.usuario || raw.creadoPor || "";
+  const fechaCreacion = raw.fechaCreacion || raw.creadoEn || null;
 
-  const incluirAnulados = !!opts.incluirAnulados;
+  return {
+    ...raw,
+    cajaId,
+    tipo,
+    fechaISO: fechaISO || "",
+    centroCostoNombre,
+    tipoDocumentoNombre,
+    tipoDocumentoId,
+    comprobante,
+    descripcion,
+    archivoUrl,
+    archivoNombre,
+    creadoPorEmail,
+    fechaCreacion,
+  };
+}
 
-  return snapshot.docs
-    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data(), caja }))
-    .filter((m) => (incluirAnulados ? true : !m?.anulado));
-};
+/* Lectura puntual (una vez) ordenada por fechaISO */
+export async function obtenerMovimientosPorCaja(cajaId) {
+  const qy = query(movsColRef(cajaId), orderBy("fechaISO", "desc")); // ⬅️ cambio clave
+  const snap = await getDocs(qy);
+  return snap.docs.map((d) => normalizaMovimiento({ id: d.id, ...d.data() }, cajaId));
+}
 
-// -----------------------------------------------------------------------------
-// Firestore: obtener movimientos de TODAS las cajas
-// -----------------------------------------------------------------------------
-/**
- * Obtiene los movimientos de TODAS las cajas, combinados y ordenados por fecha desc.
- * Excluye por defecto los anulados.
- * @param {{ incluirAnulados?: boolean }} [opts]
- * @returns {Promise<Array>}
- */
-export const obtenerMovimientosTodas = async (opts = {}) => {
-  const incluirAnulados = !!opts.incluirAnulados;
-
-  const listados = await Promise.all(CAJAS_KEYS.map((k) => obtenerMovimientosCaja(k, { incluirAnulados })));
-  const all = listados.flat();
-
-  // Ordena por fecha (admite Timestamp o Date)
-  all.sort((a, b) => {
-    const toDate = (v) => (v?.toDate ? v.toDate() : new Date(v));
-    const fa = toDate(a.fecha);
-    const fb = toDate(b.fecha);
-    return (fb?.getTime?.() || 0) - (fa?.getTime?.() || 0); // desc
+/* Suscripción en tiempo real */
+export function onMovimientosPorCaja(cajaId, callback) {
+  const qy = query(movsColRef(cajaId), orderBy("fechaISO", "desc")); // ⬅️ consistente
+  return onSnapshot(qy, (snap) => {
+    const list = snap.docs.map((d) => normalizaMovimiento({ id: d.id, ...d.data() }, cajaId));
+    callback(list);
   });
+}
 
-  return all;
-};
+export async function obtenerMovimientosTodas(cajaIds = CAJAS_IDS) {
+  const resultados = await Promise.all(
+    (cajaIds || []).map((id) =>
+      obtenerMovimientosPorCaja(id).then((arr) => (arr || []).map((m) => ({ ...m, cajaId: id })))
+    )
+  );
+  return resultados.flat();
+}
 
-// -----------------------------------------------------------------------------
-// Utilidad: calcular resumen
-// -----------------------------------------------------------------------------
-/**
- * Calcula totales de ingresos, egresos y saldo.
- * @param {Array} movimientos
- * @returns {{ ingresos: number, egresos: number, saldo: number }}
- */
-export const calcularResumen = (movimientos) => {
-  const ingresos = (movimientos || [])
-    .filter((m) => (m?.tipo || "").toLowerCase() === "ingreso")
-    .reduce((acc, m) => acc + Number(m?.monto || 0), 0);
+/* ─────────────────────────────────────────────────────────────
+ * Estado de Caja: cajasChicas/{cajaId}
+ * ───────────────────────────────────────────────────────────── */
+export async function obtenerEstadoCajaActual(cajaId = "proyectos") {
+  const ref = cajaDocRef(cajaId);
+  const d = await getDoc(ref);
+  if (!d.exists()) return null;
+  return { id: d.id, ...d.data() };
+}
 
-  const egresos = (movimientos || [])
-    .filter((m) => (m?.tipo || "").toLowerCase() === "egreso")
-    .reduce((acc, m) => acc + Number(m?.monto || 0), 0);
+export async function abrirCaja({ cajaId = "proyectos", saldoInicial = 0, fecha, email }) {
+  const ref = cajaDocRef(cajaId);
+  const snap = await getDoc(ref);
+  if (snap.exists() && snap.data()?.abierta) {
+    throw new Error("Ya existe una apertura de caja activa.");
+  }
+  await setDoc(
+    ref,
+    {
+      abierta: true,
+      aperturaFecha: (fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
+      aperturaSaldoInicial: Number(saldoInicial || 0),
+      aperturaPorEmail: email || "",
+      cierreFecha: null,
+      cierreSaldoFinal: null,
+      cierrePorEmail: null,
+    },
+    { merge: true }
+  );
+}
 
-  return { ingresos, egresos, saldo: ingresos - egresos };
-};
-
-// -----------------------------------------------------------------------------
-// Soft delete (nada se elimina): marcar como anulado
-// -----------------------------------------------------------------------------
-/**
- * Marca un movimiento como anulado (soft delete).
- * NO borra el documento; solo setea { anulado: true, anuladoPor, anuladoEn }.
- * @param {'op_proyectos'|'operaciones'|'administracion'} caja
- * @param {string} movimientoId
- * @param {{ anuladoPor?: string, motivo?: string }} [meta]
- */
-export const eliminarMovimientoCaja = async (caja, movimientoId, meta = {}) => {
-  validarCaja(caja);
-  if (!movimientoId) throw new Error("movimientoId requerido");
-
-  const ref = doc(db, ROOT, caja, "movimientos", movimientoId);
+export async function cerrarCaja({ cajaId = "proyectos", saldoFinal = 0, fecha, email }) {
+  const ref = cajaDocRef(cajaId);
+  const snap = await getDoc(ref);
+  const data = snap.data();
+  if (!data?.abierta) throw new Error("No hay una caja abierta para cerrar.");
   await updateDoc(ref, {
-    anulado: true,
-    anuladoPor: meta.anuladoPor || null,
-    motivoAnulacion: meta.motivo || null,
-    anuladoEn: serverTimestamp(),
+    abierta: false,
+    cierreFecha: (fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    cierreSaldoFinal: Number(saldoFinal || 0),
+    cierrePorEmail: email || "",
   });
-};
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Filtro por período (apertura → cierre|hoy)
+ * ───────────────────────────────────────────────────────────── */
+export function filtrarMovsPorPeriodo(movs, estado) {
+  if (!estado?.aperturaFecha) return movs || [];
+  const desde = String(estado.aperturaFecha).slice(0, 10);
+  const hasta = estado.abierta ? "9999-12-31" : String(estado.cierreFecha || "9999-12-31").slice(0, 10);
+  return (movs || []).filter((m) => {
+    const f = String(m.fechaISO || "").slice(0, 10);
+    return f >= desde && f <= hasta;
+  });
+}

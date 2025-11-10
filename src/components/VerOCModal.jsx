@@ -223,7 +223,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             <div><b>Lugar de Entrega:</b> {ocLocal.lugarEntrega || "—"}</div>
             <div><b>Fecha máx. de Entrega:</b> {ocLocal.plazoEntrega || "—"}</div>
             <div><b>Condición de Pago:</b> {ocLocal.condicionPago || "—"}</div>
-            <div><b>Observaciones:</b> {ocLocal.notas || "—"}</div>
+            <div><b>Notas:</b> {ocLocal.notas || "—"}</div>
           </div>
         </div>
 

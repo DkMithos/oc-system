@@ -13,8 +13,8 @@ import {
   obtenerProveedores,
   registrarLog,
 } from "../firebase/firestoreHelpers";
-import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers"; // combo de Cotización
-import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers"; // ⬅️ para listar requerimientos por código
+import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
+import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
 
 const selectStyles = {
   control: (base) => ({
@@ -35,55 +35,46 @@ const CrearOC = () => {
   const location = useLocation();
   const { usuario } = useUsuario();
 
-  // Preselección al venir desde Cotizaciones → “Generar orden”
-  const preselect = location.state?.desdeCotizacion || null; // { cotizacionId }
+  const preselect = location.state?.desdeCotizacion || null;
 
-  // Maestros
   const [proveedores, setProveedores] = useState([]);
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
   const [cotizaciones, setCotizaciones] = useState([]);
-  const [requerimientos, setRequerimientos] = useState([]); // ⬅️ lista de RQ del usuario
+  const [requerimientos, setRequerimientos] = useState([]);
 
-  // Derivados de proveedor
   const [bancosProveedor, setBancosProveedor] = useState([]);
   const [bancoSeleccionado, setBancoSeleccionado] = useState("");
   const [monedaSeleccionada, setMonedaSeleccionada] = useState("");
   const [cuentaSel, setCuentaSel] = useState(null);
 
-  // Form
   const [numero, setNumero] = useState("");
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    tipoOrden: "OC", // OC | OS | OI
+    tipoOrden: "OC",
     fechaEmision: new Date().toISOString().split("T")[0],
 
-    // Enlaces
     proveedorId: null,
     condicionPagoId: null,
     centroCostoId: null,
-    requerimientoId: null,     // ID
-    requerimientoCodigo: "",   // ⬅️ Código legible (RQ-001)
-    cotizacionId: null,        // ID
-    cotizacionCodigo: "",      // Código legible
+    requerimientoId: null,
+    requerimientoCodigo: "",
+    cotizacionId: null,
+    cotizacionCodigo: "",
 
-    // Entrega
     lugarEntrega: "",
     plazoEntrega: "",
 
-    // Meta
     responsable: usuario?.nombre || "",
     creadoPor: usuario?.email || "",
     notas: "",
 
-    // Ítems (formato del formulario)
-    items: [], // [{codigo, descripcion, cantidad, um, pu, dscto}]
+    items: [],
   });
 
-  // Totales (igv 18%): mismo cálculo que usas en todas las vistas
   const totals = useMemo(() => {
     const sub = form.items.reduce(
       (acc, it) =>
@@ -97,7 +88,6 @@ const CrearOC = () => {
     return { sub, igv, total };
   }, [form.items]);
 
-  // Carga inicial
   useEffect(() => {
     (async () => {
       try {
@@ -107,7 +97,7 @@ const CrearOC = () => {
           obtenerCondicionesPago(),
           obtenerSiguienteNumeroOrden(),
           obtenerCotizaciones(),
-          obtenerRequerimientosPorUsuario(usuario?.email || ""), // ⬅️ trae RQ para el Select
+          obtenerRequerimientosPorUsuario(usuario?.email || ""),
         ]);
 
         setProveedores(
@@ -125,23 +115,12 @@ const CrearOC = () => {
         );
 
         setCotizaciones(cots || []);
-        setRequerimientos(rqs || []); // ⬅️ guardamos RQ
-
+        setRequerimientos(rqs || []);
         setNumero(correl?.numero || correl?.numeroOC || "");
 
-        // Si vienes desde “Generar orden”
         if (preselect?.cotizacionId) {
           const cot = (cots || []).find((x) => x.id === preselect.cotizacionId);
           if (cot) {
-            const provOpt = (prov || []).find((p) => p.id === cot.proveedorId);
-            const proveedorId =
-              provOpt?.id ??
-              provOpt?.ruc ??
-              provOpt?.email ??
-              provOpt?.razonSocial ??
-              null;
-
-            // map items de la COT → items del formulario
             const mappedItems = (cot.items || []).map((it) => ({
               codigo: it.codigo || "",
               descripcion: it.nombre || "",
@@ -151,16 +130,16 @@ const CrearOC = () => {
               dscto: Number(it.descuento || 0),
             }));
 
-            // ⬅️ Resolver RQ: id + código legible
-            const rqObj = (rqs || []).find((r) => r.id === (cot.requerimientoId || "")) || null;
+            const rqObj =
+              (rqs || []).find((r) => r.id === (cot.requerimientoId || "")) ||
+              null;
 
             setForm((f) => ({
               ...f,
               cotizacionId: cot.id,
               cotizacionCodigo: cot.codigo || "",
               requerimientoId: rqObj?.id || f.requerimientoId,
-              requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo, // ⬅️ mostrarás el código
-              proveedorId: proveedorId,
+              requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo,
               items: mappedItems.length ? mappedItems : f.items,
             }));
           }
@@ -175,13 +154,11 @@ const CrearOC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Proveedor seleccionado (para bancos)
   const proveedorOpt = useMemo(
     () => proveedores.find((p) => p.value === form.proveedorId) || null,
     [proveedores, form.proveedorId]
   );
 
-  // Al cambiar proveedor → reset bancos/monedas/cuenta
   useEffect(() => {
     const bancos = proveedorOpt?.raw?.bancos || [];
     setBancosProveedor(bancos);
@@ -190,9 +167,10 @@ const CrearOC = () => {
     setCuentaSel(null);
   }, [proveedorOpt?.value]); // eslint-disable-line
 
-  // Opciones derivadas de bancos
   const bancosUnicos = useMemo(() => {
-    const names = new Set((bancosProveedor || []).map((b) => b.nombre).filter(Boolean));
+    const names = new Set(
+      (bancosProveedor || []).map((b) => b.nombre).filter(Boolean)
+    );
     return Array.from(names);
   }, [bancosProveedor]);
 
@@ -215,21 +193,13 @@ const CrearOC = () => {
     setCuentaSel(found);
   }, [bancosProveedor, bancoSeleccionado, monedaSeleccionada]);
 
-  // Helpers UI
   const handleChange = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const agregarItem = () =>
     setForm((f) => ({
       ...f,
       items: [
         ...f.items,
-        {
-          codigo: "",
-          descripcion: "",
-          cantidad: 1,
-          um: "UND",
-          pu: 0,
-          dscto: 0,
-        },
+        { codigo: "", descripcion: "", cantidad: 1, um: "UND", pu: 0, dscto: 0 },
       ],
     }));
   const actualizarItem = (i, k, v) =>
@@ -241,11 +211,10 @@ const CrearOC = () => {
   const eliminarItem = (i) =>
     setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
 
-  // Combo de Cotizaciones (muestra CÓDIGO)
   const cotizacionOptions = useMemo(() => {
     const list = cotizaciones || [];
     return list.map((c) => ({
-      value: c.id, // guardamos id
+      value: c.id,
       label: `${c.codigo || "(s/cód)"}`,
       raw: c,
     }));
@@ -257,15 +226,10 @@ const CrearOC = () => {
         ...f,
         cotizacionId: null,
         cotizacionCodigo: "",
-        // no tocar requerimiento aquí
       }));
       return;
     }
     const c = opt.raw;
-    const prov = proveedores.find((p) => p.id === c.proveedorId);
-    const proveedorId =
-      prov?.id ?? prov?.ruc ?? prov?.email ?? prov?.razonSocial ?? null;
-
     const mappedItems = (c.items || []).map((it) => ({
       codigo: it.codigo || "",
       descripcion: it.nombre || "",
@@ -275,27 +239,25 @@ const CrearOC = () => {
       dscto: Number(it.descuento || 0),
     }));
 
-    // Resolver RQ: id + código legible
-    const rqObj = (requerimientos || []).find((r) => r.id === (c.requerimientoId || ""));
+    const rqObj = (requerimientos || []).find(
+      (r) => r.id === (c.requerimientoId || "")
+    );
 
     setForm((f) => ({
       ...f,
       cotizacionId: c.id,
       cotizacionCodigo: c.codigo || "",
-      // Si la cotización está enlazada a un RQ, setearlo visualmente por código
       requerimientoId: rqObj?.id || f.requerimientoId,
       requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo,
-      proveedorId: proveedorId || f.proveedorId,
       items: mappedItems.length ? mappedItems : f.items,
     }));
   };
 
-  // Opciones de RQ (muestra código legible)
   const rqOptions = useMemo(() => {
     const list = requerimientos || [];
     return list.map((r) => ({
       value: r.id,
-      label: r.codigo || r.id, // ⬅️ muestra RQ-001; fallback al id
+      label: r.codigo || r.id,
       raw: r,
     }));
   }, [requerimientos]);
@@ -312,7 +274,6 @@ const CrearOC = () => {
     }));
   };
 
-  // Validaciones
   const validar = () => {
     if (!form.tipoOrden) return "Selecciona el tipo de orden.";
     if (!numero) return "No se pudo obtener el correlativo.";
@@ -329,7 +290,6 @@ const CrearOC = () => {
     return null;
   };
 
-  // Guardar
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -338,7 +298,6 @@ const CrearOC = () => {
 
     setGuardando(true);
     try {
-      // Mapear ítems al esquema de las vistas
       const items = form.items.map((it) => ({
         codigo: it.codigo || "",
         nombre: it.descripcion || "",
@@ -355,17 +314,16 @@ const CrearOC = () => {
         tipoOrden: form.tipoOrden,
         fechaEmision: form.fechaEmision,
 
-        // Enlaces (guardamos ambos, id y código/código legible)
         requerimientoId: form.requerimientoId || "",
-        requerimiento: form.requerimientoCodigo || "", // ⬅️ campo legible para mostrar (RQ-001)
+        requerimiento: form.requerimientoCodigo || "",
         cotizacionId: form.cotizacionId || "",
         cotizacion: form.cotizacionCodigo || "",
 
         centroCosto:
           centrosCosto.find((c) => c.value === form.centroCostoId)?.label || "",
         condicionPago:
-          condicionesPago.find((c) => c.value === form.condicionPagoId)
-            ?.label || "",
+          condicionesPago.find((c) => c.value === form.condicionPagoId)?.label ||
+          "",
 
         proveedor: proveedorObj
           ? {
@@ -379,7 +337,6 @@ const CrearOC = () => {
             }
           : null,
 
-        // Pago
         bancoSeleccionado: form.tipoOrden !== "OI" ? bancoSeleccionado : "",
         monedaSeleccionada:
           form.tipoOrden !== "OI" ? monedaSeleccionada : "Soles",
@@ -388,15 +345,14 @@ const CrearOC = () => {
             ? { cuenta: cuentaSel?.cuenta || "", cci: cuentaSel?.cci || "" }
             : null,
 
-        // Entrega
         lugarEntrega: form.lugarEntrega || "",
         plazoEntrega: form.plazoEntrega || "",
 
-        // Meta
         responsable: form.responsable || "",
         creadoPor: usuario?.email || form.creadoPor || "",
+        // 👇🏽 ¡El campo faltante!
+        notas: form.notas || "",
 
-        // Totales
         items,
         resumen: {
           subtotal: totals.sub,
@@ -405,7 +361,6 @@ const CrearOC = () => {
           total: totals.sub + totals.igv,
         },
 
-        // Flags / historial
         permiteEdicion: false,
         historial: [
           {
@@ -419,7 +374,6 @@ const CrearOC = () => {
       const id = await guardarOrden(payload);
       await registrarLog("ui_crear_orden", id, usuario?.email || "");
 
-      // Redirige a VerOC con state para render inmediato
       navigate(`/ver?id=${id}`, { state: { orden: { id, ...payload } } });
     } catch (e2) {
       console.error(e2);
@@ -474,19 +428,15 @@ const CrearOC = () => {
           </div>
         </div>
 
-        {/* Requerimiento / Cotización (solo OC/OS) */}
+        {/* RQ / Cotización */}
         {form.tipoOrden !== "OI" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* ⬅️ Requerimiento por CÓDIGO */}
             <div>
               <label className="block text-sm font-medium">Requerimiento</label>
               <Select
                 styles={selectStyles}
                 options={rqOptions}
-                value={
-                  rqOptions.find((o) => o.value === form.requerimientoId) ||
-                  null
-                }
+                value={rqOptions.find((o) => o.value === form.requerimientoId) || null}
                 onChange={handleSeleccionRQ}
                 placeholder="Selecciona requerimiento (muestra código)..."
                 isClearable
@@ -499,16 +449,12 @@ const CrearOC = () => {
               )}
             </div>
 
-            {/* Cotización por CÓDIGO */}
             <div>
               <label className="block text-sm font-medium">Cotización</label>
               <Select
                 styles={selectStyles}
                 options={cotizacionOptions}
-                value={
-                  cotizacionOptions.find((o) => o.value === form.cotizacionId) ||
-                  null
-                }
+                value={cotizacionOptions.find((o) => o.value === form.cotizacionId) || null}
                 onChange={handleSeleccionCotizacion}
                 placeholder="Selecciona cotización..."
                 isClearable
@@ -523,7 +469,7 @@ const CrearOC = () => {
           </div>
         )}
 
-        {/* Proveedor / Condición de Pago / Centro de Costo */}
+        {/* Proveedor / Condición / Centro de Costo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium">Proveedor</label>
@@ -566,7 +512,7 @@ const CrearOC = () => {
           </div>
         </div>
 
-        {/* Banco / Moneda / Cuenta (solo OC/OS) */}
+        {/* Banco / Moneda / Cuenta */}
         {form.tipoOrden !== "OI" && proveedorOpt && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="md:col-span-2">
@@ -581,9 +527,7 @@ const CrearOC = () => {
               >
                 <option value="">Selecciona banco</option>
                 {bancosUnicos.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
+                  <option key={b} value={b}>{b}</option>
                 ))}
               </select>
             </div>
@@ -598,9 +542,7 @@ const CrearOC = () => {
               >
                 <option value="">Selecciona moneda</option>
                 {monedasDelBanco.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+                  <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </div>
@@ -653,68 +595,32 @@ const CrearOC = () => {
                   return (
                     <tr key={i} className="border-t">
                       <td className="p-2">
-                        <input
-                          className="border rounded px-2 py-1 w-full"
-                          value={it.codigo}
-                          onChange={(e) => actualizarItem(i, "codigo", e.target.value)}
-                        />
+                        <input className="border rounded px-2 py-1 w-full" value={it.codigo}
+                          onChange={(e) => actualizarItem(i, "codigo", e.target.value)} />
                       </td>
                       <td className="p-2">
-                        <input
-                          className="border rounded px-2 py-1 w-full"
-                          value={it.descripcion}
-                          onChange={(e) =>
-                            actualizarItem(i, "descripcion", e.target.value)
-                          }
-                        />
+                        <input className="border rounded px-2 py-1 w-full" value={it.descripcion}
+                          onChange={(e) => actualizarItem(i, "descripcion", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          className="border rounded px-2 py-1 w-24 text-right"
-                          value={it.cantidad}
-                          onChange={(e) =>
-                            actualizarItem(i, "cantidad", e.target.value)
-                          }
-                        />
+                        <input type="number" min="0" className="border rounded px-2 py-1 w-24 text-right" value={it.cantidad}
+                          onChange={(e) => actualizarItem(i, "cantidad", e.target.value)} />
                       </td>
                       <td className="p-2">
-                        <input
-                          className="border rounded px-2 py-1 w-20"
-                          value={it.um}
-                          onChange={(e) => actualizarItem(i, "um", e.target.value)}
-                        />
+                        <input className="border rounded px-2 py-1 w-20" value={it.um}
+                          onChange={(e) => actualizarItem(i, "um", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="border rounded px-2 py-1 w-28 text-right"
-                          value={it.pu}
-                          onChange={(e) => actualizarItem(i, "pu", e.target.value)}
-                        />
+                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.pu}
+                          onChange={(e) => actualizarItem(i, "pu", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="border rounded px-2 py-1 w-28 text-right"
-                          value={it.dscto}
-                          onChange={(e) =>
-                            actualizarItem(i, "dscto", e.target.value)
-                          }
-                        />
+                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.dscto}
+                          onChange={(e) => actualizarItem(i, "dscto", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">{subtotal.toFixed(2)}</td>
                       <td className="p-2 text-right">
-                        <button
-                          type="button"
-                          className="text-red-600 hover:underline"
-                          onClick={() => eliminarItem(i)}
-                        >
+                        <button type="button" className="text-red-600 hover:underline" onClick={() => eliminarItem(i)}>
                           Eliminar
                         </button>
                       </td>
@@ -722,29 +628,18 @@ const CrearOC = () => {
                   );
                 })}
                 {form.items.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="text-center text-gray-500 py-6">
-                      Sin ítems
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8} className="text-center text-gray-500 py-6">Sin ítems</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          {/* Resumen */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             <div className="md:col-span-2" />
             <div className="text-right">
-              <div className="text-sm">
-                SubTotal: <strong>{totals.sub.toFixed(2)}</strong>
-              </div>
-              <div className="text-sm">
-                IGV (18%): <strong>{totals.igv.toFixed(2)}</strong>
-              </div>
-              <div className="text-base">
-                Total: <strong>{(totals.sub + totals.igv).toFixed(2)}</strong>
-              </div>
+              <div className="text-sm">SubTotal: <strong>{totals.sub.toFixed(2)}</strong></div>
+              <div className="text-sm">IGV (18%): <strong>{totals.igv.toFixed(2)}</strong></div>
+              <div className="text-base">Total: <strong>{(totals.sub + totals.igv).toFixed(2)}</strong></div>
             </div>
           </div>
         </div>
@@ -753,29 +648,18 @@ const CrearOC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium">Lugar de Entrega/Ejecución</label>
-            <input
-              value={form.lugarEntrega}
-              onChange={(e) => handleChange("lugarEntrega", e.target.value)}
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Ej. Almacén central / Dirección"
-            />
+            <input value={form.lugarEntrega} onChange={(e) => handleChange("lugarEntrega", e.target.value)}
+              className="border rounded px-2 py-1 w-full" placeholder="Ej. Almacén central / Dirección" />
           </div>
           <div>
             <label className="block text-sm font-medium">Plazo de Entrega</label>
-            <input
-              value={form.plazoEntrega}
-              onChange={(e) => handleChange("plazoEntrega", e.target.value)}
-              className="border rounded px-2 py-1 w-full"
-              placeholder="Ej. 7 días hábiles"
-            />
+            <input value={form.plazoEntrega} onChange={(e) => handleChange("plazoEntrega", e.target.value)}
+              className="border rounded px-2 py-1 w-full" placeholder="Ej. 7 días hábiles" />
           </div>
           <div>
             <label className="block text-sm font-medium">Responsable</label>
-            <input
-              value={form.responsable}
-              onChange={(e) => handleChange("responsable", e.target.value)}
-              className="border rounded px-2 py-1 w-full"
-            />
+            <input value={form.responsable} onChange={(e) => handleChange("responsable", e.target.value)}
+              className="border rounded px-2 py-1 w-full" />
           </div>
         </div>
 
@@ -791,11 +675,8 @@ const CrearOC = () => {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={guardando}
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-          >
+          <button type="submit" disabled={guardando}
+            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
             {guardando ? "Guardando..." : "Generar Orden"}
           </button>
           <button type="button" className="px-4 py-2 rounded border" onClick={() => navigate(-1)}>
