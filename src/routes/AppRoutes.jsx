@@ -1,4 +1,4 @@
-// ✅ src/routes/AppRoutes.jsx
+//src/routes/AppRoutes.jsx
 import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import RutaProtegida from "../components/RutaProtegida";
@@ -23,7 +23,8 @@ import ResumenGeneral from "../pages/ResumenGeneral";
 import Indicadores from "../pages/Indicadores";
 import Tickets from "../pages/Tickets";
 import AdminTickets from "../pages/AdminTickets";
-import MiFirma from "../pages/MiFirma"; // ⬅️ NUEVO
+import MiFirma from "../pages/MiFirma";
+import FlujosFinancieros from "../pages/FlujosFinancieros";
 
 const AppRoutes = () => {
   return (
@@ -79,6 +80,25 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="flujos-financieros"
+          element={
+            <RutaProtegida
+              rolesPermitidos={[
+                "admin",
+                "operaciones",
+                "administracion",
+                "gerencia",
+                "finanzas",
+                "gerencia general",
+                "gerencia operaciones",
+                "gerencia finanzas",
+              ]}
+            >
+              <FlujosFinancieros />
+            </RutaProtegida>
+          }
+        />
+        <Route
           path="editar"
           element={
             <RutaProtegida rolesPermitidos={["admin", "comprador"]}>
@@ -95,7 +115,6 @@ const AppRoutes = () => {
           }
         />
 
-        {/* ⬇️ NUEVO: módulo para registrar/actualizar firma */}
         <Route
           path="mi-firma"
           element={

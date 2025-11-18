@@ -41,6 +41,7 @@ const permisosPorRol = {
     "/pagos",
     "/pago",
     "/adminsoporte",
+    "/flujos-financieros",
   ],
 
   soporte: [
@@ -60,6 +61,7 @@ const permisosPorRol = {
     "/pagos",
     "/pago",
     "/adminsoporte",
+    "/flujos-financieros",
   ],
 
   // Comprador (no firma OCs)
@@ -79,6 +81,7 @@ const permisosPorRol = {
     "/cotizaciones",
     "/requerimientos",
     "/caja",
+    "/flujos-financieros",
   ],
 
   // Gerencia de Operaciones y Proyectos
@@ -86,12 +89,14 @@ const permisosPorRol = {
     ...comunes,
     "/firmar",
     "/caja",
+    "/flujos-financieros",
   ],
 
   // Gerencia General
   "gerencia general": [
     ...comunes,
     "/firmar",
+    "/flujos-financieros",
     // Si habilitas acceso al dashboard en AppRoutes para este rol, añade "/dashboard".
   ],
 
@@ -104,6 +109,7 @@ const permisosPorRol = {
     "/caja",
     "/pago",
     "/pagos",
+    "/flujos-financieros",
   ],
 
   // Gerencia de Finanzas
@@ -113,12 +119,14 @@ const permisosPorRol = {
     "/caja",
     "/pago",
     "/pagos",
+    "/flujos-financieros",
   ],
 
   // Administración (sin acento)
   administracion: [
     ...comunes,
     "/caja",
+    "/flujos-financieros",
   ],
 
   // Legal
