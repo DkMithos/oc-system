@@ -1,6 +1,7 @@
 // ✅ src/pages/Home.jsx
 import React from "react";
 import { useUsuario } from "../context/UsuarioContext";
+import TestNotificacion from "../components/TestNotificacion";
 
 const Home = () => {
   const { usuario } = useUsuario();

@@ -118,6 +118,19 @@ const Historial = () => {
     }
   }, [usuario, loading]);
 
+  // 🔄 Escuchar actualizaciones globales de OCs (ej. desde /firmar)
+  useEffect(() => {
+    const handler = (e) => {
+      const ocAct = e?.detail?.oc;
+      if (!ocAct?.id) return;
+      setOrdenes((prev) =>
+        prev.map((x) => (x.id === ocAct.id ? { ...x, ...ocAct } : x))
+      );
+    };
+    window.addEventListener("oc-updated", handler);
+    return () => window.removeEventListener("oc-updated", handler);
+  }, []);
+
   // 1) Filtro base por ROL (gerencias/finanzas: solo pendientes)
   const baseSegunRol = useMemo(() => {
     if (!usuario) return [];

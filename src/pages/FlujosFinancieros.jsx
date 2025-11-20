@@ -8,9 +8,10 @@ import {
   subirAdjuntoFinanzas,
   TIPO_TRANSACCION,
   CLASIFICACION_TRANSACCION,
+  obtenerProveedoresLigero,
+  obtenerCentrosCostoLigero,
+  buscarOrdenesCompraPorNumero,
 } from "../firebase/finanzasHelpers";
-import { db } from "../firebase/config";
-import { doc, updateDoc } from "firebase/firestore";
 import { useUsuario } from "../context/UsuarioContext";
 
 const initialFilters = () => {
@@ -41,15 +42,22 @@ const initialFormState = (usuario) => ({
   igvTasa: "",
   monto_total: "",
   forma_pago: "",
-  terceroId: "",
-  terceroNombre: "",
+  // Proveedor / cliente
+  proveedor_cliente_id: "",
+  proveedor_cliente_nombre: "",
+  // Centro de costo
   centro_costo_id: "",
   centro_costo_nombre: "",
-  proyecto: "",
+  // Proyecto
+  proyecto_id: "",
+  proyecto_nombre: "",
+  // Documento
   documento_tipo: "",
   documento_numero: "",
-  ordenId: "",
-  ordenNumero: "",
+  // Orden relacionada
+  oc_id: "",
+  oc_numero: "",
+  // Factura (si aplica)
   facturaId: "",
   estado: "",
   fecha: new Date().toISOString().slice(0, 10),
@@ -69,7 +77,13 @@ function FlujosFinancieros() {
     subcategorias: [],
     formasPago: [],
     estados: [],
+    tiposDocumento: [],
+    proyectos: [],
   });
+
+  const [proveedores, setProveedores] = useState([]);
+  const [centrosCosto, setCentrosCosto] = useState([]);
+
   const [filtros, setFiltros] = useState(initialFilters);
   const [transacciones, setTransacciones] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -79,7 +93,10 @@ function FlujosFinancieros() {
   const [form, setForm] = useState(() => initialFormState(usuario));
   const [guardando, setGuardando] = useState(false);
 
-  // Cargar catálogos
+  const [buscandoOc, setBuscandoOc] = useState(false);
+  const [ocError, setOcError] = useState("");
+
+  // Cargar catálogos (IGV, categorías, subcategorías, formas, estados, tipos doc, proyectos)
   useEffect(() => {
     let activo = true;
     const cargar = async () => {
@@ -87,7 +104,10 @@ function FlujosFinancieros() {
       try {
         const data = await obtenerCatalogosFinanzas();
         if (!activo) return;
-        setCatalogos(data);
+        setCatalogos((prev) => ({
+          ...prev,
+          ...data,
+        }));
       } catch (e) {
         console.error(e);
         if (activo) setError("Error cargando catálogos financieros.");
@@ -101,12 +121,34 @@ function FlujosFinancieros() {
     };
   }, []);
 
+  // Cargar proveedores y centros de costo
+  useEffect(() => {
+    let activo = true;
+    const cargarExtras = async () => {
+      try {
+        const [provs, ccs] = await Promise.all([
+          obtenerProveedoresLigero(),
+          obtenerCentrosCostoLigero(),
+        ]);
+        if (!activo) return;
+        setProveedores(provs);
+        setCentrosCosto(ccs);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    cargarExtras();
+    return () => {
+      activo = false;
+    };
+  }, []);
+
   // Cargar transacciones
   const cargarTransacciones = async () => {
     setCargando(true);
     setError("");
     try {
-      const data = await obtenerTransaccionesFinancieras({
+      const { transacciones } = await obtenerTransaccionesFinancieras({
         fechaDesde: filtros.fechaDesde || null,
         fechaHasta: filtros.fechaHasta || null,
         tipo: filtros.tipo || null,
@@ -114,7 +156,7 @@ function FlujosFinancieros() {
         categoriaId: filtros.categoriaId || null,
         centro_costo_id: filtros.centro_costo_id || null,
       });
-      setTransacciones(data);
+      setTransacciones(transacciones);
     } catch (e) {
       console.error(e);
       setError("Error cargando transacciones financieras.");
@@ -175,6 +217,7 @@ function FlujosFinancieros() {
   // Modal / form
   const handleNuevoClick = () => {
     setForm(initialFormState(usuario));
+    setOcError("");
     setMostrarModal(true);
   };
 
@@ -187,6 +230,7 @@ function FlujosFinancieros() {
       id: t.id,
       adjuntoFile: null,
     });
+    setOcError("");
     setMostrarModal(true);
   };
 
@@ -209,16 +253,94 @@ function FlujosFinancieros() {
   const cerrarModal = () => {
     setMostrarModal(false);
     setForm(initialFormState(usuario));
+    setOcError("");
+  };
+
+  // Proveedor (catálogo)
+  const handleProveedorChange = (e) => {
+    const value = e.target.value;
+    const prov = proveedores.find((p) => p.ruc === value);
+    setForm((prev) => ({
+      ...prev,
+      proveedor_cliente_id: value || "",
+      proveedor_cliente_nombre: prov?.razonSocial || "",
+    }));
+  };
+
+  // Centro de costo (catálogo)
+  const handleCentroCostoChange = (e) => {
+    const value = e.target.value;
+    const cc = centrosCosto.find((c) => c.id === value);
+    setForm((prev) => ({
+      ...prev,
+      centro_costo_id: value || "",
+      centro_costo_nombre: cc?.nombre || "",
+    }));
+  };
+
+  // Proyecto (catálogo)
+  const handleProyectoChange = (e) => {
+    const value = e.target.value;
+    const p = catalogos.proyectos.find((proy) => proy.id === value);
+    setForm((prev) => ({
+      ...prev,
+      proyecto_id: value || "",
+      proyecto_nombre: p?.nombre || "",
+    }));
   };
 
   // Determinar IGV según cat/sub
   const resolverIgvCodigo = () => {
-    const { categoriaId, subcategoriaId } = form;
+    const { categoriaId, subcategoriaId, igvCodigo } = form;
     const sub = catalogos.subcategorias.find((s) => s.id === subcategoriaId);
     if (sub?.igvCodigoDefault) return sub.igvCodigoDefault;
     const cat = catalogos.categorias.find((c) => c.id === categoriaId);
     if (cat?.igvCodigoDefault) return cat.igvCodigoDefault;
-    return form.igvCodigo || "";
+    return igvCodigo || "";
+  };
+
+  // Buscar OC y autocompletar datos ligados
+  const handleBuscarOc = async () => {
+    setOcError("");
+    if (!form.oc_numero) {
+      setOcError("Ingrese el número de orden para buscar.");
+      return;
+    }
+    setBuscandoOc(true);
+    try {
+      const resultados = await buscarOrdenesCompraPorNumero(
+        form.oc_numero.trim(),
+      );
+      if (!resultados || resultados.length === 0) {
+        setOcError("No se encontró ninguna orden con ese número.");
+        return;
+      }
+      const oc = resultados[0];
+
+      setForm((prev) => ({
+        ...prev,
+        oc_id: oc.id,
+        oc_numero: oc.numero || oc.oc_numero || prev.oc_numero,
+        // Proveedor
+        proveedor_cliente_id: oc.proveedorRuc || prev.proveedor_cliente_id,
+        proveedor_cliente_nombre:
+          oc.proveedorNombre || prev.proveedor_cliente_nombre,
+        // Centro de costo
+        centro_costo_id: oc.centroCostoId || prev.centro_costo_id,
+        centro_costo_nombre:
+          oc.centroCostoNombre || prev.centro_costo_nombre,
+        // Proyecto
+        proyecto_id: oc.proyectoId || prev.proyecto_id,
+        proyecto_nombre: oc.proyectoNombre || prev.proyecto_nombre,
+        // Moneda
+        moneda: oc.moneda || prev.moneda,
+      }));
+    } catch (e) {
+      console.error(e);
+      setOcError("Error buscando la orden. Revisa la consola.");
+    } finally {
+      setBuscandoOc(false);
+    }
   };
 
   const handleSubmitForm = async (e) => {
@@ -255,17 +377,27 @@ function FlujosFinancieros() {
           : 0,
         igvCodigo: igvCodigo || null,
         forma_pago: form.forma_pago || "",
-        terceroId: form.terceroId || null,
-        terceroNombre: form.terceroNombre || "",
+        // Proveedor / cliente
+        proveedor_cliente_id: form.proveedor_cliente_id || null,
+        proveedor_cliente_nombre:
+          form.proveedor_cliente_nombre || "",
+        // Centro de costo
         centro_costo_id: form.centro_costo_id || null,
         centro_costo_nombre: form.centro_costo_nombre || "",
-        proyecto: form.proyecto || "",
+        // Proyecto
+        proyecto_id: form.proyecto_id || null,
+        proyecto_nombre: form.proyecto_nombre || "",
+        // Documento
         documento_tipo: form.documento_tipo || "",
         documento_numero: form.documento_numero || "",
-        ordenId: form.ordenId || null,
-        ordenNumero: form.ordenNumero || "",
+        // Orden relacionada
+        oc_id: form.oc_id || null,
+        oc_numero: form.oc_numero || "",
+        // Factura
         facturaId: form.facturaId || null,
+        // Estado
         estado: estadoObj?.nombre || form.estado || "",
+        // Fechas
         fecha: form.fecha ? new Date(form.fecha) : new Date(),
         programado_fecha: form.programado_fecha
           ? new Date(form.programado_fecha)
@@ -298,12 +430,7 @@ function FlujosFinancieros() {
           form.adjuntoFile,
           idTransaccion,
         );
-        const refDoc = doc(
-          db,
-          "transaccionesFinancieras",
-          idTransaccion,
-        );
-        await updateDoc(refDoc, {
+        await actualizarTransaccionFinanciera(idTransaccion, {
           adjuntos: [adj],
         });
       }
@@ -494,7 +621,7 @@ function FlujosFinancieros() {
                 <Td>
                   {t.documento_tipo} {t.documento_numero}
                 </Td>
-                <Td>{t.ordenNumero}</Td>
+                <Td>{t.oc_numero || t.ordenNumero || ""}</Td>
                 <Td className="text-right">
                   <button
                     type="button"
@@ -706,14 +833,19 @@ function FlujosFinancieros() {
                 <label className="text-xs text-gray-600 mb-1">
                   Tipo de documento
                 </label>
-                <input
-                  type="text"
+                <select
                   name="documento_tipo"
                   value={form.documento_tipo}
                   onChange={handleChangeForm}
                   className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="FACTURA, BOLETA, etc."
-                />
+                >
+                  <option value="">Seleccione...</option>
+                  {catalogos.tiposDocumento.map((td) => (
+                    <option key={td.id} value={td.nombre}>
+                      {td.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
@@ -732,41 +864,77 @@ function FlujosFinancieros() {
 
             {/* Proveedor / CC / Proyecto */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Proveedor */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
-                  Proveedor / Cliente (nombre)
+                  Proveedor / Cliente
                 </label>
-                <input
-                  type="text"
-                  name="terceroNombre"
-                  value={form.terceroNombre}
-                  onChange={handleChangeForm}
+                <select
+                  name="proveedor_cliente_id"
+                  value={form.proveedor_cliente_id}
+                  onChange={handleProveedorChange}
                   className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Sincronizar luego con módulo Proveedores"
-                />
+                >
+                  <option value="">Seleccione...</option>
+                  {proveedores.map((p) => (
+                    <option key={p.id} value={p.ruc}>
+                      {p.razonSocial} - {p.ruc}
+                    </option>
+                  ))}
+                </select>
+                {form.proveedor_cliente_nombre && (
+                  <span className="mt-0.5 text-[10px] text-gray-500">
+                    {form.proveedor_cliente_nombre}
+                  </span>
+                )}
               </div>
+
+              {/* Centro de costo */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
                   Centro de costo
                 </label>
-                <input
-                  type="text"
-                  name="centro_costo_nombre"
-                  value={form.centro_costo_nombre}
-                  onChange={handleChangeForm}
+                <select
+                  name="centro_costo_id"
+                  value={form.centro_costo_id}
+                  onChange={handleCentroCostoChange}
                   className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Nombre CC"
-                />
+                >
+                  <option value="">Seleccione...</option>
+                  {centrosCosto.map((cc) => (
+                    <option key={cc.id} value={cc.id}>
+                      {cc.nombre}
+                    </option>
+                  ))}
+                </select>
+                {form.centro_costo_nombre && (
+                  <span className="mt-0.5 text-[10px] text-gray-500">
+                    {form.centro_costo_nombre}
+                  </span>
+                )}
               </div>
+
+              {/* Proyecto */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Proyecto</label>
-                <input
-                  type="text"
-                  name="proyecto"
-                  value={form.proyecto}
-                  onChange={handleChangeForm}
+                <select
+                  name="proyecto_id"
+                  value={form.proyecto_id}
+                  onChange={handleProyectoChange}
                   className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
+                >
+                  <option value="">Sin proyecto</option>
+                  {catalogos.proyectos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+                {form.proyecto_nombre && (
+                  <span className="mt-0.5 text-[10px] text-gray-500">
+                    {form.proyecto_nombre}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -776,14 +944,29 @@ function FlujosFinancieros() {
                 <label className="text-xs text-gray-600 mb-1">
                   N° Orden relacionada
                 </label>
-                <input
-                  type="text"
-                  name="ordenNumero"
-                  value={form.ordenNumero}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="MM-000123, etc."
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="oc_numero"
+                    value={form.oc_numero}
+                    onChange={handleChangeForm}
+                    className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="MM-000123, etc."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBuscarOc}
+                    className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-gray-700"
+                    disabled={buscandoOc}
+                  >
+                    {buscandoOc ? "Buscando..." : "Buscar"}
+                  </button>
+                </div>
+                {ocError && (
+                  <span className="mt-0.5 text-[10px] text-red-600">
+                    {ocError}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Notas</label>

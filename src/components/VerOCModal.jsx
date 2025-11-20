@@ -245,8 +245,8 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         <div className="mt-2 text-[9px] leading-snug text-gray-700 border-t pt-1">
           <p className="mb-1 font-semibold">ENVIAR SU COMPROBANTE CON COPIA A:</p>
           <ul className="list-disc pl-4">
-            <li>FACTURAS ELECTRÓNICAS: lmeneses@memphis.pe | dmendez@memphis.pe | facturacion@memphis.pe | gomontero@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
-            <li>CONSULTA DE PAGOS: lmeneses@memphis.pe | dmendez@memphis.pe</li>
+            <li>FACTURAS ELECTRÓNICAS: dmendez@memphis.pe | facturacion@memphis.pe | compras@memphis.pe | mcastaneda@memphis.pe | mchuman@memphis.pe</li>
+            <li>CONSULTA DE PAGOS: dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 italic">
             El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.

@@ -11,7 +11,10 @@ const ModalShell = ({ children, onClose, title }) => (
     <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-lg">{title}</h3>
-        <button onClick={onClose} className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200">
+        <button
+          onClick={onClose}
+          className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200"
+        >
           Cerrar
         </button>
       </div>
@@ -20,7 +23,7 @@ const ModalShell = ({ children, onClose, title }) => (
   </div>
 );
 
-const FirmarOCModal = ({ oc, onClose }) => {
+const FirmarOCModal = ({ oc, onClose, onSigned }) => {
   const { usuario } = useUsuario();
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -37,7 +40,9 @@ const FirmarOCModal = ({ oc, onClose }) => {
       setMiFirma(f || null);
       setCargandoFirma(false);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [usuario?.email]);
 
   const simbolo = oc.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
@@ -121,7 +126,9 @@ const FirmarOCModal = ({ oc, onClose }) => {
       }
 
       if (!miFirma) {
-        const ir = confirm("No tienes una firma registrada. ¿Ir a 'Mi Firma' para configurarla?");
+        const ir = confirm(
+          "No tienes una firma registrada. ¿Ir a 'Mi Firma' para configurarla?"
+        );
         if (ir) window.location.href = "/mi-firma";
         setEnviando(false);
         return;
@@ -161,13 +168,20 @@ const FirmarOCModal = ({ oc, onClose }) => {
         );
       }
 
+      const ocActualizada = {
+        ...oc,
+        ...update,
+        firmas: { ...(oc.firmas || {}), ...(update.firmas || {}) },
+      };
+
       try {
         window.dispatchEvent(
-          new CustomEvent("oc-updated", {
-            detail: { oc: { ...oc, ...update, firmas: { ...(oc.firmas || {}), ...(update.firmas || {}) } } },
-          })
+          new CustomEvent("oc-updated", { detail: { oc: ocActualizada } })
         );
       } catch {}
+
+      if (onSigned) onSigned(ocActualizada);
+
       alert("Orden aprobada y firmada ✅");
       onClose?.();
     } catch (e) {
@@ -208,9 +222,16 @@ const FirmarOCModal = ({ oc, onClose }) => {
         comentario: `OC ${oc.numeroOC} rechazada. Motivo: ${motivoRechazo}`,
       });
 
+      const ocActualizada = { ...oc, ...update };
+
       try {
-        window.dispatchEvent(new CustomEvent("oc-updated", { detail: { oc: { ...oc, ...update } } }));
+        window.dispatchEvent(
+          new CustomEvent("oc-updated", { detail: { oc: ocActualizada } })
+        );
       } catch {}
+
+      if (onSigned) onSigned(ocActualizada);
+
       alert("Orden rechazada.");
       onClose?.();
     } catch (e) {
@@ -225,25 +246,44 @@ const FirmarOCModal = ({ oc, onClose }) => {
     <ModalShell title="Aprobar / Rechazar OC" onClose={onClose}>
       <div className="p-4 text-sm">
         <div className="mb-3">
-          <div><b>OC:</b> {oc.numeroOC}</div>
-          <div><b>Proveedor:</b> {oc.proveedor?.razonSocial}</div>
-          <div><b>Total:</b> {formatearMoneda(subtotal + igv + otros, simbolo)}</div>
-          <div><b>Moneda:</b> {oc.monedaSeleccionada}</div>
-          <div><b>Estado actual:</b> {oc.estado}</div>
+          <div>
+            <b>OC:</b> {oc.numeroOC}
+          </div>
+          <div>
+            <b>Proveedor:</b> {oc.proveedor?.razonSocial}
+          </div>
+          <div>
+            <b>Total:</b> {formatearMoneda(subtotal + igv + otros, simbolo)}
+          </div>
+          <div>
+            <b>Moneda:</b> {oc.monedaSeleccionada}
+          </div>
+          <div>
+            <b>Estado actual:</b> {oc.estado}
+          </div>
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-3">
           <b>Tu firma:</b>{" "}
-          {cargandoFirma ? "cargando…" : miFirma ? "lista ✅" : "no registrada ❌"}
+          {cargandoFirma
+            ? "cargando…"
+            : miFirma
+            ? "lista ✅"
+            : "no registrada ❌"}
           {!cargandoFirma && !miFirma && (
-            <button className="ml-2 text-blue-700 underline" onClick={() => (window.location.href = "/mi-firma")}>
+            <button
+              className="ml-2 text-blue-700 underline"
+              onClick={() => (window.location.href = "/mi-firma")}
+            >
               Configurar ahora
             </button>
           )}
         </div>
 
         <div className="border-t pt-3">
-          <label className="block text-gray-700 mb-1">Motivo de rechazo (si corresponde)</label>
+          <label className="block text-gray-700 mb-1">
+            Motivo de rechazo (si corresponde)
+          </label>
           <textarea
             value={motivoRechazo}
             onChange={(e) => setMotivoRechazo(e.target.value)}
@@ -253,7 +293,7 @@ const FirmarOCModal = ({ oc, onClose }) => {
           />
         </div>
 
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex justify-end bewijs gap-2 mt-4">
           <button
             disabled={enviando}
             onClick={aprobarYFirmar}

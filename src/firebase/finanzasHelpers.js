@@ -1,7 +1,5 @@
 // src/firebase/finanzasHelpers.js
-// Helpers para módulo de Flujos Financieros (sin hardcode de listas ni tasas)
-// Todas las listas (categorías, subcategorías, IGV, formas de pago, estados)
-// deben administrarse desde colecciones maestras en Firestore.
+// Helper de Flujos Financieros – 100% parametrizable, sin IGV ni reglas hardcodeadas
 
 import {
   addDoc,
@@ -9,26 +7,21 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
   updateDoc,
+  query,
   where,
+  orderBy,
+  limit,
+  startAfter,
+  Timestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./config";
 
 // ─────────────────────────────────────────────────────────────
-// Constantes de colecciones (un solo lugar con strings)
+// Constantes de dominio (usadas en todo el sistema)
 // ─────────────────────────────────────────────────────────────
-export const TRANSACCIONES_COLLECTION = "transaccionesFinancieras";
-export const IGV_COLLECTION = "igvCodigosFinanzas";
-export const CATEGORIAS_COLLECTION = "categoriasFinanzas";
-export const SUBCATEGORIAS_COLLECTION = "subcategoriasFinanzas";
-export const FORMAS_PAGO_COLLECTION = "formasPagoFinanzas";
-export const ESTADOS_COLLECTION = "estadosFinancieros";
 
-// Valores de texto estándar reusables en toda la app
 export const TIPO_TRANSACCION = {
   INGRESO: "INGRESO",
   EGRESO: "EGRESO",
@@ -39,110 +32,148 @@ export const CLASIFICACION_TRANSACCION = {
   CAPEX: "CAPEX",
 };
 
+// Colecciones principales (si cambian, se cambian aquí, no en el código)
+const COL_TRANSACCIONES = "transaccionesFinancieras";
+const COL_IGV = "igvCodigosFinanzas";
+const COL_CATEGORIAS = "categoriasFinanzas";
+const COL_SUBCATEGORIAS = "subcategoriasFinanzas";
+const COL_FORMAS_PAGO = "formasPagoFinanzas";
+const COL_ESTADOS = "estadosFinanzas";
+const COL_TIPOS_DOC = "tiposDocumentoFinanzas";
+const COL_PROYECTOS = "proyectos";
+const COL_DETRACCIONES = "detraccionesSunat";
+
+// Si luego quieres mover Proveedores/CC a otros helpers, basta con borrar estos usos.
+const COL_PROVEEDORES = "proveedores";
+const COL_CENTROS_COSTO = "centrosCosto";
+const COL_ORDENES_COMPRA = "ordenesCompra";
+
 // ─────────────────────────────────────────────────────────────
-// Utils internos
+// Helpers internos
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Normaliza una fecha (Date, string ISO o Timestamp de Firestore)
- * a un string "YYYY-MM-DD" para facilitar filtros cliente.
- */
-function toISODateString(fecha) {
-  if (!fecha) return null;
-  try {
-    if (typeof fecha === "string") {
-      return fecha.slice(0, 10);
-    }
-    if (fecha.toDate) {
-      // Timestamp de Firestore
-      return fecha.toDate().toISOString().slice(0, 10);
-    }
-    if (fecha instanceof Date) {
-      return fecha.toISOString().slice(0, 10);
-    }
-    return null;
-  } catch (e) {
-    console.error("Error normalizando fecha", e);
-    return null;
+function mapDoc(d) {
+  return { id: d.id, ...d.data() };
+}
+
+function normalizarFecha(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) return value;
+  if (value instanceof Date) return Timestamp.fromDate(value);
+  // string "YYYY-MM-DD"
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return Timestamp.fromDate(d);
+}
+
+function fechaToISO(value) {
+  if (!value) return "";
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString().slice(0, 10);
   }
-}
-
-/**
- * Devuelve { anio, mes, yyyymm } a partir de una Date/string/Timestamp
- */
-function buildFechaDerivada(fecha) {
-  const iso = toISODateString(fecha);
-  if (!iso) return { anio: null, mes: null, yyyymm: null };
-  const [yearStr, monthStr] = iso.split("-");
-  const anio = Number(yearStr);
-  const mes = Number(monthStr);
-  const yyyymm = `${yearStr}-${monthStr}`;
-  return { anio, mes, yyyymm };
-}
-
-/**
- * Calcula igv y total a partir de monto_sin_igv y tasa
- */
-function calcularMontosDesdeBase(montoSinIgv, tasa) {
-  const base = Number(montoSinIgv || 0);
-  const t = Number(tasa || 0);
-  const igv = +(base * t).toFixed(2);
-  const monto_total = +(base + igv).toFixed(2);
-  return { igv, monto_total };
-}
-
-/**
- * Calcula monto_total_pen en base a moneda, monto_total y tc.
- * Si no se pasa tc, se asume 1 cuando la moneda es PEN y null en otros casos.
- */
-function calcularTotalPEN({ moneda, monto_total, tc }) {
-  const total = Number(monto_total || 0);
-  if (!moneda || moneda === "PEN") {
-    return +total.toFixed(2);
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
   }
-  const tasa = tc != null ? Number(tc) : null;
-  if (tasa == null || !Number.isFinite(tasa) || tasa <= 0) {
-    // Se deja en null si no hay tc válido; se podrá completar luego.
-    return null;
+  if (typeof value === "string") {
+    // Asumimos que viene como "YYYY-MM-DD" o ISO
+    return value.slice(0, 10);
   }
-  return +(total * tasa).toFixed(2);
+  return "";
+}
+
+/**
+ * Enriquecer una transacción leída de Firestore con campos derivados:
+ * - fechaISO, programado_fechaISO
+ * - monto_total_pen (según moneda y tc)
+ */
+function enriquecerTransaccion(data, id) {
+  const fechaISO = fechaToISO(data.fecha);
+  const programado_fechaISO = fechaToISO(data.programado_fecha);
+
+  // Monto total en su moneda
+  const montoTotal = Number(
+    data.monto_total != null ? data.monto_total : data.monto_sin_igv || 0
+  );
+
+  let montoTotalPen = montoTotal;
+  if (data.moneda && data.moneda !== "PEN") {
+    const tc = Number(data.tc || 0);
+    if (tc > 0) {
+      montoTotalPen = montoTotal * tc;
+    }
+  }
+
+  return {
+    id,
+    ...data,
+    fechaISO,
+    programado_fechaISO,
+    monto_total_pen: +montoTotalPen.toFixed(2),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Carga de catálogos (para Selects, Admin, etc.)
+// Catálogos financieros
 // ─────────────────────────────────────────────────────────────
 
-async function obtenerColeccionComoLista(nombreColeccion) {
-  const colRef = collection(db, nombreColeccion);
-  const q = query(colRef, orderBy("orden", "asc"));
+export async function obtenerIgvCodigos() {
+  const snap = await getDocs(collection(db, COL_IGV));
+  return snap.docs.map(mapDoc);
+}
+
+export async function obtenerCategoriasFinanzas() {
+  const snap = await getDocs(collection(db, COL_CATEGORIAS));
+  return snap.docs.map(mapDoc);
+}
+
+export async function obtenerSubcategoriasFinanzas() {
+  const snap = await getDocs(collection(db, COL_SUBCATEGORIAS));
+  return snap.docs.map(mapDoc);
+}
+
+export async function obtenerFormasPagoFinanzas() {
+  const snap = await getDocs(collection(db, COL_FORMAS_PAGO));
+  return snap.docs.map(mapDoc);
+}
+
+export async function obtenerEstadosFinanzas() {
+  const snap = await getDocs(collection(db, COL_ESTADOS));
+  return snap.docs.map(mapDoc);
+}
+
+export async function obtenerTiposDocumentoFinanzasActivos() {
+  const snap = await getDocs(collection(db, COL_TIPOS_DOC));
+  return snap.docs
+    .map(mapDoc)
+    .filter((x) => x.activo !== false)
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+}
+
+export async function obtenerProyectosActivos() {
+  const q = query(
+    collection(db, COL_PROYECTOS),
+    where("estado", "==", "Activo")
+  );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(mapDoc);
 }
 
 /**
- * Devuelve todos los catálogos necesarios para el módulo financiero.
- * Las colecciones deben existir y poblarse desde el panel administrativo.
- *
- * Colecciones esperadas:
- *  - igvCodigosFinanzas: { codigo, nombre, tasa, orden }
- *  - categoriasFinanzas: { nombre, igvCodigoDefault?, orden }
- *  - subcategoriasFinanzas: { nombre, categoriaId, igvCodigoDefault?, orden }
- *  - formasPagoFinanzas: { nombre, orden }
- *  - estadosFinancieros: { nombre, orden }
+ * Catálogo combinado para uso en FlujosFinancieros.jsx
  */
 export async function obtenerCatalogosFinanzas() {
-  const [
-    igv,
-    categorias,
-    subcategorias,
-    formasPago,
-    estados,
-  ] = await Promise.all([
-    obtenerColeccionComoLista(IGV_COLLECTION),
-    obtenerColeccionComoLista(CATEGORIAS_COLLECTION),
-    obtenerColeccionComoLista(SUBCATEGORIAS_COLLECTION),
-    obtenerColeccionComoLista(FORMAS_PAGO_COLLECTION),
-    obtenerColeccionComoLista(ESTADOS_COLLECTION),
+  const [igv, categorias, subcategorias, formasPago, estados] =
+    await Promise.all([
+      obtenerIgvCodigos(),
+      obtenerCategoriasFinanzas(),
+      obtenerSubcategoriasFinanzas(),
+      obtenerFormasPagoFinanzas(),
+      obtenerEstadosFinanzas(),
+    ]);
+
+  const [tiposDocumento, proyectos] = await Promise.all([
+    obtenerTiposDocumentoFinanzasActivos(),
+    obtenerProyectosActivos(),
   ]);
 
   return {
@@ -151,238 +182,456 @@ export async function obtenerCatalogosFinanzas() {
     subcategorias,
     formasPago,
     estados,
+    tiposDocumento,
+    proyectos,
   };
 }
 
-/**
- * Busca un código de IGV por id/código y devuelve su tasa.
- * Los documentos en IGV_COLLECTION deben tener { codigo, tasa }.
- */
-export async function obtenerIgvPorCodigo(codigo) {
-  if (!codigo) return null;
-  const colRef = collection(db, IGV_COLLECTION);
-  const q = query(colRef, where("codigo", "==", codigo));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const docData = snap.docs[0].data();
-  return { id: snap.docs[0].id, ...docData };
+// ─────────────────────────────────────────────────────────────
+// Proveedores / Centros de costo / OCs (modo ligero)
+// ─────────────────────────────────────────────────────────────
+
+export async function obtenerProveedoresLigero() {
+  const snap = await getDocs(collection(db, COL_PROVEEDORES));
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ruc: data.ruc || "",
+      razonSocial: data.razonSocial || "",
+      estado: data.estado || "",
+      ...data,
+    };
+  });
 }
 
-// ─────────────────────────────────────────────────────────────
-// CRUD de Transacciones
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Prepara el payload final a guardar en Firestore, agregando derivados:
- * - fechaISO, anio, mes, yyyymm
- * - programado_fechaISO
- * - monto_total_pen
- * - signo (1 ingreso, -1 egreso)
- */
-function prepararTransaccionParaGuardar(input, opciones = {}) {
-  const {
-    calcularMontos = true,
-    tasaIgv,
-  } = opciones;
-
-  const ahora = serverTimestamp();
-
-  const {
-    fecha,
-    programado_fecha,
-    tipo,
-    moneda,
-    tc,
-    monto_sin_igv,
-    igv: igvInput,
-    monto_total: totalInput,
-  } = input;
-
-  const fechaISO = toISODateString(fecha || new Date());
-  const { anio, mes, yyyymm } = buildFechaDerivada(fecha || new Date());
-  const programado_fechaISO = programado_fecha
-    ? toISODateString(programado_fecha)
-    : null;
-
-  let igv = igvInput;
-  let monto_total = totalInput;
-
-  if (calcularMontos) {
-    const tasa =
-      tasaIgv != null
-        ? tasaIgv
-        : input.igvTasa != null
-        ? input.igvTasa
-        : null;
-
-    if (tasa != null) {
-      const res = calcularMontosDesdeBase(monto_sin_igv, tasa);
-      igv = res.igv;
-      monto_total = res.monto_total;
-    }
-  }
-
-  const monto_total_pen = calcularTotalPEN({ moneda, monto_total, tc });
-
-  const signo =
-    tipo === TIPO_TRANSACCION.INGRESO
-      ? 1
-      : tipo === TIPO_TRANSACCION.EGRESO
-      ? -1
-      : null;
-
-  return {
-    ...input,
-    fecha,
-    programado_fecha: programado_fecha || null,
-    fechaISO,
-    programado_fechaISO,
-    anio,
-    mes,
-    yyyymm,
-    igv,
-    monto_total,
-    monto_total_pen,
-    signo,
-    creadoEn: input.creadoEn || ahora,
-    editadoEn: ahora,
-  };
+export async function obtenerCentrosCostoLigero() {
+  const snap = await getDocs(collection(db, COL_CENTROS_COSTO));
+  return snap.docs.map(mapDoc);
 }
 
 /**
- * Crea una nueva transacción financiera.
- * Espera que las listas (tipo, clasificacion, categoriaId, etc.) ya estén validadas en el frontend.
- * Si se quiere calcular IGV automáticamente, se debe pasar:
- *  - igvCodigo OR igvTasa
+ * Buscar OCs por número/correlativo (para autocompletar).
+ * queryText: texto que ingresa el usuario, ej: "MM-0001"
  */
-export async function crearTransaccionFinanciera({
-  igvCodigo,
-  igvTasa,
-  ...resto
-}) {
-  let tasa = igvTasa != null ? igvTasa : null;
+export async function buscarOrdenesCompraPorNumero(queryText, maxResultados = 10) {
+  if (!queryText) return [];
 
-  if (tasa == null && igvCodigo) {
-    const igvDoc = await obtenerIgvPorCodigo(igvCodigo);
-    if (igvDoc?.tasa != null) {
-      tasa = igvDoc.tasa;
-    }
-  }
+  // Si ya tienes un campo "numero" o "correlativoOC", ajusta aquí:
+  const colRef = collection(db, COL_ORDENES_COMPRA);
 
-  const payload = prepararTransaccionParaGuardar(resto, {
-    calcularMontos: true,
-    tasaIgv: tasa,
+  // Firestore no soporta "contains" directo; normalmente se soluciona con un campo auxiliar
+  // en minúsculas o un índice de búsqueda. Como base, hacemos una igualdad exacta:
+  const qExact = query(colRef, where("numero", "==", queryText), limit(maxResultados));
+  const snapExact = await getDocs(qExact);
+
+  const resultados = snapExact.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      numero: data.numero || data.correlativo || "",
+      proveedorRuc: data.proveedor?.ruc || "",
+      proveedorNombre: data.proveedor?.razonSocial || "",
+      centroCostoId: data.centroCostoId || data.centro_costo_id || "",
+      centroCostoNombre:
+        data.centroCostoNombre || data.centro_costo_nombre || "",
+      proyectoId: data.proyectoId || "",
+      proyectoNombre: data.proyectoNombre || "",
+      moneda: data.moneda || "",
+      total: data.resumen?.total || 0,
+      estado: data.estado || "",
+      ...data,
+    };
   });
 
-  const colRef = collection(db, TRANSACCIONES_COLLECTION);
+  return resultados;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Detracciones SUNAT
+// ─────────────────────────────────────────────────────────────
+
+export async function buscarDetraccionPorCodigo(codigo) {
+  if (!codigo) return null;
+
+  const qDet = query(
+    collection(db, COL_DETRACCIONES),
+    where("codigo", "==", codigo),
+    where("vigente", "==", true),
+    limit(1)
+  );
+  const snap = await getDocs(qDet);
+  if (snap.empty) return null;
+
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+// ─────────────────────────────────────────────────────────────
+// CRUD de transacciones financieras
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Obtener código de IGV (desde catálogo) -> retorna doc o null
+ */
+async function obtenerIgvPorCodigo(igvCodigo) {
+  if (!igvCodigo) return null;
+  const qIgv = query(
+    collection(db, COL_IGV),
+    where("codigo", "==", igvCodigo),
+    where("activo", "==", true),
+    limit(1)
+  );
+  const snap = await getDocs(qIgv);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+/**
+ * Normaliza y calcula derivados:
+ * - fecha, programado_fecha a Timestamp
+ * - igv, monto_total según código IGV (si aplica)
+ */
+async function prepararPayloadTransaccion(data) {
+  const now = Timestamp.now();
+
+  const payload = { ...data };
+
+  payload.fecha = normalizarFecha(data.fecha) || now;
+  payload.programado_fecha = normalizarFecha(data.programado_fecha);
+
+  const base = Number(data.monto_sin_igv || 0);
+
+  // IGV y totales: NADA hardcodeado, se usa catálogo si se pasa igvCodigo
+  let igvMonto = data.igv != null ? Number(data.igv) : 0;
+  let montoTotal = data.monto_total != null ? Number(data.monto_total) : 0;
+  let igvTasa = data.igvTasa != null ? Number(data.igvTasa) : null;
+
+  if (!montoTotal) {
+    if (data.igvCodigo) {
+      const igvDoc = await obtenerIgvPorCodigo(data.igvCodigo);
+      if (igvDoc && igvDoc.tasa != null) {
+        igvTasa = Number(igvDoc.tasa);
+        igvMonto = +(base * igvTasa).toFixed(2);
+        montoTotal = +(base + igvMonto).toFixed(2);
+      } else {
+        // Si no hay catálogo, usamos lo que venga (si viene)
+        igvMonto = Number(data.igv || 0);
+        montoTotal = +(base + igvMonto).toFixed(2);
+      }
+    } else {
+      igvMonto = Number(data.igv || 0);
+      montoTotal = +(base + igvMonto).toFixed(2);
+    }
+  }
+
+  payload.monto_sin_igv = +base.toFixed(2);
+  payload.igv = +igvMonto.toFixed(2);
+  payload.monto_total = +montoTotal.toFixed(2);
+  if (igvTasa != null) {
+    payload.igvTasa = +igvTasa;
+  }
+
+  // Monto en PEN (derivado - útil para KPIs)
+  if (payload.moneda === "PEN" || !payload.moneda) {
+    payload.monto_total_pen = payload.monto_total;
+  } else {
+    const tc = Number(payload.tc || 0);
+    if (tc > 0) {
+      payload.monto_total_pen = +(
+        payload.monto_total * tc
+      ).toFixed(2);
+    }
+  }
+
+  // Auditoría si no viene
+  if (!payload.creadoEn) payload.creadoEn = now;
+  payload.actualizadoEn = now;
+
+  return payload;
+}
+
+/**
+ * Crear transacción financiera
+ * data: objeto que sigue el diccionario Transaccion (sin campos derivados)
+ */
+export async function crearTransaccionFinanciera(data) {
+  const payload = await prepararPayloadTransaccion(data);
+  const colRef = collection(db, COL_TRANSACCIONES);
   const docRef = await addDoc(colRef, payload);
   return docRef.id;
 }
 
 /**
- * Actualiza una transacción existente.
- * Se pueden recalcular montos si cambia el IGV.
+ * Actualizar una transacción financiera
  */
-export async function actualizarTransaccionFinanciera(
-  id,
-  { igvCodigo, igvTasa, ...resto },
-) {
-  if (!id) throw new Error("Falta id de transacción");
-
-  let tasa = igvTasa != null ? igvTasa : null;
-  if (tasa == null && igvCodigo) {
-    const igvDoc = await obtenerIgvPorCodigo(igvCodigo);
-    if (igvDoc?.tasa != null) {
-      tasa = igvDoc.tasa;
-    }
+export async function actualizarTransaccionFinanciera(id, dataParcial) {
+  const ref = doc(db, COL_TRANSACCIONES, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error("Transacción financiera no encontrada");
   }
 
-  const payload = prepararTransaccionParaGuardar(resto, {
-    calcularMontos: true,
-    tasaIgv: tasa,
-  });
+  const actual = snap.data();
+  const merged = { ...actual, ...dataParcial };
 
-  const refDoc = doc(db, TRANSACCIONES_COLLECTION, id);
-  await updateDoc(refDoc, payload);
+  const payload = await prepararPayloadTransaccion(merged);
+  await updateDoc(ref, payload);
 }
 
 /**
- * Obtiene una transacción por id.
+ * Obtener transacciones con filtros básicos
+ * filtros:
+ *  - fechaDesde, fechaHasta: "YYYY-MM-DD"
+ *  - tipo: INGRESO/EGRESO
+ *  - estado
+ *  - categoriaId
+ *  - centro_costo_id
  */
-export async function obtenerTransaccionPorId(id) {
-  if (!id) return null;
-  const refDoc = doc(db, TRANSACCIONES_COLLECTION, id);
-  const snap = await getDoc(refDoc);
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
-}
+export async function obtenerTransaccionesFinancieras(filtros = {}) {
+  const {
+    fechaDesde,
+    fechaHasta,
+    tipo,
+    estado,
+    categoriaId,
+    centro_costo_id,
+    pageSize = 200,
+    startAfterDoc,
+  } = filtros;
 
-/**
- * Obtiene transacciones según filtros simples.
- * Para evitar hardcodear demasiados where, esta función implementa:
- *  - filtro obligatorio por rango de fechas (fechaISO entre desde y hasta)
- *  - filtros opcionales por tipo, estado, centro_costo_id, categoriaId
- */
-export async function obtenerTransaccionesFinancieras({
-  fechaDesde,
-  fechaHasta,
-  tipo,
-  estado,
-  centro_costo_id,
-  categoriaId,
-}) {
-  const colRef = collection(db, TRANSACCIONES_COLLECTION);
+  const colRef = collection(db, COL_TRANSACCIONES);
+  const condiciones = [];
 
-  const filtros = [];
-
+  // Fechas
   if (fechaDesde) {
-    filtros.push(where("fechaISO", ">=", toISODateString(fechaDesde)));
+    condiciones.push(where("fecha", ">=", normalizarFecha(fechaDesde)));
   }
   if (fechaHasta) {
-    filtros.push(where("fechaISO", "<=", toISODateString(fechaHasta)));
+    // para incluir el día completo, sumamos 1 día a la "hasta"
+    const dHasta = new Date(fechaHasta);
+    dHasta.setDate(dHasta.getDate() + 1);
+    condiciones.push(where("fecha", "<", normalizarFecha(dHasta)));
   }
+
   if (tipo) {
-    filtros.push(where("tipo", "==", tipo));
+    condiciones.push(where("tipo", "==", tipo));
   }
   if (estado) {
-    filtros.push(where("estado", "==", estado));
-  }
-  if (centro_costo_id) {
-    filtros.push(where("centro_costo_id", "==", centro_costo_id));
+    condiciones.push(where("estado", "==", estado));
   }
   if (categoriaId) {
-    filtros.push(where("categoriaId", "==", categoriaId));
+    condiciones.push(where("categoriaId", "==", categoriaId));
+  }
+  if (centro_costo_id) {
+    condiciones.push(
+      where("centro_costo_id", "==", centro_costo_id)
+    );
   }
 
-  // Construimos query dinámicamente
-  let q = query(colRef, orderBy("fechaISO", "desc"));
-  if (filtros.length) {
-    q = query(colRef, ...filtros, orderBy("fechaISO", "desc"));
+  let qRef = query(colRef, ...condiciones, orderBy("fecha", "desc"), limit(pageSize));
+
+  if (startAfterDoc) {
+    qRef = query(
+      colRef,
+      ...condiciones,
+      orderBy("fecha", "desc"),
+      startAfter(startAfterDoc),
+      limit(pageSize)
+    );
   }
 
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(qRef);
+
+  const transacciones = snap.docs.map((d) =>
+    enriquecerTransaccion(d.data(), d.id)
+  );
+
+  const lastVisible = snap.docs[snap.docs.length - 1] || null;
+
+  return {
+    transacciones,
+    lastVisible,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
 // Adjuntos
 // ─────────────────────────────────────────────────────────────
 
-const FINANZAS_STORAGE_BASE = "finanzas";
-
 /**
- * Sube un archivo de comprobante y devuelve { url, path, nombre }.
- * No se hardcodean rutas absolutas, solo el prefijo de módulo.
+ * Sube un archivo a Storage para una transacción financiera
+ * y devuelve un objeto con la metadata básica:
+ *  { url, nombre, tipo, size, creadoEn }
  */
 export async function subirAdjuntoFinanzas(file, transaccionId) {
   if (!file || !transaccionId) {
-    throw new Error("Falta archivo o id de transacción");
+    throw new Error("Archivo o transacción inválidos para adjunto");
   }
 
-  const safeName = file.name.replace(/\s+/g, "_");
-  const path = `${FINANZAS_STORAGE_BASE}/${transaccionId}/${safeName}`;
+  const path = `${COL_TRANSACCIONES}/${transaccionId}/${file.name}`;
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
-  return { url, path, nombre: file.name };
+
+  const snapshot = await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(snapshot.ref);
+
+  return {
+    url,
+    nombre: file.name,
+    tipo: file.type,
+    size: file.size,
+    creadoEn: Timestamp.now(),
+    path,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper: Crear transacción a partir de una factura (Pagos)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Crea una transacción financiera de tipo EGRESO a partir de una factura
+ * ligada a una orden de compra.
+ *
+ * EXPECTATIVAS:
+ *  - "orden" viene de ordenesCompra (con proveedor, centro costo, proyecto, moneda, etc.)
+ *  - "factura" tiene:
+ *      numero, fecha, moneda, montoSinIgv, montoIgv, montoTotal,
+ *      aplicaDetraccion, detraccionCodigo, detraccionPorcentaje,
+ *      detraccionBase, detraccionMonto, formaPago, tipoDocumento, etc.
+ *  - "usuario" es el usuario logueado (uid, email, nombreCompleto)
+ *
+ * NO se hardcodea nada de negocio (ni 18%, ni 10%, etc.),
+ * todo viene desde la factura o los catálogos (IGV, detracciones).
+ */
+export async function crearTransaccionDesdeFactura({
+  orden,
+  factura,
+  usuario,
+  configExtra = {},
+}) {
+  if (!orden || !factura || !usuario) {
+    throw new Error("Faltan datos para crear la transacción desde factura");
+  }
+
+  const moneda =
+    factura.moneda || orden.moneda || "PEN";
+
+  const tc = factura.tc ?? orden.tc ?? null;
+
+  const montoSinIgv =
+    factura.montoSinIgv ??
+    factura.monto_sin_igv ??
+    orden.montoSinIgv ??
+    0;
+
+  const igvCodigo =
+    factura.igvCodigo ||
+    orden.igvCodigo ||
+    configExtra.igvCodigoDefault ||
+    null;
+
+  const centroCostoId =
+    orden.centro_costo_id || orden.centroCostoId || "";
+  const centroCostoNombre =
+    orden.centro_costo_nombre ||
+    orden.centroCostoNombre ||
+    "";
+
+  const proveedorId = orden.proveedor?.ruc || "";
+  const proveedorNombre =
+    orden.proveedor?.razonSocial ||
+    factura.proveedorNombre ||
+    "";
+
+  const fechaDocumento =
+    factura.fechaEmision ||
+    factura.fecha ||
+    orden.fecha ||
+    new Date();
+
+  const proyectoId = orden.proyectoId || orden.proyecto || "";
+  const proyectoNombre = orden.proyectoNombre || "";
+
+  const payload = {
+    tipo: TIPO_TRANSACCION.EGRESO,
+    clasificacion:
+      configExtra.clasificacionDefault ||
+      CLASIFICACION_TRANSACCION.OPEX,
+
+    categoriaId: configExtra.categoriaId || null,
+    categoriaNombre: configExtra.categoriaNombre || "",
+    subcategoriaId: configExtra.subcategoriaId || null,
+    subcategoriaNombre: configExtra.subcategoriaNombre || "",
+
+    moneda,
+    tc,
+    monto_sin_igv: montoSinIgv,
+
+    igvCodigo,
+
+    forma_pago:
+      factura.formaPago ||
+      configExtra.formaPagoDefault ||
+      "",
+
+    proveedor_cliente_id: proveedorId,
+    proveedor_cliente_nombre: proveedorNombre,
+
+    centro_costo_id: centroCostoId,
+    centro_costo_nombre: centroCostoNombre,
+
+    proyecto_id: proyectoId,
+    proyecto_nombre: proyectoNombre,
+
+    documento_tipo:
+      factura.tipoDocumento ||
+      factura.documento_tipo ||
+      "FACTURA",
+    documento_numero:
+      factura.numero ||
+      factura.documento_numero ||
+      factura.serieNumero ||
+      "",
+
+    oc_id: orden.id || orden.idOC || "",
+    oc_numero:
+      orden.numero || orden.correlativo || orden.nroOC || "",
+
+    // Estado de la transacción
+    estado: configExtra.estadoDefault || "Pagado",
+
+    // Fechas
+    fecha: fechaDocumento instanceof Date
+      ? fechaDocumento
+      : new Date(fechaDocumento),
+    programado_fecha: configExtra.programadoFecha || null,
+
+    // Detracción (copiada de la factura)
+    aplica_detraccion: !!factura.aplicaDetraccion,
+    detraccion_codigo: factura.detraccionCodigo || "",
+    detraccion_porcentaje:
+      factura.detraccionPorcentaje ?? 0,
+    detraccion_base: factura.detraccionBase ?? 0,
+    detraccion_monto: factura.detraccionMonto ?? 0,
+    detraccion_estado:
+      configExtra.detraccionEstadoDefault || "Pendiente",
+    detraccion_fecha_deposito: null,
+
+    notas: configExtra.notas || factura.notas || "",
+
+    creadoPor:
+      usuario.nombreCompleto ||
+      usuario.displayName ||
+      usuario.email ||
+      "",
+    creadoPorUid: usuario.uid || "",
+  };
+
+  const id = await crearTransaccionFinanciera({
+    ...payload,
+    igvCodigo,
+  });
+
+  return id;
 }

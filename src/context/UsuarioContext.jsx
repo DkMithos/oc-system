@@ -1,4 +1,4 @@
-// ✅ src/context/UsuarioContext.jsx
+//src/context/UsuarioContext.jsx
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -58,7 +58,8 @@ export const UsuarioProvider = ({ children }) => {
             await Notification.requestPermission();
           } catch {}
         }
-        await solicitarPermisoYObtenerToken(usuario.email);
+        const email = usuario.email.toLowerCase().trim();
+        await solicitarPermisoYObtenerToken(email);
       } catch {
         // No romper la UX si falla FCM
       }

@@ -173,8 +173,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <NavLink
                 to="/flujos-financieros"
                 className={({ isActive }) =>
-                  "block px-3 py-2 text-sm rounded " +
-                  (isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60")
+                  `${linkBase} ${isActive ? activeStyle : inactiveStyle}`
                 }
               >
                 Flujos financieros

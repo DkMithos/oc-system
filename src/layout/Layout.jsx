@@ -17,7 +17,7 @@ const Layout = () => {
     let unsubscribe = () => {};
 
     (async () => {
-      const token = await solicitarPermisoYObtenerToken(usuario.email);
+      const token = await solicitarPermisoYObtenerToken(usuario.email.toLowerCase().trim());
       if (token) {
         console.log("Token FCM listo para", usuario.email);
       } else {
@@ -32,7 +32,7 @@ const Layout = () => {
             payload?.notification?.title || payload?.data?.title || "Notificación";
           const body =
             payload?.notification?.body || payload?.data?.body || "";
-          alert(`🔔 Nueva notificación:\n${title}\n${body}`);
+          alert(`Nueva notificación:\n${title}\n${body}`);
         });
       } catch (e) {
         console.error("No se pudo suscribir a onMessage:", e);
@@ -49,7 +49,7 @@ const Layout = () => {
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
-    // ⬇️ min-h-screen (no h-screen) y SIN scroll interno: deja que el body scrollee
+    // ⬇min-h-screen (no h-screen) y SIN scroll interno: deja que el body scrollee
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Topbar toggleSidebar={toggleSidebar} />
 
@@ -65,7 +65,7 @@ const Layout = () => {
           />
         )}
 
-        {/* ⬇️ Contenido sin overflow-y-auto para que el footer quede al final real del documento */}
+        {/* ⬇Contenido sin overflow-y-auto para que el footer quede al final real del documento */}
         <div className="flex-1 p-4 z-10">
           <Outlet />
         </div>
