@@ -14,6 +14,15 @@ import {
 } from "../firebase/finanzasHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 
+const baseInputClass =
+  "bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm " +
+  "focus:outline-none focus:ring-1 focus:ring-[#004990] focus:border-[#004990] " +
+  "transition shadow-sm";
+const baseSelectClass =
+  "bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm " +
+  "focus:outline-none focus:ring-1 focus:ring-[#004990] focus:border-[#004990] " +
+  "transition shadow-sm appearance-none pr-7";
+
 const initialFilters = () => {
   const hoy = new Date();
   const hace30 = new Date();
@@ -45,9 +54,11 @@ const initialFormState = (usuario) => ({
   // Proveedor / cliente
   proveedor_cliente_id: "",
   proveedor_cliente_nombre: "",
+  proveedorSearch: "",
   // Centro de costo
   centro_costo_id: "",
   centro_costo_nombre: "",
+  centro_costo_search: "",
   // Proyecto
   proyecto_id: "",
   proyecto_nombre: "",
@@ -96,7 +107,7 @@ function FlujosFinancieros() {
   const [buscandoOc, setBuscandoOc] = useState(false);
   const [ocError, setOcError] = useState("");
 
-  // Cargar catálogos (IGV, categorías, subcategorías, formas, estados, tipos doc, proyectos)
+  // Cargar catálogos
   useEffect(() => {
     let activo = true;
     const cargar = async () => {
@@ -229,6 +240,9 @@ function FlujosFinancieros() {
       programado_fecha: t.programado_fechaISO || "",
       id: t.id,
       adjuntoFile: null,
+      proveedorSearch:
+        t.proveedor_cliente_nombre || t.proveedor_cliente_id || "",
+      centro_costo_search: t.centro_costo_nombre || "",
     });
     setOcError("");
     setMostrarModal(true);
@@ -236,10 +250,22 @@ function FlujosFinancieros() {
 
   const handleChangeForm = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+
+    setForm((prev) => {
+      // 🔗 Si cambia categoría, limpiamos subcategoría
+      if (name === "categoriaId") {
+        return {
+          ...prev,
+          categoriaId: value,
+          subcategoriaId: "",
+        };
+      }
+
+      return {
+        ...prev,
+        [name]: value,
+      };
+    });
   };
 
   const handleFileChange = (e) => {
@@ -256,26 +282,51 @@ function FlujosFinancieros() {
     setOcError("");
   };
 
-  // Proveedor (catálogo)
-  const handleProveedorChange = (e) => {
+  // Proveedor (input + datalist)
+  const handleProveedorInputChange = (e) => {
     const value = e.target.value;
-    const prov = proveedores.find((p) => p.ruc === value);
-    setForm((prev) => ({
-      ...prev,
-      proveedor_cliente_id: value || "",
-      proveedor_cliente_nombre: prov?.razonSocial || "",
-    }));
+    setForm((prev) => {
+      const match = proveedores.find((p) => {
+        const label = `${p.razonSocial} - ${p.ruc}`.trim();
+        return label === value || p.ruc === value;
+      });
+      if (match) {
+        return {
+          ...prev,
+          proveedorSearch: value,
+          proveedor_cliente_id: match.ruc,
+          proveedor_cliente_nombre: match.razonSocial,
+        };
+      }
+      return {
+        ...prev,
+        proveedorSearch: value,
+        proveedor_cliente_id: "",
+        proveedor_cliente_nombre: value || "",
+      };
+    });
   };
 
-  // Centro de costo (catálogo)
-  const handleCentroCostoChange = (e) => {
+  // Centro de costo (input + datalist)
+  const handleCentroCostoInputChange = (e) => {
     const value = e.target.value;
-    const cc = centrosCosto.find((c) => c.id === value);
-    setForm((prev) => ({
-      ...prev,
-      centro_costo_id: value || "",
-      centro_costo_nombre: cc?.nombre || "",
-    }));
+    setForm((prev) => {
+      const cc = centrosCosto.find((c) => c.nombre === value);
+      if (cc) {
+        return {
+          ...prev,
+          centro_costo_search: value,
+          centro_costo_id: cc.id,
+          centro_costo_nombre: cc.nombre,
+        };
+      }
+      return {
+        ...prev,
+        centro_costo_search: value,
+        centro_costo_id: "",
+        centro_costo_nombre: value || "",
+      };
+    });
   };
 
   // Proyecto (catálogo)
@@ -325,10 +376,16 @@ function FlujosFinancieros() {
         proveedor_cliente_id: oc.proveedorRuc || prev.proveedor_cliente_id,
         proveedor_cliente_nombre:
           oc.proveedorNombre || prev.proveedor_cliente_nombre,
+        proveedorSearch:
+          oc.proveedorNombre && oc.proveedorRuc
+            ? `${oc.proveedorNombre} - ${oc.proveedorRuc}`
+            : prev.proveedorSearch,
         // Centro de costo
         centro_costo_id: oc.centroCostoId || prev.centro_costo_id,
         centro_costo_nombre:
           oc.centroCostoNombre || prev.centro_costo_nombre,
+        centro_costo_search:
+          oc.centroCostoNombre || prev.centro_costo_search,
         // Proyecto
         proyecto_id: oc.proyectoId || prev.proyecto_id,
         proyecto_nombre: oc.proyectoNombre || prev.proyecto_nombre,
@@ -367,9 +424,11 @@ function FlujosFinancieros() {
         tipo: form.tipo,
         clasificacion: form.clasificacion,
         categoriaId: form.categoriaId || null,
-        categoriaNombre: cat?.nombre || "",
+        categoriaNombre:
+          cat?.nombre || cat?.descripcion || cat?.codigo || "",
         subcategoriaId: form.subcategoriaId || null,
-        subcategoriaNombre: sub?.nombre || "",
+        subcategoriaNombre:
+          sub?.nombre || sub?.descripcion || sub?.codigo || "",
         moneda: form.moneda,
         tc: form.tc ? Number(form.tc) : null,
         monto_sin_igv: form.monto_sin_igv
@@ -380,10 +439,11 @@ function FlujosFinancieros() {
         // Proveedor / cliente
         proveedor_cliente_id: form.proveedor_cliente_id || null,
         proveedor_cliente_nombre:
-          form.proveedor_cliente_nombre || "",
+          form.proveedor_cliente_nombre || form.proveedorSearch || "",
         // Centro de costo
         centro_costo_id: form.centro_costo_id || null,
-        centro_costo_nombre: form.centro_costo_nombre || "",
+        centro_costo_nombre:
+          form.centro_costo_nombre || form.centro_costo_search || "",
         // Proyecto
         proyecto_id: form.proyecto_id || null,
         proyecto_nombre: form.proyecto_nombre || "",
@@ -467,7 +527,7 @@ function FlujosFinancieros() {
               name="fechaDesde"
               value={filtros.fechaDesde}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={baseInputClass}
             />
           </div>
           <div className="flex flex-col">
@@ -477,56 +537,68 @@ function FlujosFinancieros() {
               name="fechaHasta"
               value={filtros.fechaHasta}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={baseInputClass}
             />
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-600 mb-1">Tipo</label>
-            <select
-              name="tipo"
-              value={filtros.tipo}
-              onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">Todos</option>
-              <option value={TIPO_TRANSACCION.INGRESO}>Ingresos</option>
-              <option value={TIPO_TRANSACCION.EGRESO}>Egresos</option>
-            </select>
+            <div className="relative">
+              <select
+                name="tipo"
+                value={filtros.tipo}
+                onChange={handleFiltroChange}
+                className={baseSelectClass}
+              >
+                <option value="">Todos</option>
+                <option value={TIPO_TRANSACCION.INGRESO}>Ingresos</option>
+                <option value={TIPO_TRANSACCION.EGRESO}>Egresos</option>
+              </select>
+              <ChevronDownIcon />
+            </div>
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-600 mb-1">Estado</label>
-            <select
-              name="estado"
-              value={filtros.estado}
-              onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">Todos</option>
-              {catalogos.estados.map((e) => (
-                <option key={e.id || e.nombre} value={e.nombre}>
-                  {e.nombre}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                name="estado"
+                value={filtros.estado}
+                onChange={handleFiltroChange}
+                className={baseSelectClass}
+              >
+                <option value="">Todos</option>
+                {catalogos.estados.map((e) => (
+                  <option
+                    key={e.id || e.nombre}
+                    value={e.nombre || e.descripcion}
+                  >
+                    {e.nombre || e.descripcion || e.codigo || e.id}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon />
+            </div>
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-600 mb-1">Categoría</label>
-            <select
-              name="categoriaId"
-              value={filtros.categoriaId}
-              onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">Todas</option>
-              {catalogos.categorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                name="categoriaId"
+                value={filtros.categoriaId}
+                onChange={handleFiltroChange}
+                className={baseSelectClass}
+              >
+                <option value="">Todas</option>
+                {catalogos.categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre || c.descripcion || c.codigo || c.id}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon />
+            </div>
           </div>
         </div>
 
@@ -534,14 +606,14 @@ function FlujosFinancieros() {
           <button
             type="button"
             onClick={handleBuscarClick}
-            className="inline-flex items-center px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white"
+            className="inline-flex items-center px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white shadow-sm"
           >
             {cargando ? "Buscando..." : "Aplicar filtros"}
           </button>
           <button
             type="button"
             onClick={handleLimpiarFiltros}
-            className="inline-flex items-center px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm font-medium text-gray-700 border border-gray-300"
+            className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm font-medium text-gray-700 border border-gray-300"
           >
             Limpiar
           </button>
@@ -563,7 +635,7 @@ function FlujosFinancieros() {
         <button
           type="button"
           onClick={handleNuevoClick}
-          className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
+          className="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
         >
           Nueva transacción
         </button>
@@ -589,10 +661,7 @@ function FlujosFinancieros() {
           <tbody>
             {transacciones.length === 0 && !cargando && (
               <tr>
-                <td
-                  colSpan={10}
-                  className="text-center text-gray-500 py-3"
-                >
+                <td colSpan={10} className="text-center text-gray-500 py-3">
                   No hay transacciones en el rango seleccionado.
                 </td>
               </tr>
@@ -607,13 +676,12 @@ function FlujosFinancieros() {
                 <Td>{t.tipo}</Td>
                 <Td>{t.moneda}</Td>
                 <Td className="text-right">
-                  {Number(t.monto_total_pen ?? t.monto_total ?? 0).toLocaleString(
-                    "es-PE",
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    },
-                  )}
+                  {Number(
+                    t.monto_total_pen ?? t.monto_total ?? 0,
+                  ).toLocaleString("es-PE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </Td>
                 <Td>{t.categoriaNombre}</Td>
                 <Td>{t.subcategoriaNombre}</Td>
@@ -652,45 +720,61 @@ function FlujosFinancieros() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Tipo</label>
-                <select
-                  name="tipo"
-                  value={form.tipo}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value={TIPO_TRANSACCION.INGRESO}>INGRESO</option>
-                  <option value={TIPO_TRANSACCION.EGRESO}>EGRESO</option>
-                </select>
+                <div className="relative">
+                  <select
+                    name="tipo"
+                    value={form.tipo}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value={TIPO_TRANSACCION.INGRESO}>INGRESO</option>
+                    <option value={TIPO_TRANSACCION.EGRESO}>EGRESO</option>
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
                   Clasificación
                 </label>
-                <select
-                  name="clasificacion"
-                  value={form.clasificacion}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value={CLASIFICACION_TRANSACCION.OPEX}>OPEX</option>
-                  <option value={CLASIFICACION_TRANSACCION.CAPEX}>CAPEX</option>
-                </select>
+                <div className="relative">
+                  <select
+                    name="clasificacion"
+                    value={form.clasificacion}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value={CLASIFICACION_TRANSACCION.OPEX}>
+                      OPEX
+                    </option>
+                    <option value={CLASIFICACION_TRANSACCION.CAPEX}>
+                      CAPEX
+                    </option>
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Estado</label>
-                <select
-                  name="estado"
-                  value={form.estado}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.estados.map((e) => (
-                    <option key={e.id || e.nombre} value={e.nombre}>
-                      {e.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="estado"
+                    value={form.estado}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Seleccione...</option>
+                    {catalogos.estados.map((e) => (
+                      <option
+                        key={e.id || e.nombre}
+                        value={e.nombre || e.descripcion}
+                      >
+                        {e.nombre || e.descripcion || e.codigo || e.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
             </div>
 
@@ -703,7 +787,7 @@ function FlujosFinancieros() {
                   name="fecha"
                   value={form.fecha}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                   required
                 />
               </div>
@@ -716,7 +800,7 @@ function FlujosFinancieros() {
                   name="programado_fecha"
                   value={form.programado_fecha}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                 />
               </div>
             </div>
@@ -725,43 +809,49 @@ function FlujosFinancieros() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Categoría</label>
-                <select
-                  name="categoriaId"
-                  value={form.categoriaId}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.categorias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="categoriaId"
+                    value={form.categoriaId}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Seleccione...</option>
+                    {catalogos.categorias.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre || c.descripcion || c.codigo || c.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
                   Subcategoría
                 </label>
-                <select
-                  name="subcategoriaId"
-                  value={form.subcategoriaId}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.subcategorias
-                    .filter(
-                      (s) =>
-                        !form.categoriaId ||
-                        s.categoriaId === form.categoriaId,
-                    )
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombre}
-                      </option>
-                    ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="subcategoriaId"
+                    value={form.subcategoriaId}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Seleccione...</option>
+                    {catalogos.subcategorias
+                      .filter(
+                        (s) =>
+                          !form.categoriaId ||
+                          s.categoriaId === form.categoriaId,
+                      )
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre || s.descripcion || s.codigo || s.id}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
             </div>
 
@@ -769,15 +859,18 @@ function FlujosFinancieros() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Moneda</label>
-                <select
-                  name="moneda"
-                  value={form.moneda}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="PEN">PEN</option>
-                  <option value="USD">USD</option>
-                </select>
+                <div className="relative">
+                  <select
+                    name="moneda"
+                    value={form.moneda}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="PEN">PEN</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
@@ -789,7 +882,7 @@ function FlujosFinancieros() {
                   name="tc"
                   value={form.tc}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                   placeholder="Opcional si PEN"
                 />
               </div>
@@ -803,7 +896,7 @@ function FlujosFinancieros() {
                   name="monto_sin_igv"
                   value={form.monto_sin_igv}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                   required
                 />
               </div>
@@ -815,37 +908,46 @@ function FlujosFinancieros() {
                 <label className="text-xs text-gray-600 mb-1">
                   Forma de pago
                 </label>
-                <select
-                  name="forma_pago"
-                  value={form.forma_pago}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.formasPago.map((f) => (
-                    <option key={f.id || f.nombre} value={f.nombre}>
-                      {f.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="forma_pago"
+                    value={form.forma_pago}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Seleccione...</option>
+                    {catalogos.formasPago.map((f) => (
+                      <option
+                        key={f.id || f.nombre}
+                        value={f.nombre || f.codigo}
+                      >
+                        {f.nombre || f.descripcion || f.codigo || f.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
                   Tipo de documento
                 </label>
-                <select
-                  name="documento_tipo"
-                  value={form.documento_tipo}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.tiposDocumento.map((td) => (
-                    <option key={td.id} value={td.nombre}>
-                      {td.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="documento_tipo"
+                    value={form.documento_tipo}
+                    onChange={handleChangeForm}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Seleccione...</option>
+                    {catalogos.tiposDocumento.map((td) => (
+                      <option key={td.id} value={td.nombre}>
+                        {td.nombre || td.descripcion || td.codigo || td.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">
@@ -856,7 +958,7 @@ function FlujosFinancieros() {
                   name="documento_numero"
                   value={form.documento_numero}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                   placeholder="F001-000123"
                 />
               </div>
@@ -869,22 +971,26 @@ function FlujosFinancieros() {
                 <label className="text-xs text-gray-600 mb-1">
                   Proveedor / Cliente
                 </label>
-                <select
-                  name="proveedor_cliente_id"
-                  value={form.proveedor_cliente_id}
-                  onChange={handleProveedorChange}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
+                <input
+                  type="text"
+                  name="proveedorSearch"
+                  list="proveedores-list"
+                  value={form.proveedorSearch}
+                  onChange={handleProveedorInputChange}
+                  className={baseInputClass}
+                  placeholder="Escriba razón social o RUC"
+                />
+                <datalist id="proveedores-list">
                   {proveedores.map((p) => (
-                    <option key={p.id} value={p.ruc}>
-                      {p.razonSocial} - {p.ruc}
-                    </option>
+                    <option
+                      key={p.id}
+                      value={`${p.razonSocial} - ${p.ruc}`}
+                    />
                   ))}
-                </select>
+                </datalist>
                 {form.proveedor_cliente_nombre && (
                   <span className="mt-0.5 text-[10px] text-gray-500">
-                    {form.proveedor_cliente_nombre}
+                    Seleccionado: {form.proveedor_cliente_nombre}
                   </span>
                 )}
               </div>
@@ -894,22 +1000,23 @@ function FlujosFinancieros() {
                 <label className="text-xs text-gray-600 mb-1">
                   Centro de costo
                 </label>
-                <select
-                  name="centro_costo_id"
-                  value={form.centro_costo_id}
-                  onChange={handleCentroCostoChange}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
+                <input
+                  type="text"
+                  name="centro_costo_search"
+                  list="centroscosto-list"
+                  value={form.centro_costo_search}
+                  onChange={handleCentroCostoInputChange}
+                  className={baseInputClass}
+                  placeholder="Escriba el nombre del CC"
+                />
+                <datalist id="centroscosto-list">
                   {centrosCosto.map((cc) => (
-                    <option key={cc.id} value={cc.id}>
-                      {cc.nombre}
-                    </option>
+                    <option key={cc.id} value={cc.nombre} />
                   ))}
-                </select>
+                </datalist>
                 {form.centro_costo_nombre && (
                   <span className="mt-0.5 text-[10px] text-gray-500">
-                    {form.centro_costo_nombre}
+                    Seleccionado: {form.centro_costo_nombre}
                   </span>
                 )}
               </div>
@@ -917,19 +1024,22 @@ function FlujosFinancieros() {
               {/* Proyecto */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Proyecto</label>
-                <select
-                  name="proyecto_id"
-                  value={form.proyecto_id}
-                  onChange={handleProyectoChange}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Sin proyecto</option>
-                  {catalogos.proyectos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    name="proyecto_id"
+                    value={form.proyecto_id}
+                    onChange={handleProyectoChange}
+                    className={baseSelectClass}
+                  >
+                    <option value="">Sin proyecto</option>
+                    {catalogos.proyectos.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre || p.descripcion || p.codigo || p.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
                 {form.proyecto_nombre && (
                   <span className="mt-0.5 text-[10px] text-gray-500">
                     {form.proyecto_nombre}
@@ -950,13 +1060,13 @@ function FlujosFinancieros() {
                     name="oc_numero"
                     value={form.oc_numero}
                     onChange={handleChangeForm}
-                    className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={baseInputClass + " flex-1"}
                     placeholder="MM-000123, etc."
                   />
                   <button
                     type="button"
                     onClick={handleBuscarOc}
-                    className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-gray-700"
+                    className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-gray-700"
                     disabled={buscandoOc}
                   >
                     {buscandoOc ? "Buscando..." : "Buscar"}
@@ -975,7 +1085,7 @@ function FlujosFinancieros() {
                   name="notas"
                   value={form.notas}
                   onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={baseInputClass}
                 />
               </div>
             </div>
@@ -997,14 +1107,14 @@ function FlujosFinancieros() {
               <button
                 type="button"
                 onClick={cerrarModal}
-                className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm text-gray-700 border border-gray-300"
+                className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm text-gray-700 border border-gray-300"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={guardando}
-                className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white disabled:opacity-60"
+                className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white disabled:opacity-60 shadow-sm"
               >
                 {guardando
                   ? "Guardando..."
@@ -1025,8 +1135,7 @@ function Th({ children, className = "" }) {
   return (
     <th
       className={
-        "px-2 py-2 text-left text-xs font-medium text-gray-600 " +
-        className
+        "px-2 py-2 text-left text-xs font-medium text-gray-600 " + className
       }
     >
       {children}
@@ -1084,6 +1193,15 @@ function Modal({ children, onClose }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// Ícono minimalista para los selects
+function ChevronDownIcon() {
+  return (
+    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-gray-400 text-xs">
+      ▼
+    </span>
   );
 }
 

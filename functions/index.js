@@ -1,4 +1,4 @@
-/**
+//functions/index.js
  * Cloud Functions para notificaciones FCM (Node 18, ESM)
  * - Triggers: onOCCreated / onOCUpdated / onSolicitudEdicionCreated / onSolicitudEdicionUpdated
  * - Callables: enviarNotificacionRol, enviarNotificacionTest

@@ -1,5 +1,4 @@
 // src/firebase/finanzasHelpers.js
-// Helper de Flujos Financieros – 100% parametrizable, sin IGV ni reglas hardcodeadas
 
 import {
   addDoc,
@@ -18,9 +17,6 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "./config";
 
-// ─────────────────────────────────────────────────────────────
-// Constantes de dominio (usadas en todo el sistema)
-// ─────────────────────────────────────────────────────────────
 
 export const TIPO_TRANSACCION = {
   INGRESO: "INGRESO",
@@ -38,19 +34,15 @@ const COL_IGV = "igvCodigosFinanzas";
 const COL_CATEGORIAS = "categoriasFinanzas";
 const COL_SUBCATEGORIAS = "subcategoriasFinanzas";
 const COL_FORMAS_PAGO = "formasPagoFinanzas";
-const COL_ESTADOS = "estadosFinanzas";
+const COL_ESTADOS = "estadosFinancieros";
 const COL_TIPOS_DOC = "tiposDocumentoFinanzas";
 const COL_PROYECTOS = "proyectos";
 const COL_DETRACCIONES = "detraccionesSunat";
 
-// Si luego quieres mover Proveedores/CC a otros helpers, basta con borrar estos usos.
 const COL_PROVEEDORES = "proveedores";
 const COL_CENTROS_COSTO = "centrosCosto";
 const COL_ORDENES_COMPRA = "ordenesCompra";
 
-// ─────────────────────────────────────────────────────────────
-// Helpers internos
-// ─────────────────────────────────────────────────────────────
 
 function mapDoc(d) {
   return { id: d.id, ...d.data() };
@@ -60,7 +52,6 @@ function normalizarFecha(value) {
   if (!value) return null;
   if (value instanceof Timestamp) return value;
   if (value instanceof Date) return Timestamp.fromDate(value);
-  // string "YYYY-MM-DD"
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return Timestamp.fromDate(d);
@@ -75,22 +66,16 @@ function fechaToISO(value) {
     return value.toISOString().slice(0, 10);
   }
   if (typeof value === "string") {
-    // Asumimos que viene como "YYYY-MM-DD" o ISO
     return value.slice(0, 10);
   }
   return "";
 }
 
-/**
- * Enriquecer una transacción leída de Firestore con campos derivados:
- * - fechaISO, programado_fechaISO
- * - monto_total_pen (según moneda y tc)
- */
+
 function enriquecerTransaccion(data, id) {
   const fechaISO = fechaToISO(data.fecha);
   const programado_fechaISO = fechaToISO(data.programado_fecha);
 
-  // Monto total en su moneda
   const montoTotal = Number(
     data.monto_total != null ? data.monto_total : data.monto_sin_igv || 0
   );
@@ -112,9 +97,7 @@ function enriquecerTransaccion(data, id) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
 // Catálogos financieros
-// ─────────────────────────────────────────────────────────────
 
 export async function obtenerIgvCodigos() {
   const snap = await getDocs(collection(db, COL_IGV));
@@ -149,13 +132,12 @@ export async function obtenerTiposDocumentoFinanzasActivos() {
     .sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
 
+// Hacemos la función más tolerante (no exige campo "estado")
 export async function obtenerProyectosActivos() {
-  const q = query(
-    collection(db, COL_PROYECTOS),
-    where("estado", "==", "Activo")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(mapDoc);
+  const snap = await getDocs(collection(db, COL_PROYECTOS));
+  return snap.docs
+    .map(mapDoc)
+    .filter((p) => p.activo !== false); // si no existe "activo", entra igual
 }
 
 /**
@@ -187,9 +169,7 @@ export async function obtenerCatalogosFinanzas() {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
 // Proveedores / Centros de costo / OCs (modo ligero)
-// ─────────────────────────────────────────────────────────────
 
 export async function obtenerProveedoresLigero() {
   const snap = await getDocs(collection(db, COL_PROVEEDORES));
@@ -212,16 +192,11 @@ export async function obtenerCentrosCostoLigero() {
 
 /**
  * Buscar OCs por número/correlativo (para autocompletar).
- * queryText: texto que ingresa el usuario, ej: "MM-0001"
  */
 export async function buscarOrdenesCompraPorNumero(queryText, maxResultados = 10) {
   if (!queryText) return [];
 
-  // Si ya tienes un campo "numero" o "correlativoOC", ajusta aquí:
   const colRef = collection(db, COL_ORDENES_COMPRA);
-
-  // Firestore no soporta "contains" directo; normalmente se soluciona con un campo auxiliar
-  // en minúsculas o un índice de búsqueda. Como base, hacemos una igualdad exacta:
   const qExact = query(colRef, where("numero", "==", queryText), limit(maxResultados));
   const snapExact = await getDocs(qExact);
 
@@ -247,9 +222,7 @@ export async function buscarOrdenesCompraPorNumero(queryText, maxResultados = 10
   return resultados;
 }
 
-// ─────────────────────────────────────────────────────────────
 // Detracciones SUNAT
-// ─────────────────────────────────────────────────────────────
 
 export async function buscarDetraccionPorCodigo(codigo) {
   if (!codigo) return null;
@@ -267,13 +240,8 @@ export async function buscarDetraccionPorCodigo(codigo) {
   return { id: d.id, ...d.data() };
 }
 
-// ─────────────────────────────────────────────────────────────
 // CRUD de transacciones financieras
-// ─────────────────────────────────────────────────────────────
 
-/**
- * Obtener código de IGV (desde catálogo) -> retorna doc o null
- */
 async function obtenerIgvPorCodigo(igvCodigo) {
   if (!igvCodigo) return null;
   const qIgv = query(
@@ -287,11 +255,6 @@ async function obtenerIgvPorCodigo(igvCodigo) {
   return { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-/**
- * Normaliza y calcula derivados:
- * - fecha, programado_fecha a Timestamp
- * - igv, monto_total según código IGV (si aplica)
- */
 async function prepararPayloadTransaccion(data) {
   const now = Timestamp.now();
 
@@ -302,7 +265,6 @@ async function prepararPayloadTransaccion(data) {
 
   const base = Number(data.monto_sin_igv || 0);
 
-  // IGV y totales: NADA hardcodeado, se usa catálogo si se pasa igvCodigo
   let igvMonto = data.igv != null ? Number(data.igv) : 0;
   let montoTotal = data.monto_total != null ? Number(data.monto_total) : 0;
   let igvTasa = data.igvTasa != null ? Number(data.igvTasa) : null;
@@ -315,7 +277,6 @@ async function prepararPayloadTransaccion(data) {
         igvMonto = +(base * igvTasa).toFixed(2);
         montoTotal = +(base + igvMonto).toFixed(2);
       } else {
-        // Si no hay catálogo, usamos lo que venga (si viene)
         igvMonto = Number(data.igv || 0);
         montoTotal = +(base + igvMonto).toFixed(2);
       }
@@ -332,7 +293,6 @@ async function prepararPayloadTransaccion(data) {
     payload.igvTasa = +igvTasa;
   }
 
-  // Monto en PEN (derivado - útil para KPIs)
   if (payload.moneda === "PEN" || !payload.moneda) {
     payload.monto_total_pen = payload.monto_total;
   } else {
@@ -344,17 +304,12 @@ async function prepararPayloadTransaccion(data) {
     }
   }
 
-  // Auditoría si no viene
   if (!payload.creadoEn) payload.creadoEn = now;
   payload.actualizadoEn = now;
 
   return payload;
 }
 
-/**
- * Crear transacción financiera
- * data: objeto que sigue el diccionario Transaccion (sin campos derivados)
- */
 export async function crearTransaccionFinanciera(data) {
   const payload = await prepararPayloadTransaccion(data);
   const colRef = collection(db, COL_TRANSACCIONES);
@@ -362,9 +317,6 @@ export async function crearTransaccionFinanciera(data) {
   return docRef.id;
 }
 
-/**
- * Actualizar una transacción financiera
- */
 export async function actualizarTransaccionFinanciera(id, dataParcial) {
   const ref = doc(db, COL_TRANSACCIONES, id);
   const snap = await getDoc(ref);
@@ -379,15 +331,6 @@ export async function actualizarTransaccionFinanciera(id, dataParcial) {
   await updateDoc(ref, payload);
 }
 
-/**
- * Obtener transacciones con filtros básicos
- * filtros:
- *  - fechaDesde, fechaHasta: "YYYY-MM-DD"
- *  - tipo: INGRESO/EGRESO
- *  - estado
- *  - categoriaId
- *  - centro_costo_id
- */
 export async function obtenerTransaccionesFinancieras(filtros = {}) {
   const {
     fechaDesde,
@@ -403,12 +346,10 @@ export async function obtenerTransaccionesFinancieras(filtros = {}) {
   const colRef = collection(db, COL_TRANSACCIONES);
   const condiciones = [];
 
-  // Fechas
   if (fechaDesde) {
     condiciones.push(where("fecha", ">=", normalizarFecha(fechaDesde)));
   }
   if (fechaHasta) {
-    // para incluir el día completo, sumamos 1 día a la "hasta"
     const dHasta = new Date(fechaHasta);
     dHasta.setDate(dHasta.getDate() + 1);
     condiciones.push(where("fecha", "<", normalizarFecha(dHasta)));
@@ -455,15 +396,8 @@ export async function obtenerTransaccionesFinancieras(filtros = {}) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
 // Adjuntos
-// ─────────────────────────────────────────────────────────────
 
-/**
- * Sube un archivo a Storage para una transacción financiera
- * y devuelve un objeto con la metadata básica:
- *  { url, nombre, tipo, size, creadoEn }
- */
 export async function subirAdjuntoFinanzas(file, transaccionId) {
   if (!file || !transaccionId) {
     throw new Error("Archivo o transacción inválidos para adjunto");
@@ -485,25 +419,8 @@ export async function subirAdjuntoFinanzas(file, transaccionId) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper: Crear transacción a partir de una factura (Pagos)
-// ─────────────────────────────────────────────────────────────
 
-/**
- * Crea una transacción financiera de tipo EGRESO a partir de una factura
- * ligada a una orden de compra.
- *
- * EXPECTATIVAS:
- *  - "orden" viene de ordenesCompra (con proveedor, centro costo, proyecto, moneda, etc.)
- *  - "factura" tiene:
- *      numero, fecha, moneda, montoSinIgv, montoIgv, montoTotal,
- *      aplicaDetraccion, detraccionCodigo, detraccionPorcentaje,
- *      detraccionBase, detraccionMonto, formaPago, tipoDocumento, etc.
- *  - "usuario" es el usuario logueado (uid, email, nombreCompleto)
- *
- * NO se hardcodea nada de negocio (ni 18%, ni 10%, etc.),
- * todo viene desde la factura o los catálogos (IGV, detracciones).
- */
 export async function crearTransaccionDesdeFactura({
   orden,
   factura,
@@ -598,16 +515,13 @@ export async function crearTransaccionDesdeFactura({
     oc_numero:
       orden.numero || orden.correlativo || orden.nroOC || "",
 
-    // Estado de la transacción
     estado: configExtra.estadoDefault || "Pagado",
 
-    // Fechas
     fecha: fechaDocumento instanceof Date
       ? fechaDocumento
       : new Date(fechaDocumento),
     programado_fecha: configExtra.programadoFecha || null,
 
-    // Detracción (copiada de la factura)
     aplica_detraccion: !!factura.aplicaDetraccion,
     detraccion_codigo: factura.detraccionCodigo || "",
     detraccion_porcentaje:
