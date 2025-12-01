@@ -42,6 +42,7 @@ const permisosPorRol = {
     "/pago",
     "/adminsoporte",
     "/flujos-financieros",
+    "/reportes",
   ],
 
   soporte: [

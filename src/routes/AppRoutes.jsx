@@ -2,7 +2,6 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 import RutaProtegida from "../components/RutaProtegida";
-
 import Home from "../pages/Home";
 import Historial from "../pages/Historial";
 import VerOC from "../pages/VerOC";
@@ -25,6 +24,7 @@ import Tickets from "../pages/Tickets";
 import AdminTickets from "../pages/AdminTickets";
 import MiFirma from "../pages/MiFirma";
 import FlujosFinancieros from "../pages/FlujosFinancieros";
+import Reporteria from "../pages/reportes/Reporteria";
 
 const AppRoutes = () => {
   return (
@@ -193,6 +193,14 @@ const AppRoutes = () => {
           element={
             <RutaProtegida rolesPermitidos={["admin", "gerencia", "operaciones"]}>
               <Indicadores />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            <RutaProtegida rolesPermitidos={["admin","gerencia","gerencia general","gerencia operaciones","gerencia finanzas","finanzas","operaciones"]}>
+              <Reporteria />
             </RutaProtegida>
           }
         />

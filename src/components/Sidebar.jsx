@@ -39,6 +39,7 @@ const grupos = [
     items: [
       { ruta: "/indicadores", texto: "Indicadores" },
       { ruta: "/resumen", texto: "Resumen General" },
+      { ruta: "/reportes", texto: "Reportería" },
     ],
   },
   {
