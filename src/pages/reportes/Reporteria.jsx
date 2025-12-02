@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from "react";
 import DashboardGeneral from "./DashboardGeneral";
 import DashboardCajaChica from "./DashboardCajaChica";
+import DashboardFinanzas from "./DashboardFinanzas";
+import DashboardCompras from "./DashboardCompras";
 import {
   obtenerCentrosCostoLigero,
   obtenerProveedoresLigero,
@@ -213,14 +215,25 @@ const Reporteria = () => {
             <DashboardCajaChica filtros={filtros} />
           )}
 
-          {dashboardActivo !== "general" && dashboardActivo !== "caja" && (
-            <div className="text-sm text-gray-500 py-10 text-center">
-              Aún no hemos implementado este dashboard.
-              <br />
-              Empezaremos por el <strong>Dashboard General</strong> y luego
-              iremos habilitando las demás pestañas.
-            </div>
+          {dashboardActivo === "finanzas" && (
+            <DashboardFinanzas filtros={filtros} />
           )}
+
+          {dashboardActivo === "compras" && (
+            <DashboardCompras filtros={filtros} />
+          )}
+
+          {dashboardActivo !== "general" &&
+            dashboardActivo !== "caja" &&
+            dashboardActivo !== "finanzas" &&
+            dashboardActivo !== "compras" && (
+              <div className="text-sm text-gray-500 py-10 text-center">
+                Aún no hemos implementado este dashboard.
+                <br />
+                Empezaremos por el <strong>Dashboard General</strong> y luego
+                iremos habilitando las demás pestañas.
+              </div>
+            )}
         </div>
       </div>
     </div>

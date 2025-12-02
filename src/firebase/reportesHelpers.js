@@ -6,6 +6,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { obtenerTransaccionesFinancieras } from "./finanzasHelpers";
 
 /* ───────── Helpers fechas ───────── */
 
@@ -618,5 +619,474 @@ export async function obtenerIndicadoresCajaChica(filtros = {}) {
     rankingCentrosCosto,
     egresosMensuales,
     ultimosMovs: ultimosMovs20,
+  };
+}
+
+// ──────────────────────────────────────────────
+// Dashboard Finanzas (Flujos Financieros)
+// ──────────────────────────────────────────────
+
+/**
+ * Indicadores de Finanzas (Flujos Financieros).
+ *
+ * Reutiliza obtenerTransaccionesFinancieras() que ya usas en FlujosFinancieros.jsx
+ * Campos usados de cada transacción:
+ *  - tipo: "INGRESO" | "EGRESO"
+ *  - clasificacion: "OPEX" | "CAPEX"
+ *  - moneda: "PEN" | "USD"
+ *  - monto_total_pen (preferente) o monto_total
+ *  - fechaISO (string "YYYY-MM-DD") o fecha (Date/Timestamp)
+ *  - categoriaNombre, subcategoriaNombre
+ *  - centro_costo_nombre
+ *  - forma_pago
+ *  - estado
+ *  - documento_tipo, documento_numero
+ *  - oc_numero
+ */
+export async function obtenerIndicadoresFinanzas(filtros = {}) {
+  const {
+    fechaDesde,
+    fechaHasta,
+    centro_costo_id = "",
+    categoriaId = "",
+    tipo = "",          // "INGRESO" | "EGRESO" (opcional)
+    clasificacion = "", // "OPEX" | "CAPEX" (opcional)
+  } = filtros;
+
+  // Reutilizamos tu helper: ya aplica filtros de fechas, tipo, estado, categoría, centro de costo, etc.
+  const { transacciones = [] } = await obtenerTransaccionesFinancieras({
+    fechaDesde: fechaDesde || null,
+    fechaHasta: fechaHasta || null,
+    tipo: tipo || null,
+    estado: null,
+    categoriaId: categoriaId || null,
+    centro_costo_id: centro_costo_id || null,
+  });
+
+  let ingresosPen = 0;
+  let egresosPen = 0;
+  let ingresosUsd = 0;
+  let egresosUsd = 0;
+
+  let capexPen = 0;
+  let opexPen = 0;
+  let capexUsd = 0;
+  let opexUsd = 0;
+
+  const porMesPen = new Map(); // key "YYYY-MM" → { ingresos, egresos, neto }
+  const porMesUsd = new Map();
+
+  const porCategoriaMap = new Map();     // categoriaNombre → { pen, usd }
+  const porCentroCostoMap = new Map();   // centro_costo_nombre → { pen, usd }
+  const porFormaPagoMap = new Map();     // forma_pago → { pen, usd }
+
+  const ultimas = [];
+
+  for (const t of transacciones) {
+    const tipoTx = String(t.tipo || "").toUpperCase();
+    const clasif = String(t.clasificacion || "").toUpperCase();
+    const moneda = (t.moneda || "PEN").toUpperCase();
+
+    // Monto base: priorizamos monto_total_pen, luego monto_total, luego monto_sin_igv
+    const montoBase =
+      Number(
+        t.monto_total_pen ??
+          t.monto_total ??
+          t.monto_sin_igv ??
+          0
+      ) || 0;
+    if (!montoBase) continue;
+
+    // Fecha para agrupación mensual
+    let fecha = null;
+    if (typeof t.fechaISO === "string" && t.fechaISO.length >= 10) {
+      fecha = new Date(t.fechaISO + "T00:00:00");
+    } else if (t.fecha?.toDate) {
+      fecha = t.fecha.toDate();
+    } else if (t.fecha instanceof Date) {
+      fecha = t.fecha;
+    }
+
+    let fechaISO = "";
+    let mesKey = "";
+
+    if (fecha && !isNaN(fecha.getTime())) {
+      fechaISO = fecha.toISOString().slice(0, 10);
+      const y = fecha.getFullYear();
+      const m = fecha.getMonth() + 1;
+      mesKey = `${y}-${String(m).padStart(2, "0")}`;
+    }
+
+    // Acumuladores PEN / USD
+    const signo = tipoTx === "INGRESO" ? 1 : -1;
+    if (moneda === "USD") {
+      if (tipoTx === "INGRESO") ingresosUsd += montoBase;
+      if (tipoTx === "EGRESO") egresosUsd += montoBase;
+    } else {
+      if (tipoTx === "INGRESO") ingresosPen += montoBase;
+      if (tipoTx === "EGRESO") egresosPen += montoBase;
+    }
+
+    // CAPEX / OPEX por moneda
+    if (clasif === "CAPEX") {
+      if (moneda === "USD") capexUsd += montoBase * signo;
+      else capexPen += montoBase * signo;
+    } else if (clasif === "OPEX") {
+      if (moneda === "USD") opexUsd += montoBase * signo;
+      else opexPen += montoBase * signo;
+    }
+
+    // Flujo mensual PEN / USD
+    if (mesKey) {
+      if (moneda === "USD") {
+        const entry = porMesUsd.get(mesKey) || {
+          key: mesKey,
+          ingresos: 0,
+          egresos: 0,
+        };
+        if (tipoTx === "INGRESO") entry.ingresos += montoBase;
+        if (tipoTx === "EGRESO") entry.egresos += montoBase;
+        porMesUsd.set(mesKey, entry);
+      } else {
+        const entry = porMesPen.get(mesKey) || {
+          key: mesKey,
+          ingresos: 0,
+          egresos: 0,
+        };
+        if (tipoTx === "INGRESO") entry.ingresos += montoBase;
+        if (tipoTx === "EGRESO") entry.egresos += montoBase;
+        porMesPen.set(mesKey, entry);
+      }
+    }
+
+    // Categoría
+    const catNombre =
+      (t.categoriaNombre && String(t.categoriaNombre).trim()) ||
+      "Sin categoría";
+    const catEntry = porCategoriaMap.get(catNombre) || {
+      categoria: catNombre,
+      pen: 0,
+      usd: 0,
+    };
+    if (moneda === "USD") {
+      catEntry.usd += montoBase * signo;
+    } else {
+      catEntry.pen += montoBase * signo;
+    }
+    porCategoriaMap.set(catNombre, catEntry);
+
+    // Centro de costo
+    const ccNombre =
+      (t.centro_costo_nombre &&
+        String(t.centro_costo_nombre).trim()) ||
+      (t.centroCostoNombre &&
+        String(t.centroCostoNombre).trim()) ||
+      "Sin centro de costo";
+    const ccEntry = porCentroCostoMap.get(ccNombre) || {
+      centroCosto: ccNombre,
+      pen: 0,
+      usd: 0,
+    };
+    if (moneda === "USD") {
+      ccEntry.usd += montoBase * signo;
+    } else {
+      ccEntry.pen += montoBase * signo;
+    }
+    porCentroCostoMap.set(ccNombre, ccEntry);
+
+    // Forma de pago
+    const formaPago =
+      (t.forma_pago && String(t.forma_pago).trim()) ||
+      "Sin forma de pago";
+    const fpEntry = porFormaPagoMap.get(formaPago) || {
+      formaPago,
+      pen: 0,
+      usd: 0,
+    };
+    if (moneda === "USD") {
+      fpEntry.usd += montoBase * signo;
+    } else {
+      fpEntry.pen += montoBase * signo;
+    }
+    porFormaPagoMap.set(formaPago, fpEntry);
+
+    // Fila normalizada para "últimas"
+    ultimas.push({
+      id: t.id,
+      fechaISO,
+      tipo: tipoTx,
+      clasificacion: clasif,
+      moneda,
+      monto: montoBase * signo,
+      categoria: catNombre,
+      centroCosto: ccNombre,
+      formaPago,
+      estado: t.estado || "",
+      documento: t.documento_tipo
+        ? `${t.documento_tipo} ${t.documento_numero || ""}`.trim()
+        : t.documento_numero || "",
+      ocNumero: t.oc_numero || t.ordenNumero || "",
+      notas: t.notas || "",
+    });
+  }
+
+  const netoPen = ingresosPen - egresosPen;
+  const netoUsd = ingresosUsd - egresosUsd;
+
+  // Ordenar mensuales
+  const flujoMensualPen = Array.from(porMesPen.values())
+    .map((m) => {
+      const [year, month] = m.key.split("-");
+      const neto = m.ingresos - m.egresos;
+      return {
+        ...m,
+        anio: Number(year),
+        mes: Number(month),
+        label: `${month}/${year}`,
+        neto,
+      };
+    })
+    .sort((a, b) =>
+      a.anio === b.anio ? a.mes - b.mes : a.anio - b.anio
+    );
+
+  const flujoMensualUsd = Array.from(porMesUsd.values())
+    .map((m) => {
+      const [year, month] = m.key.split("-");
+      const neto = m.ingresos - m.egresos;
+      return {
+        ...m,
+        anio: Number(year),
+        mes: Number(month),
+        label: `${month}/${year}`,
+        neto,
+      };
+    })
+    .sort((a, b) =>
+      a.anio === b.anio ? a.mes - b.mes : a.anio - b.anio
+    );
+
+  const porCategoria = Array.from(porCategoriaMap.values()).map((c) => ({
+    ...c,
+    netoGlobal: c.pen + c.usd, // referencia sin TC
+  }));
+
+  const rankingCategorias = [...porCategoria]
+    .sort((a, b) => Math.abs(b.netoGlobal) - Math.abs(a.netoGlobal))
+    .slice(0, 10);
+
+  const porCentroCosto = Array.from(porCentroCostoMap.values()).map((c) => ({
+    ...c,
+    netoGlobal: c.pen + c.usd,
+  }));
+
+  const rankingCentrosCosto = [...porCentroCosto]
+    .sort((a, b) => Math.abs(b.netoGlobal) - Math.abs(a.netoGlobal))
+    .slice(0, 10);
+
+  const porFormaPago = Array.from(porFormaPagoMap.values()).map((f) => ({
+    ...f,
+    netoGlobal: f.pen + f.usd,
+  }));
+
+  // Últimas transacciones: ordenar por fecha desc
+  ultimas.sort((a, b) => (b.fechaISO || "").localeCompare(a.fechaISO || ""));
+  const ultimas20 = ultimas.slice(0, 20);
+
+  const resumenFinanzas = {
+    ingresosPen,
+    egresosPen,
+    netoPen,
+    ingresosUsd,
+    egresosUsd,
+    netoUsd,
+    capexPen,
+    opexPen,
+    capexUsd,
+    opexUsd,
+    totalTransacciones: transacciones.length,
+  };
+
+  return {
+    resumenFinanzas,
+    flujoMensualPen,
+    flujoMensualUsd,
+    rankingCategorias,
+    rankingCentrosCosto,
+    porFormaPago,
+    ultimas: ultimas20,
+  };
+}
+
+
+// ──────────────────────────────────────────────
+// Dashboard Compras
+// ──────────────────────────────────────────────
+
+export async function obtenerIndicadoresCompras(filtros = {}) {
+  const {
+    fechaDesde,
+    fechaHasta,
+    centro_costo_id = "",
+    proveedor_ruc = "",
+    tipo_oc = "", // compra | servicio | interna
+  } = filtros;
+
+  const desde = fechaDesde ? new Date(fechaDesde + "T00:00:00") : null;
+  const hasta = fechaHasta ? new Date(fechaHasta + "T23:59:59") : null;
+
+  let q = query(collection(db, "ordenesCompra"));
+
+  // fechas
+  if (desde) q = query(q, where("creadaEn", ">=", desde));
+  if (hasta) q = query(q, where("creadaEn", "<=", hasta));
+
+  // filtros opcionales
+  if (centro_costo_id) q = query(q, where("centroCostoId", "==", centro_costo_id));
+  if (proveedor_ruc) q = query(q, where("proveedorRuc", "==", proveedor_ruc));
+  if (tipo_oc) q = query(q, where("tipoOC", "==", tipo_oc));
+
+  const snap = await getDocs(q);
+
+  // Acumuladores
+  let compraPen = 0, compraUsd = 0;
+  let servicioPen = 0, servicioUsd = 0;
+  let internaPen = 0, internaUsd = 0;
+
+  let totalPen = 0, totalUsd = 0;
+
+  const porEstado = new Map();
+  const porTipo = new Map();
+  const porMes = new Map();
+  const rankingProv = new Map();
+  const rankingCC = new Map();
+  const ultimas = [];
+
+  snap.forEach((docSnap) => {
+    const d = docSnap.data();
+    const id = docSnap.id;
+
+    const tipo = (d.tipoOC || "compra").toLowerCase();
+    const moneda = (d.moneda || "PEN").toUpperCase();
+    const estado = d.estado || "Sin estado";
+
+    const monto =
+      Number(
+        d.montoTotalConIGV ??
+        d.totalConIGV ??
+        d.montoTotal ??
+        d.monto ??
+        0
+      ) || 0;
+
+    // Acumulador moneda/tipo
+    if (tipo === "compra") {
+      if (moneda === "USD") compraUsd += monto;
+      else compraPen += monto;
+    } else if (tipo === "servicio") {
+      if (moneda === "USD") servicioUsd += monto;
+      else servicioPen += monto;
+    } else if (tipo === "interna") {
+      if (moneda === "USD") internaUsd += monto;
+      else internaPen += monto;
+    }
+
+    // Totales por moneda
+    if (moneda === "USD") totalUsd += monto;
+    else totalPen += monto;
+
+    // Estados
+    porEstado.set(estado, (porEstado.get(estado) || 0) + 1);
+
+    // Tipos
+    porTipo.set(tipo, (porTipo.get(tipo) || 0) + monto);
+
+    // Ranking proveedor
+    const prov = normalizarProveedorNombre(d);
+    rankingProv.set(prov, (rankingProv.get(prov) || 0) + monto);
+
+    // Ranking centro costo
+    const cc = normalizarCentroCostoNombre(d);
+    rankingCC.set(cc, (rankingCC.get(cc) || 0) + monto);
+
+    // Fecha
+    const fecha = normalizarFechaOC(d);
+    let fechaISO = "";
+    let keyMes = "";
+    if (fecha) {
+      fechaISO = fecha.toISOString().slice(0, 10);
+      const y = fecha.getFullYear();
+      const m = fecha.getMonth() + 1;
+      keyMes = `${y}-${String(m).padStart(2, "0")}`;
+      porMes.set(keyMes, (porMes.get(keyMes) || 0) + monto);
+    }
+
+    // Últimas
+    ultimas.push({
+      id,
+      numeroOC: d.numeroOC || d.correlativo || d.codigo || id,
+      fechaISO,
+      proveedor: prov,
+      centroCosto: cc,
+      tipo,
+      moneda,
+      estado,
+      total: monto,
+    });
+  });
+
+  // Ordenar últimas
+  ultimas.sort((a, b) => (b.fechaISO || "").localeCompare(a.fechaISO || ""));
+  const ultimas20 = ultimas.slice(0, 20);
+
+  // Maps → arrays
+  const rankingProveedores = Array.from(rankingProv.entries())
+    .map(([nombre, total]) => ({ nombre, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  const rankingCentrosCosto = Array.from(rankingCC.entries())
+    .map(([nombre, total]) => ({ nombre, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  const comprasMensuales = Array.from(porMes.entries())
+    .map(([key, total]) => {
+      const [y, m] = key.split("-");
+      return {
+        key,
+        anio: Number(y),
+        mes: Number(m),
+        label: `${m}/${y}`,
+        total,
+      };
+    })
+    .sort((a, b) =>
+      a.anio === b.anio ? a.mes - b.mes : a.anio - b.anio
+    );
+
+  return {
+    totales: {
+      compraPen,
+      compraUsd,
+      servicioPen,
+      servicioUsd,
+      internaPen,
+      internaUsd,
+      totalPen,
+      totalUsd,
+    },
+    porEstado: Array.from(porEstado.entries()).map(([estado, cantidad]) => ({
+      estado,
+      cantidad,
+    })),
+    porTipo: Array.from(porTipo.entries()).map(([tipo, total]) => ({
+      tipo,
+      total,
+    })),
+    comprasMensuales,
+    rankingProveedores,
+    rankingCentrosCosto,
+    ultimas: ultimas20,
   };
 }
