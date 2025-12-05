@@ -25,6 +25,7 @@ import AdminTickets from "../pages/AdminTickets";
 import MiFirma from "../pages/MiFirma";
 import FlujosFinancieros from "../pages/FlujosFinancieros";
 import Reporteria from "../pages/reportes/Reporteria";
+import CentroExportaciones from "../pages/reportes/CentroExportaciones";
 
 const AppRoutes = () => {
   return (
@@ -95,6 +96,24 @@ const AppRoutes = () => {
               ]}
             >
               <FlujosFinancieros />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="/exportaciones"
+          element={
+            <RutaProtegida rolesPermitidos={[
+              "admin",
+              "soporte",
+              "finanzas",
+              "gerencia finanzas",
+              "gerencia",
+              "gerencia general",
+              "gerencia operaciones",
+              "comprador",
+              "operaciones",
+            ]}>
+              <CentroExportaciones />
             </RutaProtegida>
           }
         />

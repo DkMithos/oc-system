@@ -40,6 +40,7 @@ const grupos = [
       { ruta: "/indicadores", texto: "Indicadores" },
       { ruta: "/resumen", texto: "Resumen General" },
       { ruta: "/reportes", texto: "Reportería" },
+      { ruta: "/exportaciones", texto: "Centro de Exportaciones" },
     ],
   },
   {

@@ -43,6 +43,7 @@ const permisosPorRol = {
     "/adminsoporte",
     "/flujos-financieros",
     "/reportes",
+    "/exportaciones",
   ],
 
   soporte: [
@@ -83,6 +84,8 @@ const permisosPorRol = {
     "/requerimientos",
     "/caja",
     "/flujos-financieros",
+    "/reportes",
+    "/exportaciones",
   ],
 
   // Gerencia de Operaciones y Proyectos
