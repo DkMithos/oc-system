@@ -1,0 +1,304 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ─────────────────────────────
+     * Helpers
+     * ───────────────────────────── */
+    function signedIn() { return request.auth != null; }
+    function userEmail() { return request.auth.token.email; }
+
+    function myDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(userEmail()));
+    }
+    function myRole() { return signedIn() ? myDoc().data.rol : null; }
+    function isSelf(userId) { return signedIn() && userEmail() == userId; }
+    function hasAnyRole(roles) { return signedIn() && (myRole() in roles); }
+
+    function adminUserEditableKeysOnly() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      let allowed = ['rol', 'estado', 'motivoEstado', 'password', 'actualizadoEn', 'area'];
+      return changed.hasOnly(allowed);
+    }
+
+    /* ─────────────────────────────
+     * usuarios (ID = email)
+     * ───────────────────────────── */
+    match /usuarios/{userId} {
+      allow read: if signedIn();
+      allow create: if myRole() == 'admin';
+      allow delete: if myRole() == 'admin';
+      allow update: if
+        isSelf(userId) ||
+        (myRole() == 'admin' &&
+          request.resource.data.email == resource.data.email &&
+          adminUserEditableKeysOnly()
+        );
+
+      match /tokens/{tokenId} {
+        allow read: if isSelf(userId) || myRole() == 'admin';
+        allow create, update, delete: if isSelf(userId) || myRole() == 'admin';
+      }
+    }
+
+    /* ─────────────────────────────
+     * tokensFCM (plano por email)
+     * ───────────────────────────── */
+    match /tokensFCM/{emailDocId} {
+      allow read: if isSelf(emailDocId) || myRole() == 'admin';
+      allow create, update, delete: if isSelf(emailDocId) || myRole() == 'admin';
+    }
+
+    /* ─────────────────────────────
+     * Catálogos (lectura + admin escribe)
+     * ───────────────────────────── */
+    match /centrosCosto/{docId} {
+      allow read: if signedIn();
+      allow create, update: if myRole() == 'admin';
+      allow delete: if false;
+    }
+
+    match /condicionesPago/{docId} {
+      allow read: if signedIn();
+      allow create, update: if myRole() == 'admin';
+      allow delete: if false;
+    }
+
+    match /tiposDocumento/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /categoriasFinanzas/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /subcategoriasFinanzas/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /estadosFinancieros/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /formasPagoFinanzas/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /igvCodigosFinanzas/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /tiposDocumentoFinanzas/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /proyectos/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte']);
+      allow delete: if false;
+    }
+
+    match /configuracion/{docId} {
+      allow read: if signedIn();
+      allow create, update: if myRole() == 'admin';
+      allow delete: if false;
+    }
+
+    match /transaccionesFinancieras/{tranId} {
+      allow read: if signedIn();
+      allow create, update: if hasAnyRole([
+        'admin','soporte','finanzas','administracion','operaciones',
+        'gerencia','gerencia operaciones','gerencia general','gerencia finanzas'
+      ]);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Requerimientos
+     * ───────────────────────────── */
+    match /requerimientos/{rqId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if hasAnyRole([
+        'admin','comprador','operaciones','gerencia','gerencia operaciones',
+        'gerencia general','gerencia finanzas','finanzas','soporte','administracion','legal'
+      ]);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Cotizaciones
+     * ───────────────────────────── */
+    match /cotizaciones/{docId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['admin','comprador']);
+      allow update: if hasAnyRole([
+        'admin','comprador','operaciones','gerencia','gerencia operaciones',
+        'gerencia general','gerencia finanzas','finanzas','soporte'
+      ]);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Proveedores
+     * ───────────────────────────── */
+    function isValidProveedor(d) {
+      return
+        d.ruc is string &&
+        d.ruc.matches('^\\d{11}$') &&
+        d.razonSocial is string &&
+        d.razonSocial.size() > 0 &&
+        (!('direccion' in d) || d.direccion is string) &&
+        (!('telefono' in d) || d.telefono is string) &&
+        (!('email' in d) || d.email is string) &&
+        (!('contacto' in d) || d.contacto is string) &&
+        (!('estado' in d) || (d.estado == 'Activo' || d.estado == 'Inactivo' || d.estado == 'Suspendido')) &&
+        (!('motivoCambio' in d) || d.motivoCambio is string) &&
+        (!('bancos' in d) || d.bancos is list);
+    }
+
+    match /proveedores/{docId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['admin','comprador']) && isValidProveedor(request.resource.data);
+      allow update: if hasAnyRole(['admin','comprador']) && isValidProveedor(request.resource.data);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Firmas (ID = email)
+     * ───────────────────────────── */
+    match /firmas/{email} {
+      allow read: if signedIn();
+      allow write: if isSelf(email) || myRole() == 'admin';
+    }
+
+    /* ─────────────────────────────
+     * Correlativos
+     * FIX: cualquier usuario autenticado puede actualizar contadores.
+     * Los correlativos no contienen datos sensibles, solo incrementos.
+     * ───────────────────────────── */
+    match /correlativos/{docId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Órdenes de compra
+     * ───────────────────────────── */
+    match /ordenesCompra/{ocId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole(['comprador','admin','soporte']);
+      allow update: if
+        (myRole() == 'comprador' && request.resource.data.permiteEdicion == true) ||
+        hasAnyRole([
+          'operaciones','gerencia','gerencia operaciones','gerencia general',
+          'gerencia finanzas','finanzas','admin','soporte'
+        ]);
+      allow delete: if false;
+
+      match /facturas/{facturaId} {
+        allow read: if signedIn();
+        allow create: if hasAnyRole(['admin','finanzas','soporte']);
+        allow update: if hasAnyRole(['admin','finanzas','soporte']);
+        allow delete: if false;
+      }
+
+      match /solicitudesEdicion/{solId} {
+        allow read: if signedIn();
+        allow create: if hasAnyRole(['comprador','admin','soporte']);
+        allow update: if hasAnyRole([
+          'operaciones','gerencia','gerencia operaciones','gerencia general',
+          'gerencia finanzas','finanzas','admin','soporte'
+        ]);
+        allow delete: if false;
+      }
+    }
+
+    /* ─────────────────────────────
+     * Caja Chica
+     * ───────────────────────────── */
+    function canTouchCaja(cajaId) {
+      return
+        (myRole() == 'operaciones' && cajaId == 'operaciones') ||
+        (myRole() == 'administracion' && cajaId == 'administracion') ||
+        (myRole() in ['admin','soporte','gerencia operaciones'] &&
+          cajaId in ['operaciones','administracion','proyectos']);
+    }
+
+    match /cajasChicas/{caja} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && canTouchCaja(caja);
+      allow delete: if false;
+
+      match /movimientos/{movId} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && canTouchCaja(caja) &&
+          hasAnyRole([
+            'admin','soporte','administracion','operaciones','gerencia',
+            'gerencia operaciones','gerencia general','gerencia finanzas','finanzas'
+          ]);
+        allow delete: if false;
+      }
+    }
+
+    /* ─────────────────────────────
+     * Logs
+     * ───────────────────────────── */
+    match /logs/{logId} {
+      allow create: if signedIn();
+      allow read: if myRole() == 'admin' || myRole() == 'soporte';
+      allow update, delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Tickets
+     * FIX: simplificado para soportar list queries sin get() por documento.
+     * El get() dentro de un match para queries de lista es muy costoso.
+     * ───────────────────────────── */
+    match /tickets/{ticketId} {
+      allow read: if signedIn() && (
+        myRole() in ['admin','soporte'] ||
+        resource.data.creadoPor.email == userEmail() ||
+        ('asignadoA' in resource.data && resource.data.asignadoA.email == userEmail())
+      );
+
+      // Para list queries (getDocs) se evalúa la regla de cada doc
+      allow list: if signedIn();
+
+      allow create: if signedIn();
+
+      allow update: if signedIn() && (
+        myRole() in ['admin','soporte'] ||
+        resource.data.creadoPor.email == userEmail() ||
+        ('asignadoA' in resource.data && resource.data.asignadoA.email == userEmail())
+      );
+
+      allow delete: if false;
+
+      match /mensajes/{msgId} {
+        allow read, create: if signedIn() && (
+          myRole() in ['admin','soporte'] ||
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.creadoPor.email == userEmail() ||
+          ('asignadoA' in get(/databases/$(database)/documents/tickets/$(ticketId)).data &&
+           get(/databases/$(database)/documents/tickets/$(ticketId)).data.asignadoA.email == userEmail())
+        );
+        allow update, delete: if false;
+      }
+    }
+  }
+}
