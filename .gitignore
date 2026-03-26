@@ -48,3 +48,11 @@ yarn.lock
 *.cache
 *.tmp
 *.bak
+
+
+# Claude
+.claude/
+
+#Credenciales
+credentials.json
+**/credentials.json
