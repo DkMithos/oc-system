@@ -14,6 +14,7 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
+import { etapasRequeridas, siguienteEstado } from "../utils/aprobaciones";
 
 /** =========================
  *  Constantes de colecciones
@@ -139,11 +140,16 @@ export const guardarOrden = async (ordenData) => {
     const numero = `MM-${String(siguiente).padStart(6, "0")}`;
 
     const ref = doc(collection(db, OC_COLLECTION));
+    const montoTotal = Number(ordenData?.resumen?.total || ordenData?.total || 0);
+    const etapas = etapasRequeridas(montoTotal);
+    const estadoInicial = etapas[0] || "Pendiente de Operaciones";
+
     tx.set(ref, {
       ...ordenData,
       numero,
-      // 👇 Al inicio pasa a Operaciones (coincide con cadena de firmas)
-      estado: "Pendiente de Operaciones",
+      estado: estadoInicial,
+      etapasAprobacion: etapas,
+      historialAprobaciones: [],
       firmas: {
         comprador: null,
         operaciones: null,
@@ -318,6 +324,92 @@ export const resolverSolicitudEdicion = async (
       : "orden_solicitud_edicion_rechazada",
     ocId: ordenId,
     usuario: aprobador,
+  });
+};
+
+/** =========================
+ *  FLUJO DE APROBACIÓN DE ÓRDENES
+ * ========================= */
+
+/**
+ * Aprueba una OC en su etapa actual y avanza al siguiente estado según el monto.
+ * Guarda historial de aprobaciones.
+ * @param {string} ordenId
+ * @param {string} aprobador - email del aprobador
+ * @param {string} rolAprobador
+ * @param {string} [comentario]
+ */
+export const aprobarOC = async (ordenId, aprobador, rolAprobador, comentario = "") => {
+  const ref = doc(db, OC_COLLECTION, ordenId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Orden no encontrada");
+
+  const orden = snap.data();
+  const estadoActual = orden.estado;
+  const montoTotal = Number(orden?.resumen?.total || orden?.total || 0);
+  const nuevoEstado = siguienteEstado(estadoActual, montoTotal);
+
+  const entrada = {
+    estado: estadoActual,
+    aprobadoPor: aprobador,
+    rol: rolAprobador,
+    comentario,
+    fecha: new Date().toISOString(),
+    accion: "aprobado",
+  };
+
+  await updateDoc(ref, {
+    estado: nuevoEstado,
+    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+    actualizadoEn: new Date().toISOString(),
+    [`firmas.${rolAprobador.replace(/ /g, "")}`]: aprobador,
+  });
+
+  await registrarLog({
+    accion: "orden_aprobada",
+    ocId: ordenId,
+    usuario: aprobador,
+    rol: rolAprobador,
+    estadoAnterior: estadoActual,
+    estadoNuevo: nuevoEstado,
+    comentario,
+  });
+
+  return nuevoEstado;
+};
+
+/**
+ * Rechaza una OC en su etapa actual.
+ */
+export const rechazarOC = async (ordenId, rechazadoPor, rolRechazador, motivo = "") => {
+  const ref = doc(db, OC_COLLECTION, ordenId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Orden no encontrada");
+
+  const orden = snap.data();
+  const estadoActual = orden.estado;
+  const entrada = {
+    estado: estadoActual,
+    aprobadoPor: rechazadoPor,
+    rol: rolRechazador,
+    comentario: motivo,
+    fecha: new Date().toISOString(),
+    accion: "rechazado",
+  };
+
+  await updateDoc(ref, {
+    estado: "Rechazado",
+    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+    actualizadoEn: new Date().toISOString(),
+  });
+
+  await registrarLog({
+    accion: "orden_rechazada",
+    ocId: ordenId,
+    usuario: rechazadoPor,
+    rol: rolRechazador,
+    estadoAnterior: estadoActual,
+    motivo,
   });
 };
 

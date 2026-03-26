@@ -1,17 +1,24 @@
-// ✅ src/utils/aprobaciones.js
+// src/utils/aprobaciones.js
 
-// Roles de GERENCIA
+// ============================================================
+//  UMBRALES DE APROBACIÓN (configurables aquí)
+// ============================================================
+export const APPROVAL_THRESHOLDS = {
+  operaciones: 0,          // Siempre requiere Operaciones
+  gerenciaOperaciones: 10_000, // > 10,000 → requiere Gerencia Operaciones
+  gerenciaGeneral: 50_000,    // >= 50,000 → requiere Gerencia General
+};
+
+// ============================================================
+//  ROLES
+// ============================================================
 const GERENCIA_ROLES = [
   "gerencia operaciones",
   "gerencia general",
-  // si mantienes un rol genérico "gerencia" en otros módulos:
   "gerencia",
 ];
 
-// Roles que muestran "Bandeja/Pendientes" en el header
 const BANDEJA_ROLES = ["operaciones", ...GERENCIA_ROLES];
-
-// Roles que aprueban/firman (para contadores u otros permisos)
 const APPROVAL_ROLES = ["operaciones", ...GERENCIA_ROLES];
 
 export const isGerenciaRole = (role = "") =>
@@ -23,11 +30,82 @@ export const isBandejaRole = (role = "") =>
 export const isApprovalRole = (role = "") =>
   APPROVAL_ROLES.includes(String(role || "").toLowerCase());
 
-// Estados “pendientes” por rol con el nuevo flujo
+// ============================================================
+//  LÓGICA DE ESTADO INICIAL SEGÚN MONTO
+// ============================================================
+
+/**
+ * Determina el estado inicial de la OC según el monto total.
+ * @param {number} montoTotal - Total de la OC
+ * @returns {string} Estado inicial
+ */
+export const determinarEstadoInicial = (montoTotal = 0) => {
+  const monto = Number(montoTotal) || 0;
+  // Todo pasa primero por Operaciones
+  return "Pendiente de Operaciones";
+};
+
+/**
+ * Calcula qué etapas de aprobación requiere esta OC según su monto.
+ * @param {number} montoTotal
+ * @returns {string[]} Lista de etapas requeridas en orden
+ */
+export const etapasRequeridas = (montoTotal = 0) => {
+  const monto = Number(montoTotal) || 0;
+  const etapas = ["Pendiente de Operaciones"];
+
+  if (monto > APPROVAL_THRESHOLDS.gerenciaOperaciones) {
+    etapas.push("Pendiente de Gerencia Operaciones");
+  }
+  if (monto >= APPROVAL_THRESHOLDS.gerenciaGeneral) {
+    etapas.push("Pendiente de Gerencia General");
+  }
+
+  return etapas;
+};
+
+/**
+ * Dado el estado actual de la OC (aprobado en un nivel), devuelve el siguiente estado.
+ * @param {string} estadoActual
+ * @param {number} montoTotal
+ * @returns {string} Siguiente estado o "Aprobado" si ya terminó el flujo
+ */
+export const siguienteEstado = (estadoActual, montoTotal = 0) => {
+  const etapas = etapasRequeridas(montoTotal);
+  const idx = etapas.indexOf(estadoActual);
+
+  if (idx === -1) return "Aprobado";
+  if (idx + 1 < etapas.length) return etapas[idx + 1];
+  return "Aprobado";
+};
+
+/**
+ * Verifica si el rol tiene autoridad para aprobar la OC en su estado actual.
+ * @param {string} estadoOC
+ * @param {string} rol
+ * @returns {boolean}
+ */
+export const puedeAprobarEnEstado = (estadoOC, rol) => {
+  const rolNorm = String(rol || "").toLowerCase().trim();
+  const estadoNorm = String(estadoOC || "");
+
+  const mapa = {
+    "Pendiente de Operaciones": ["operaciones", "admin"],
+    "Pendiente de Gerencia Operaciones": ["gerencia operaciones", "admin"],
+    "Pendiente de Gerencia General": ["gerencia general", "gerencia", "admin"],
+  };
+
+  const rolesAutorizados = mapa[estadoNorm] || [];
+  return rolesAutorizados.includes(rolNorm);
+};
+
+// ============================================================
+//  ESTADOS PENDIENTES POR ROL (para bandeja)
+// ============================================================
 const PENDING_BY_ROLE = {
   operaciones: ["Pendiente de Operaciones"],
   "gerencia operaciones": ["Pendiente de Gerencia Operaciones"],
-  "gerencia": ["Pendiente de Gerencia Operaciones"], // compat si existe
+  gerencia: ["Pendiente de Gerencia Operaciones", "Pendiente de Gerencia General"],
   "gerencia general": ["Pendiente de Gerencia General"],
 };
 
@@ -38,9 +116,6 @@ export const pendingStatesForRole = (role = "") => {
 
 /**
  * ¿Esta OC está pendiente para que la firme/apruebe este rol/usuario?
- * - Filtra por estados esperados según rol
- * - Respeta asignación directa (asignadoA)
- * - Evita contar si el usuario ya firmó (si usas oc.aprobadores[])
  */
 export const ocPendingForRole = (oc = {}, role = "", email = "") => {
   const estados = pendingStatesForRole(role);
@@ -49,20 +124,13 @@ export const ocPendingForRole = (oc = {}, role = "", email = "") => {
   const estado = oc?.estado || "";
   if (!estados.includes(estado)) return false;
 
-  // Asignado a una persona concreta
-  if (
-    oc?.asignadoA &&
-    String(oc.asignadoA).toLowerCase() !== String(email || "").toLowerCase()
-  ) {
+  if (oc?.asignadoA && String(oc.asignadoA).toLowerCase() !== String(email || "").toLowerCase()) {
     return false;
   }
 
-  // Ya firmó (si manejas aprovadores por persona)
   if (Array.isArray(oc?.aprobadores)) {
     const yo = oc.aprobadores.find(
-      (a) =>
-        String(a?.email || "").toLowerCase() ===
-        String(email || "").toLowerCase()
+      (a) => String(a?.email || "").toLowerCase() === String(email || "").toLowerCase()
     );
     if (yo?.firmado) return false;
   }

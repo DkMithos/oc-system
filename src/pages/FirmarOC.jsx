@@ -1,33 +1,37 @@
-// ✅ src/pages/FirmarOC.jsx
+// src/pages/FirmarOC.jsx
 import React, { useEffect, useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   obtenerOCporId,
-  actualizarOC,
+  aprobarOC,
+  rechazarOC,
   obtenerFirmaUsuario,
   guardarFirmaUsuario,
-  registrarLog,
 } from "../firebase/firestoreHelpers";
+import { puedeAprobarEnEstado, etapasRequeridas } from "../utils/aprobaciones";
+import { notificarEventos } from "../firebase/notifs";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
+import { toast } from "react-toastify";
 
 const FirmarOC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const ocId = queryParams.get("id");
+  const ocId = new URLSearchParams(location.search).get("id");
 
   const { usuario, cargando } = useUsuario();
   const [orden, setOrden] = useState(null);
   const [loadingOC, setLoadingOC] = useState(true);
   const [firmaGuardada, setFirmaGuardada] = useState(null);
   const [error, setError] = useState("");
+  const [procesando, setProcesando] = useState(false);
   const sigPadRef = useRef(null);
 
-  // Cargar OC + firma guardada del usuario
   useEffect(() => {
+    if (cargando) return;
+    let alive = true;
     (async () => {
       try {
         if (!ocId) throw new Error("Falta id de OC.");
@@ -35,197 +39,221 @@ const FirmarOC = () => {
           obtenerOCporId(ocId),
           usuario?.email ? obtenerFirmaUsuario(usuario.email) : null,
         ]);
+        if (!alive) return;
         setOrden(ocData);
         setFirmaGuardada(firma || null);
-        // Mostrar firma guardada (opcional)
         if (firma && sigPadRef.current) {
           const image = new Image();
           image.src = firma;
           image.onload = () => {
-            const canvas = sigPadRef.current.getCanvas();
+            const canvas = sigPadRef.current?.getCanvas();
+            if (!canvas) return;
             const ctx = canvas.getContext("2d");
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
           };
         }
       } catch (e) {
-        setError(e.message || "No se pudo cargar la orden.");
+        if (alive) setError(e.message || "No se pudo cargar la orden.");
       } finally {
-        setLoadingOC(false);
+        if (alive) setLoadingOC(false);
       }
     })();
-  }, [ocId, usuario?.email]);
+    return () => { alive = false; };
+  }, [ocId, usuario?.email, cargando]);
 
-  // Quién puede firmar ahora, según el estado de las firmas
-  const puedeFirmar = (rol, oc) => {
-    if (!oc || !rol) return false;
-    const r = (rol || "").toLowerCase();
-    if (r === "comprador") return false; // comprador NO firma
+  const habilitado = !!orden && !!usuario && puedeAprobarEnEstado(orden.estado, usuario.rol);
 
-    const f = oc.firmas || {};
-    // Cadena: Operaciones → Gerencia → Finanzas
-    if (!f.operaciones && (r === "operaciones" || r === "gerencia")) return true;
-    if (!f.gerencia && r === "gerencia") return true;
-    if (!f.finanzas && r === "finanzas") return true;
-    return false;
-  };
-
-  const completarEstado = (f) => {
-    // Aprobada solo si están las tres firmas: operaciones, gerencia y finanzas
-    return f?.operaciones && f?.gerencia && f?.finanzas ? "Aprobada" : "Pendiente";
+  const obtenerFirmaFinal = async () => {
+    if (firmaGuardada) return firmaGuardada;
+    if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
+      throw new Error("Por favor, firma en el recuadro antes de aprobar.");
+    }
+    const canvasRecortado = getTrimmedCanvas(sigPadRef.current.getCanvas());
+    const firmaData = canvasRecortado.toDataURL("image/png");
+    await guardarFirmaUsuario(usuario.email, firmaData);
+    setFirmaGuardada(firmaData);
+    return firmaData;
   };
 
   const firmar = async () => {
+    if (!habilitado || procesando) return;
+    setProcesando(true);
+    setError("");
     try {
-      setError("");
-      if (!usuario || !orden) return;
+      // Validar datos mínimos de la OC
+      const faltan = [orden.fechaEmision, orden.centroCosto, orden.condicionPago, orden.lugarEntrega, orden.monedaSeleccionada]
+        .some((v) => !v) || !Array.isArray(orden.items) || orden.items.length === 0;
+      if (faltan) throw new Error("Faltan datos obligatorios en la orden. No se puede firmar.");
 
-      if (!puedeFirmar(usuario.rol, orden)) {
-        alert("Tu rol no puede firmar esta orden en este momento.");
-        return;
-      }
+      await obtenerFirmaFinal();
 
-      // Validaciones básicas de datos de la OC (evita firmar incompleta)
-      const faltan =
-        [
-          orden.fechaEmision,
-          orden.centroCosto,
-          orden.condicionPago,
-          orden.lugarEntrega,
-          orden.monedaSeleccionada,
-        ].some((v) => !v) || !Array.isArray(orden.items) || orden.items.length === 0;
-      if (faltan) {
-        alert("Faltan datos obligatorios en la orden. No se puede firmar.");
-        return;
-      }
+      const nuevoEstado = await aprobarOC(orden.id, usuario.email, usuario.rol);
 
-      // Tomar firma del usuario (guardada o nueva del canvas)
-      let firmaFinal = firmaGuardada;
-      if (!firmaFinal) {
-        if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
-          alert("Por favor, firma en el recuadro antes de aprobar.");
-          return;
+      // Notificación al siguiente nivel
+      try {
+        if (nuevoEstado === "Aprobado") {
+          await notificarEventos.ordenAprobada(orden.numero || ocId, usuario.email, nuevoEstado);
+        } else {
+          await notificarEventos.ordenAprobada(orden.numero || ocId, usuario.email, nuevoEstado);
         }
-        const canvasRecortado = getTrimmedCanvas(sigPadRef.current.getCanvas());
-        firmaFinal = canvasRecortado.toDataURL("image/png");
-        // Persistir firma del usuario para siguientes veces
-        await guardarFirmaUsuario(usuario.email, firmaFinal);
-        setFirmaGuardada(firmaFinal);
-      }
+      } catch {}
 
-      // Construir nuevas firmas
-      const nuevasFirmas = { ...(orden.firmas || {}) };
-      const rol = (usuario.rol || "").toLowerCase();
-      const stamp = { por: usuario.email, firma: firmaFinal, fecha: new Date().toISOString() };
-
-      if (!nuevasFirmas.operaciones && (rol === "operaciones" || rol === "gerencia")) {
-        nuevasFirmas.operaciones = stamp;
-      } else if (!nuevasFirmas.gerencia && rol === "gerencia") {
-        nuevasFirmas.gerencia = stamp;
-      } else if (!nuevasFirmas.finanzas && rol === "finanzas") {
-        nuevasFirmas.finanzas = stamp;
-      } else {
-        alert("No corresponde firmar con tu rol en este paso.");
-        return;
-      }
-
-      const nuevoEstado = completarEstado(nuevasFirmas);
-      const historial = [
-        ...(orden.historial || []),
-        { accion: "Firmado", por: usuario.email, rol: usuario.rol, fecha: new Date().toLocaleString("es-PE") },
-      ];
-
-      await actualizarOC(orden.id, { firmas: nuevasFirmas, estado: nuevoEstado, historial });
-      await registrarLog({
-        accion: "orden_firmada",
-        ocId: orden.id,
-        usuario: usuario.email,
-        rol: usuario.rol,
-      });
-
-      setOrden((o) => ({ ...o, firmas: nuevasFirmas, estado: nuevoEstado, historial }));
-      alert("Firma registrada correctamente ✅");
+      toast.success(`Orden aprobada ✅ → ${nuevoEstado}`);
       navigate(`/ver?id=${orden.id}`);
     } catch (e) {
       console.error(e);
       setError(e.message || "No se pudo firmar la orden.");
+    } finally {
+      setProcesando(false);
     }
   };
 
   const rechazar = async () => {
-    if (!usuario || !orden) return;
-    const razon = prompt("Motivo del rechazo:");
-    if (!razon) return;
+    if (!usuario || !orden || procesando) return;
+    const razon = window.prompt("Motivo del rechazo:");
+    if (!razon?.trim()) return;
 
-    const historial = [
-      ...(orden.historial || []),
-      { accion: "Rechazado", por: usuario.email, rol: usuario.rol, motivo: razon, fecha: new Date().toLocaleString("es-PE") },
-    ];
-    await actualizarOC(orden.id, { estado: "Rechazada", motivoRechazo: razon, historial });
-    await registrarLog({ accion: "orden_rechazada", ocId: orden.id, usuario: usuario.email, rol: usuario.rol });
-    alert("Orden rechazada ❌");
-    navigate(`/ver?id=${orden.id}`);
+    setProcesando(true);
+    setError("");
+    try {
+      await rechazarOC(orden.id, usuario.email, usuario.rol, razon.trim());
+      try {
+        await notificarEventos.ordenRechazada(orden.numero || ocId, usuario.email, orden.creadoPor || "");
+      } catch {}
+      toast.error("Orden rechazada ❌");
+      navigate(`/ver?id=${orden.id}`);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "No se pudo rechazar la orden.");
+    } finally {
+      setProcesando(false);
+    }
   };
 
   if (cargando || loadingOC) return <div className="p-6">Cargando datos...</div>;
   if (!usuario) return <div className="p-6 text-red-600">No tienes permiso para firmar.</div>;
+  if (error && !orden) return <div className="p-6 text-red-600">{error}</div>;
   if (!orden) return <div className="p-6 text-red-600">No se encontró la orden.</div>;
 
-  const habilitado = puedeFirmar(usuario.rol, orden);
+  const etapas = etapasRequeridas(Number(orden.resumen?.total || orden.total || 0));
+  const montoTotal = Number(orden.resumen?.total || orden.total || 0);
 
   return (
     <div className="p-6 max-w-3xl mx-auto bg-white rounded shadow">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6 border-b pb-4">
         <img src={Logo} alt="Logo" className="h-12" />
-        <div>
-          <h2 className="text-xl font-bold text-[#004990]">Firmar Orden</h2>
-          <p className="text-sm text-gray-600">N° {orden.numero}</p>
+        <div className="text-right">
+          <h2 className="text-xl font-bold text-[#004990]">Firmar / Aprobar Orden</h2>
+          <p className="text-sm text-gray-600">N° {orden.numero || orden.numeroOC || orden.id}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-        <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial || "-"}</p>
-        <p><strong>Fecha Emisión:</strong> {orden.fechaEmision || "-"}</p>
-        <p><strong>Estado actual:</strong> {orden.estado || "-"}</p>
-        <p><strong>Moneda:</strong> {orden.monedaSeleccionada || "-"}</p>
-        <p><strong>Total:</strong> {orden.resumen?.total?.toFixed(2) || "-"}</p>
+      {/* Resumen OC */}
+      <div className="grid grid-cols-2 gap-3 text-sm mb-6 bg-gray-50 p-3 rounded">
+        <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial || "—"}</p>
+        <p><strong>Fecha Emisión:</strong> {orden.fechaEmision || "—"}</p>
+        <p><strong>Estado actual:</strong> <span className="font-semibold text-blue-700">{orden.estado || "—"}</span></p>
+        <p><strong>Moneda:</strong> {orden.monedaSeleccionada || "—"}</p>
+        <p><strong>Total:</strong> <span className="font-semibold">S/ {montoTotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span></p>
       </div>
 
-      {!firmaGuardada && (
-        <div className="bg-[#f4f4f4] p-4 rounded shadow mb-6">
+      {/* Flujo de aprobación */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Flujo de aprobación requerido:</h3>
+        <div className="flex gap-2 flex-wrap">
+          {etapas.map((etapa, i) => {
+            const idx = etapas.indexOf(orden.estado);
+            const aprobada = i < idx || orden.estado === "Aprobado";
+            const actual = etapa === orden.estado;
+            return (
+              <div key={etapa} className={`flex items-center gap-1 text-xs px-3 py-1 rounded-full font-medium ${
+                aprobada ? "bg-green-100 text-green-700" : actual ? "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-400" : "bg-gray-100 text-gray-500"
+              }`}>
+                {aprobada ? "✓" : actual ? "→" : "○"} {etapa.replace("Pendiente de ", "")}
+              </div>
+            );
+          })}
+          {orden.estado === "Aprobado" && (
+            <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full font-medium bg-green-200 text-green-800">✓ Aprobado</div>
+          )}
+        </div>
+      </div>
+
+      {/* Canvas de firma (solo si no tiene firma guardada) */}
+      {!firmaGuardada && habilitado && (
+        <div className="bg-gray-50 p-4 rounded border mb-6">
           <p className="mb-2 text-sm font-medium">Tu firma digital:</p>
           <SignatureCanvas
             penColor="black"
-            canvasProps={{ width: 500, height: 180, className: "border rounded bg-white shadow" }}
+            canvasProps={{ width: 500, height: 150, className: "border rounded bg-white shadow" }}
             ref={sigPadRef}
           />
-          <div className="mt-2">
-            <button onClick={() => sigPadRef.current?.clear()} className="text-sm text-blue-600 underline">
-              Limpiar firma
-            </button>
+          <button onClick={() => sigPadRef.current?.clear()} className="mt-2 text-sm text-blue-600 underline">
+            Limpiar firma
+          </button>
+        </div>
+      )}
+
+      {firmaGuardada && habilitado && (
+        <div className="bg-blue-50 p-3 rounded border border-blue-200 mb-6 text-sm text-blue-700">
+          ✓ Se usará tu firma registrada. <button onClick={() => setFirmaGuardada(null)} className="underline ml-1">Cambiar</button>
+        </div>
+      )}
+
+      {/* Historial de aprobaciones */}
+      {Array.isArray(orden.historialAprobaciones) && orden.historialAprobaciones.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Historial de aprobaciones:</h3>
+          <div className="space-y-1">
+            {orden.historialAprobaciones.map((h, i) => (
+              <div key={i} className={`text-xs px-3 py-1.5 rounded flex justify-between ${h.accion === "aprobado" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                <span><strong>{h.accion === "aprobado" ? "✓ Aprobado" : "✗ Rechazado"}</strong> por {h.aprobadoPor} ({h.rol})</span>
+                <span className="text-gray-400">{h.fecha?.slice(0, 16)?.replace("T", " ")}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      <div className="border rounded p-3 space-y-1 text-sm">
-        <div><strong>Operaciones:</strong> {orden.firmas?.operaciones ? `Firmado por ${orden.firmas.operaciones.por}` : "Pendiente"}</div>
-        <div><strong>Gerencia:</strong> {orden.firmas?.gerencia ? `Firmado por ${orden.firmas.gerencia.por}` : "Pendiente"}</div>
-        <div><strong>Finanzas:</strong> {orden.firmas?.finanzas ? `Firmado por ${orden.firmas.finanzas.por}` : "Pendiente"}</div>
-      </div>
+      {error && (
+        <div className="bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded mb-4">
+          {error}
+        </div>
+      )}
 
-      {error && <div className="bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded mt-3">{error}</div>}
-
-      <div className="mt-4 flex flex-wrap gap-3 justify-end">
-        <button onClick={rechazar} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-          Rechazar
+      {/* Acciones */}
+      <div className="flex flex-wrap gap-3 justify-between">
+        <button onClick={() => navigate(-1)} className="border px-4 py-2 rounded hover:bg-gray-50 text-sm">
+          ← Volver
         </button>
-        <button
-          onClick={firmar}
-          disabled={!habilitado}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60"
-        >
-          {habilitado ? "Aprobar y Firmar" : "No puedes firmar aún"}
-        </button>
+        {habilitado ? (
+          <div className="flex gap-3">
+            <button
+              onClick={rechazar}
+              disabled={procesando}
+              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-60 text-sm"
+            >
+              {procesando ? "Procesando..." : "Rechazar"}
+            </button>
+            <button
+              onClick={firmar}
+              disabled={procesando}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60 text-sm"
+            >
+              {procesando ? "Procesando..." : "Aprobar y Firmar"}
+            </button>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded">
+            {orden.estado === "Aprobado"
+              ? "✓ Esta orden ya está aprobada"
+              : orden.estado === "Rechazado"
+              ? "✗ Esta orden fue rechazada"
+              : "No tienes permiso para aprobar en este estado"}
+          </div>
+        )}
       </div>
     </div>
   );

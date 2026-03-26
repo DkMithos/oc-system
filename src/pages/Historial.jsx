@@ -84,7 +84,7 @@ const CardOC = ({ oc, onVer }) => (
 // Componente
 // ───────────────────────────────────────────────────────────────────────────────
 const Historial = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando } = useUsuario();
   const { search } = useLocation();
   const params = new URLSearchParams(search);
 
@@ -95,6 +95,7 @@ const Historial = () => {
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("Todos");
+  const [centroCostoFiltro, setCentroCostoFiltro] = useState("");
 
   // Ordenamiento (default: N° OC de mayor a menor)
   const [sortKey, setSortKey] = useState("numero");
@@ -110,13 +111,13 @@ const Historial = () => {
 
   // Carga
   useEffect(() => {
-    if (!loading && usuario) {
+    if (!cargando && usuario) {
       (async () => {
         const data = await obtenerOCs();
         setOrdenes(data || []);
       })();
     }
-  }, [usuario, loading]);
+  }, [usuario, cargando]);
 
   // 🔄 Escuchar actualizaciones globales de OCs (ej. desde /firmar)
   useEffect(() => {
@@ -157,9 +158,11 @@ const Historial = () => {
       const n = normalizeStr(oc.numeroOC || oc.numero);
       const p = normalizeStr(oc.proveedor?.razonSocial);
       const e = normalizeStr(oc.estado);
+      const cc = normalizeStr(oc.centroCosto);
       const matchTexto = n.includes(q) || p.includes(q) || e.includes(q);
       const matchEstado = estadoFiltro === "Todos" || oc.estado === estadoFiltro;
-      return matchTexto && matchEstado;
+      const matchCentro = !centroCostoFiltro || cc.includes(normalizeStr(centroCostoFiltro));
+      return matchTexto && matchEstado && matchCentro;
     });
 
     const compare = (a, b) => {
@@ -210,7 +213,7 @@ const Historial = () => {
     setOcSeleccionada(ocActualizada);
   };
 
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (cargando) return <div className="p-6">Cargando usuario…</div>;
   if (
     !usuario ||
     ![
@@ -264,13 +267,22 @@ const Historial = () => {
           className="p-2 border rounded w-full md:w-1/3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         >
           <option value="Todos">Todos los estados</option>
-          <option value="Pendiente de Firma del Comprador">Pendiente de Firma del Comprador</option>
           <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
-          <option value="Aprobado por Operaciones">Aprobado por Operaciones</option>
-          <option value="Aprobado por Gerencia">Aprobado por Gerencia</option>
+          <option value="Pendiente de Gerencia Operaciones">Pendiente de Gerencia Operaciones</option>
+          <option value="Pendiente de Gerencia General">Pendiente de Gerencia General</option>
+          <option value="Aprobado">Aprobado</option>
           <option value="Rechazado">Rechazado</option>
+          <option value="En proceso de pago">En proceso de pago</option>
           <option value="Pagado">Pagado</option>
         </select>
+
+        <input
+          type="text"
+          placeholder="Centro de costo..."
+          value={centroCostoFiltro}
+          onChange={(e) => { setCentroCostoFiltro(e.target.value); setPaginaActual(1); }}
+          className="p-2 border rounded w-full md:w-48 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+        />
 
         <div className="ml-auto">
           <button

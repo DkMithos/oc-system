@@ -7,6 +7,7 @@ import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole } from "../utils/aprobaciones";
+import { calcularTotales, obtenerConfigIGV } from "../firebase/igvHelpers";
 
 const up = (s = "") => s.toUpperCase();
 const findDetraccion = (bancos = []) => {
@@ -30,8 +31,13 @@ const VerOC = () => {
   const ocId = new URLSearchParams(location.search).get("id");
   const stateOC = location.state?.orden;
 
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando } = useUsuario();
   const [oc, setOC] = useState(null);
+  const [configIGV, setConfigIGV] = useState(null);
+
+  useEffect(() => {
+    obtenerConfigIGV().then(setConfigIGV).catch(() => setConfigIGV(null));
+  }, []);
 
   // Carga OC inicial
   useEffect(() => {
@@ -72,25 +78,27 @@ const VerOC = () => {
     [oc?.monedaSeleccionada]
   );
 
-  const { subtotal, igv, total } = useMemo(() => {
+  const { subtotal, igv, total, igvAplica, tasa } = useMemo(() => {
     const sub = items.reduce(
       (acc, it) =>
-        acc +
-        (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) -
-          Number(it.descuento || 0)),
+        acc + (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) - Number(it.descuento || 0)),
       0
     );
-    const igvCalc = Math.round(sub * 0.18 * 100) / 100;
-    const totalCalc = Math.round((sub + igvCalc) * 100) / 100;
-    return { subtotal: sub, igv: igvCalc, total: totalCalc };
-  }, [items]);
+    const zona = oc?.zonaProveedor || oc?.proveedor?.zona || "";
+    const rubro = oc?.proveedor?.rubro || "";
+    return calcularTotales(sub, zona, rubro, configIGV || undefined);
+  }, [items, oc?.zonaProveedor, oc?.proveedor?.zona, oc?.proveedor?.rubro, configIGV]);
 
   const detraccionCuenta = useMemo(
     () => oc?.detraccion?.cuenta || findDetraccion(oc?.proveedor?.bancos),
     [oc?.detraccion?.cuenta, oc?.proveedor?.bancos]
   );
 
-  const puedeExportar = useMemo(() => oc?.estado === "Aprobado", [oc?.estado]);
+  // Puede exportar cuando está aprobado o en etapas posteriores (pagado, etc.)
+  const puedeExportar = useMemo(
+    () => ["Aprobado", "Pagado", "En proceso de pago"].includes(oc?.estado),
+    [oc?.estado]
+  );
   const puedeFirmar = useMemo(
     () => (!!usuario && oc ? ocPendingForRole(oc, usuario.rol, usuario.email) : false),
     [oc, usuario]
@@ -116,7 +124,7 @@ const VerOC = () => {
       .save();
   };
 
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (cargando) return <div className="p-6">Cargando usuario…</div>;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
   if (oc === null) return <div className="p-6">Cargando orden…</div>;
   if (!oc) return <div className="p-6">No se encontró la orden.</div>;
@@ -237,7 +245,10 @@ const VerOC = () => {
             <h4 className="font-semibold text-blue-900 mb-1">Resumen</h4>
             <div className="space-y-0.5 text-right">
               <div><b>Subtotal:</b> {formatearMoneda(subtotal, simbolo)}</div>
-              <div><b>IGV (18%):</b> {formatearMoneda(igv, simbolo)}</div>
+              <div>
+                <b>{igvAplica !== false ? `IGV (${Math.round((tasa ?? 0.18) * 100)}%):` : "IGV (Exonerado):"}</b>{" "}
+                {formatearMoneda(igv, simbolo)}
+              </div>
               <div className="text-[10px] font-bold mt-1">
                 <b>Total:</b> {formatearMoneda(total, simbolo)}
               </div>
