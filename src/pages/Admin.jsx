@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
+import { ROLES } from "../utils/aprobaciones";
 
 import {
   obtenerUsuarios,
   guardarUsuario,
   eliminarUsuario,
   actualizarRolUsuario,
-  actualizarPasswordUsuario,
   obtenerOCs,
   obtenerCotizaciones,
   obtenerProveedores,
@@ -154,20 +154,7 @@ const Admin = () => {
         eliminarUsuario={eliminarUsuarioLocal}
         cambiarRol={actualizarRol}
         cambiarEstadoUsuario={cambiarEstadoUsuario}
-        roles={[
-          "admin",
-          "comprador",
-          "finanzas",
-          "gerencia",
-          "operaciones",
-          "administracion",
-          "legal",
-          "soporte",
-          "gerencia operaciones",
-          "gerencia finanzas",
-          "gerencia general",
-        ]}
-        actualizarPassword={actualizarPasswordUsuario}
+        roles={Object.values(ROLES)}
       />
     </div>
   );

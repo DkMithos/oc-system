@@ -1,17 +1,20 @@
-//functions/index.js
+/**
+ * functions/index.js
  * Cloud Functions para notificaciones FCM (Node 18, ESM)
  * - Triggers: onOCCreated / onOCUpdated / onSolicitudEdicionCreated / onSolicitudEdicionUpdated
  * - Callables: enviarNotificacionRol, enviarNotificacionTest
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onCall } from "firebase-functions/v2/https";
 
 // ───────────────────────────────────────────────────────────────
 // Inicializa Admin SDK
 // ───────────────────────────────────────────────────────────────
-admin.initializeApp();
+initializeApp();
 
 // ───────────────────────────────────────────────────────────────
 // Config
@@ -30,7 +33,7 @@ const ALLOWED_ORIGINS = ["http://localhost:5173", WEB_BASE_URL]; // CORS local y
  *  - usuarios/{email}/tokens/* => { token, activo? }
  */
 async function getUserTokensByEmail(email) {
-  const db = admin.firestore();
+  const db = getFirestore();
   const tokens = new Set();
 
   // tokensFCM/{email}
@@ -52,9 +55,9 @@ async function getUserTokensByEmail(email) {
   return Array.from(tokens);
 }
 
-/** Elimina un token inválido de tokensFCM y usuarios/*/tokens/* */
+/** Elimina un token inválido de tokensFCM y de usuarios/{email}/tokens/{id} */
 async function purgeTokenEverywhere(token) {
-  const db = admin.firestore();
+  const db = getFirestore();
 
   // tokensFCM/*
   const snap = await db.collection("tokensFCM").get();
@@ -117,7 +120,7 @@ async function sendToTokens({ ocId, title, body, tokens }) {
   if (!tokens || tokens.length === 0) return { sent: 0, errors: [] };
 
   const results = await Promise.allSettled(
-    tokens.map((t) => admin.messaging().send(buildOCMessage({ token: t, ocId, title, body })))
+    tokens.map((t) => getMessaging().send(buildOCMessage({ token: t, ocId, title, body })))
   );
 
   const errors = [];
@@ -145,22 +148,31 @@ async function sendToTokens({ ocId, title, body, tokens }) {
 // Helpers de negocio
 // ───────────────────────────────────────────────────────────────
 
-/** A quién notificar según estado/propiedades de la OC (ajústalo a tu flujo) */
+/**
+ * A quién notificar según estado real de la OC.
+ * Devuelve emails directos; los tokens se resuelven con getUserTokensByEmail.
+ * Para estados que requieren un rol completo usa getTokensByRole en el trigger.
+ */
 function resolveDestinatarios(afterOC) {
   const posibles = [];
-  if (afterOC.asignadoA) posibles.push(afterOC.asignadoA);
-  if (afterOC.comprador) posibles.push(afterOC.comprador);
 
-  if (afterOC.estado === "Pendiente de Operaciones") posibles.push("operaciones@memphis.pe");
-  if (afterOC.estado === "Aprobado por Operaciones" || afterOC.estado === "Pendiente de Gerencia") posibles.push("gerencia@memphis.pe");
-  if (afterOC.estado === "Aprobado por Gerencia" || afterOC.estado === "Pendiente de Finanzas") posibles.push("finanzas@memphis.pe");
+  // Siempre notificar al comprador que creó la OC
+  if (afterOC.creadoPor) posibles.push(afterOC.creadoPor);
+  if (afterOC.asignadoA) posibles.push(afterOC.asignadoA);
+
+  // Estados reales del sistema Memphis
+  if (afterOC.estado === "Pendiente de Operaciones")        posibles.push("__rol:operaciones");
+  if (afterOC.estado === "Pendiente de Gerencia Operaciones") posibles.push("__rol:gerencia operaciones");
+  if (afterOC.estado === "Pendiente de Gerencia General")   posibles.push("__rol:gerencia general");
+  if (afterOC.estado === "Aprobada")                        posibles.push("__rol:finanzas");
+  if (afterOC.estado === "Rechazada" && afterOC.creadoPor)  posibles.push(afterOC.creadoPor);
 
   return Array.from(new Set(posibles.filter(Boolean)));
 }
 
 /** Devuelve todos los tokens de todos los usuarios con un rol X */
 async function getTokensByRole(role) {
-  const db = admin.firestore();
+  const db = getFirestore();
   const q = await db.collection("usuarios").where("rol", "==", role).get();
   const all = await Promise.all(q.docs.map((d) => getUserTokensByEmail(d.id)));
   return Array.from(new Set(all.flat().filter(Boolean)));
@@ -172,6 +184,22 @@ async function getTokensByRoles(roles = []) {
   return Array.from(new Set(sets.flat().filter(Boolean)));
 }
 
+/**
+ * Resuelve destinatarios: separa emails directos de refs a rol (__rol:xxx)
+ * y devuelve la lista de tokens unificada.
+ */
+async function resolveTokens(destinatarios) {
+  const emailDests = destinatarios.filter((d) => !d.startsWith("__rol:"));
+  const rolDests   = destinatarios.filter((d) =>  d.startsWith("__rol:")).map((d) => d.replace("__rol:", ""));
+
+  const [byEmail, byRol] = await Promise.all([
+    Promise.all(emailDests.map(getUserTokensByEmail)).then((r) => r.flat()),
+    getTokensByRoles(rolDests),
+  ]);
+
+  return Array.from(new Set([...byEmail, ...byRol].filter(Boolean)));
+}
+
 // ───────────────────────────────────────────────────────────────
 // TRIGGERS – OCs
 // ───────────────────────────────────────────────────────────────
@@ -181,11 +209,11 @@ export const onOCCreated = onDocumentCreated("ordenesCompra/{ocId}", async (even
   const oc = event.data?.data();
   if (!oc) return;
 
-  const title = "OC creada";
-  const body = `Se creó la OC ${oc.numeroOC || ocId} por ${oc.creadoPor || "—"}.`;
+  const title = "Nueva OC creada";
+  const body = `Se creó la OC ${oc.numero || ocId} por ${oc.creadoPor || "—"}.`;
 
   const destinatarios = resolveDestinatarios(oc);
-  const tokens = (await Promise.all(destinatarios.map((email) => getUserTokensByEmail(email)))).flat();
+  const tokens = await resolveTokens(destinatarios);
 
   const { sent, errors } = await sendToTokens({ ocId, title, body, tokens });
   console.log(`[onOCCreated] OC ${ocId} -> enviados: ${sent}`, errors);
@@ -196,13 +224,13 @@ export const onOCUpdated = onDocumentUpdated("ordenesCompra/{ocId}", async (even
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
   if (!before || !after) return;
-  if (before.estado === after.estado) return; // solo si cambia estado
+  if (before.estado === after.estado) return;
 
   const title = "Estado de OC actualizado";
-  const body = `La OC ${after.numeroOC || ocId} cambió a: ${after.estado}.`;
+  const body = `La OC ${after.numero || ocId} cambió a: ${after.estado}.`;
 
   const destinatarios = resolveDestinatarios(after);
-  const tokens = (await Promise.all(destinatarios.map((email) => getUserTokensByEmail(email)))).flat();
+  const tokens = await resolveTokens(destinatarios);
 
   const { sent, errors } = await sendToTokens({ ocId, title, body, tokens });
   console.log(`[onOCUpdated] OC ${ocId} -> enviados: ${sent}`, errors);
@@ -241,12 +269,12 @@ export const onSolicitudEdicionUpdated = onDocumentUpdated(
     if (!before || !after) return;
     if (before.estado === after.estado) return;
 
-    const db = admin.firestore();
+    const db = getFirestore();
 
     if (String(after.estado || "").toLowerCase() === "aprobada") {
       await db.doc(`ordenesCompra/${ocId}`).update({
         permiteEdicion: true,
-        edicionAprobadaEn: admin.firestore.FieldValue.serverTimestamp(),
+        edicionAprobadaEn: FieldValue.serverTimestamp(),
         edicionAprobadaPor: after.resueltoPorNombre || after.resueltoPorEmail || "",
         edicionMotivo: after.motivo || after.motivoEdicion || "",
       });

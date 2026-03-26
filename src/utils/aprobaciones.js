@@ -10,7 +10,9 @@ export const ROLES = {
   GERENCIA_GEN: "gerencia general",
   GERENCIA: "gerencia",
   FINANZAS: "finanzas",
-  GERENCIA_FIN: "gerencia finanzas"
+  GERENCIA_FIN: "gerencia finanzas",
+  ADMINISTRACION: "administracion",
+  LEGAL: "legal"
 };
 
 // ⚙️ Configuración dinámica de IGV (Zonas Especiales)
@@ -39,7 +41,7 @@ export const getRequiredApprovals = (montoTotal = 0) => {
 export const calcularSiguienteEstado = (monto, rolActual) => {
   if (monto > 10000 && rolActual === ROLES.OPERACIONES) return "Pendiente de Gerencia Operaciones";
   if (monto >= 50000 && rolActual === ROLES.GERENCIA_OP) return "Pendiente de Gerencia General";
-  return "Aprobado";
+  return "Aprobada";
 };
 
 // Roles de GERENCIA
