@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { collection, collectionGroup, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useUsuario } from "./UsuarioContext";
-import { ocPendingForRole, isApprovalRole } from "../utils/aprobaciones";
+import { ocPendingForRole, isApprovalRole, pendingStatesForRole } from "../utils/aprobaciones";
 
 const PendientesContext = createContext({ total: 0, ocs: 0, solicitudes: 0, loading: true });
 
@@ -23,10 +23,21 @@ export const PendientesProvider = ({ children }) => {
       return;
     }
 
-    // 1) OCs (escucha global)
-    const unsub1 = onSnapshot(collection(db, "ordenesCompra"), (snap) => {
-      setOcs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    // 1) OCs: solo las que son relevantes para el rol del usuario
+    const estadosPendientes = pendingStatesForRole(usuario.rol);
+    let unsub1;
+    if (estadosPendientes.length > 0) {
+      const qOC = query(
+        collection(db, "ordenesCompra"),
+        where("estado", "in", estadosPendientes)
+      );
+      unsub1 = onSnapshot(qOC, (snap) => {
+        setOcs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+    } else {
+      setOcs([]);
+      unsub1 = () => {};
+    }
 
     // 2) Solicitudes de edición pendientes (solo si es aprobador)
     let unsub2 = () => {};

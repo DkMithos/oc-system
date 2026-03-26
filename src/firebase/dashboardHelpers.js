@@ -12,11 +12,16 @@ export const obtenerTodasOC = async () => {
 };
 
 /**
- * Obtiene movimientos de caja chica.
+ * Obtiene movimientos de todas las cajas chicas.
+ * La colección real es cajasChicas/{cajaId}/movimientos
  */
+const CAJAS_IDS = ["operaciones", "administracion", "proyectos"];
+
 export const obtenerTodosMovimientosCaja = async () => {
-  const snap = await getDocs(collection(db, "cajaChica"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snaps = await Promise.all(
+    CAJAS_IDS.map((id) => getDocs(collection(db, "cajasChicas", id, "movimientos")))
+  );
+  return snaps.flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 };
 
 /**
