@@ -11,6 +11,7 @@ import {
   setDoc,
   query,
   orderBy,
+  limit,
   runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
@@ -45,27 +46,21 @@ export const obtenerUsuarios = async () => {
 };
 
 
-// Crear usuario con contraseña inicial (opcional)
-export const guardarUsuario = async ({ email, rol, password }) => {
+// Crear usuario en Firestore (solo perfil — la contraseña la gestiona Firebase Auth)
+export const guardarUsuario = async ({ email, rol }) => {
   if (!email || !rol) throw new Error("El usuario debe tener correo y rol.");
   const userRef = doc(db, USUARIOS_COLLECTION, email);
   await setDoc(userRef, {
     email,
     rol,
     estado: "Activo",
-    password: password || null,
     creadoEn: new Date().toISOString(),
   });
 };
 
-export const actualizarPasswordUsuario = async (email, nuevaPassword) => {
-  if (!email || !nuevaPassword) throw new Error("Datos incompletos.");
-  const ref = doc(db, USUARIOS_COLLECTION, email);
-  await updateDoc(ref, {
-    password: nuevaPassword,
-    actualizadoEn: new Date().toISOString(),
-  });
-};
+// ELIMINADO: actualizarPasswordUsuario — las contraseñas se gestionan exclusivamente
+// desde Firebase Authentication (sendPasswordResetEmail / updatePassword).
+// Nunca almacenar contraseñas en Firestore.
 
 export const eliminarUsuario = async (email) => {
   await deleteDoc(doc(db, USUARIOS_COLLECTION, email));
@@ -170,8 +165,13 @@ export const guardarOrden = async (ordenData) => {
 };
 
 // Obtener todas las órdenes (excluye eliminadas) y ordena por correlativo (desc)
-export const obtenerOCs = async () => {
-  const snapshot = await getDocs(collection(db, OC_COLLECTION));
+export const obtenerOCs = async (limite = 50) => {
+  const q = query(
+    collection(db, OC_COLLECTION),
+    orderBy("numero", "desc"),
+    limit(limite)
+  );
+  const snapshot = await getDocs(q);
   const lista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
   const vivas = lista.filter((x) => x?.eliminada !== true);
 

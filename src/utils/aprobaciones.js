@@ -1,18 +1,59 @@
 // ✅ src/utils/aprobaciones.js
 
+// Diccionario centralizado de roles para evitar typos
+export const ROLES = {
+  ADMIN: "admin",
+  SOPORTE: "soporte",
+  COMPRADOR: "comprador",
+  OPERACIONES: "operaciones",
+  GERENCIA_OP: "gerencia operaciones",
+  GERENCIA_GEN: "gerencia general",
+  GERENCIA: "gerencia",
+  FINANZAS: "finanzas",
+  GERENCIA_FIN: "gerencia finanzas"
+};
+
+// ⚙️ Configuración dinámica de IGV (Zonas Especiales)
+export const TAX_CONFIG = {
+  IGV_STANDARD: 0.18,
+  ZONAS_EXONERADAS: ["LORETO", "AMAZONAS", "SAN MARTIN", "UCAYALI", "MADRE DE DIOS"],
+  obtenerTasa: (departamento = "") => {
+    const dep = String(departamento).toUpperCase().trim();
+    return TAX_CONFIG.ZONAS_EXONERADAS.includes(dep) ? 0 : TAX_CONFIG.IGV_STANDARD;
+  }
+};
+
+// 💰 Tiers de Aprobación (Regla de Negocio)
+export const getRequiredApprovals = (montoTotal = 0) => {
+  const steps = [ROLES.OPERACIONES]; // Siempre empieza en operaciones
+  
+  if (montoTotal > 10000) {
+    steps.push(ROLES.GERENCIA_OP);
+  }
+  if (montoTotal >= 50000) {
+    steps.push(ROLES.GERENCIA_GEN);
+  }
+  return steps;
+};
+
+export const calcularSiguienteEstado = (monto, rolActual) => {
+  if (monto > 10000 && rolActual === ROLES.OPERACIONES) return "Pendiente de Gerencia Operaciones";
+  if (monto >= 50000 && rolActual === ROLES.GERENCIA_OP) return "Pendiente de Gerencia General";
+  return "Aprobado";
+};
+
 // Roles de GERENCIA
 const GERENCIA_ROLES = [
-  "gerencia operaciones",
-  "gerencia general",
-  // si mantienes un rol genérico "gerencia" en otros módulos:
-  "gerencia",
+  ROLES.GERENCIA_OP,
+  ROLES.GERENCIA_GEN,
+  ROLES.GERENCIA,
 ];
 
 // Roles que muestran "Bandeja/Pendientes" en el header
-const BANDEJA_ROLES = ["operaciones", ...GERENCIA_ROLES];
+const BANDEJA_ROLES = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
 
 // Roles que aprueban/firman (para contadores u otros permisos)
-const APPROVAL_ROLES = ["operaciones", ...GERENCIA_ROLES];
+const APPROVAL_ROLES = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
 
 export const isGerenciaRole = (role = "") =>
   GERENCIA_ROLES.includes(String(role || "").toLowerCase());
@@ -25,10 +66,10 @@ export const isApprovalRole = (role = "") =>
 
 // Estados “pendientes” por rol con el nuevo flujo
 const PENDING_BY_ROLE = {
-  operaciones: ["Pendiente de Operaciones"],
-  "gerencia operaciones": ["Pendiente de Gerencia Operaciones"],
-  "gerencia": ["Pendiente de Gerencia Operaciones"], // compat si existe
-  "gerencia general": ["Pendiente de Gerencia General"],
+  [ROLES.OPERACIONES]: ["Pendiente de Operaciones"],
+  [ROLES.GERENCIA_OP]: ["Pendiente de Gerencia Operaciones"],
+  [ROLES.GERENCIA]: ["Pendiente de Gerencia Operaciones"], 
+  [ROLES.GERENCIA_GEN]: ["Pendiente de Gerencia General"],
 };
 
 export const pendingStatesForRole = (role = "") => {

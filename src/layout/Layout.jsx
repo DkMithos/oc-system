@@ -1,6 +1,7 @@
 // src/layout/Layout.jsx
 import { Outlet } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import Footer from "../components/Footer";
@@ -17,47 +18,38 @@ const Layout = () => {
     let unsubscribe = () => {};
 
     (async () => {
-      const token = await solicitarPermisoYObtenerToken(usuario.email.toLowerCase().trim());
-      if (token) {
-        console.log("Token FCM listo para", usuario.email);
-      } else {
-        console.warn("No se pudo obtener el token de FCM");
-      }
+      // Registro silencioso del token FCM — sin console.log en producción
+      await solicitarPermisoYObtenerToken(usuario.email.toLowerCase().trim()).catch(() => null);
 
-      // Suscripción a notificaciones en primer plano
+      // Notificaciones en primer plano: toast en lugar de alert bloqueante
       try {
         unsubscribe = await onMessageListener((payload) => {
-          console.log("[FCM foreground payload]", payload);
-          const title =
-            payload?.notification?.title || payload?.data?.title || "Notificación";
-          const body =
-            payload?.notification?.body || payload?.data?.body || "";
-          alert(`Nueva notificación:\n${title}\n${body}`);
+          const title = payload?.notification?.title || payload?.data?.title || "Notificación";
+          const body  = payload?.notification?.body  || payload?.data?.body  || "";
+          toast.info(`${title}${body ? `\n${body}` : ""}`, {
+            position: "top-right",
+            autoClose: 6000,
+          });
         });
-      } catch (e) {
-        console.error("No se pudo suscribir a onMessage:", e);
+      } catch {
+        // FCM no disponible en este navegador — silencioso
       }
     })();
 
     return () => {
-      try {
-        unsubscribe && unsubscribe();
-      } catch {}
+      try { unsubscribe && unsubscribe(); } catch {}
     };
   }, [usuario?.email]);
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
-    // ⬇min-h-screen (no h-screen) y SIN scroll interno: deja que el body scrollee
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Topbar toggleSidebar={toggleSidebar} />
 
-      {/* Contenedor principal sin overflow-hidden para permitir scroll de la página */}
       <div className="flex flex-1 relative">
         <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-        {/* Overlay para cerrar sidebar en móvil */}
         {isSidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30"
@@ -65,13 +57,11 @@ const Layout = () => {
           />
         )}
 
-        {/* ⬇Contenido sin overflow-y-auto para que el footer quede al final real del documento */}
         <div className="flex-1 p-4 z-10">
           <Outlet />
         </div>
       </div>
 
-      {/* El Footer ya no es fijo; aparece al final del documento */}
       <Footer />
     </div>
   );

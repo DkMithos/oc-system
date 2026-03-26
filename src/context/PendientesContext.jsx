@@ -1,9 +1,9 @@
 // src/context/PendientesContext.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { collection, collectionGroup, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useUsuario } from "./UsuarioContext";
-import { ocPendingForRole, isApprovalRole } from "../utils/aprobaciones";
+import { ocPendingForRole, isApprovalRole, pendingStatesForRole } from "../utils/aprobaciones";
 
 const PendientesContext = createContext({ total: 0, ocs: 0, solicitudes: 0, loading: true });
 
@@ -23,26 +23,44 @@ export const PendientesProvider = ({ children }) => {
       return;
     }
 
-    // 1) OCs (escucha global)
-    const unsub1 = onSnapshot(collection(db, "ordenesCompra"), (snap) => {
-      setOcs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    // 1) Solo escuchar OCs en los estados que corresponden al rol actual.
+    //    Evita descargar toda la colección y reduce lecturas de Firestore.
+    const estados = pendingStatesForRole(usuario.rol);
 
-    // 2) Solicitudes de edición pendientes (solo si es aprobador)
+    let unsub1 = () => {};
+    if (estados.length > 0) {
+      const qOCs = query(
+        collection(db, "ordenesCompra"),
+        where("estado", "in", estados)
+      );
+      unsub1 = onSnapshot(qOCs, (snap) => {
+        setOcs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      });
+    } else {
+      setOcs([]);
+      setLoading(false);
+    }
+
+    // 2) Solicitudes de edición embebidas en el campo solicitudEdicion de cada OC
     let unsub2 = () => {};
     if (aprobador) {
-      const qSol = query(collectionGroup(db, "solicitudesEdicion"), where("estado", "==", "pendiente"));
-      unsub2 = onSnapshot(qSol, (snap) => setSolicitudes(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+      const qSol = query(
+        collection(db, "ordenesCompra"),
+        where("solicitudEdicion.estado", "==", "pendiente")
+      );
+      unsub2 = onSnapshot(qSol, (snap) =>
+        setSolicitudes(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
     } else {
       setSolicitudes([]);
     }
 
-    setLoading(false);
     return () => {
       try { unsub1(); } catch {}
       try { unsub2(); } catch {}
     };
-  }, [usuario, aprobador]);
+  }, [usuario?.email, usuario?.rol, aprobador]);
 
   const countOCs = useMemo(() => {
     if (!usuario) return 0;

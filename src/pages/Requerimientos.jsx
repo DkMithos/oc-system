@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   agregarRequerimiento,
-  obtenerRequerimientosPorUsuario,
+  obtenerRequerimientosPorRol,
   generarCodigoRequerimiento,
 } from "../firebase/requerimientosHelpers";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
@@ -82,18 +82,17 @@ const Requerimientos = () => {
     return () => { alive = false; };
   }, [loading, usuario]);
 
-  // CÓDIGO inicial + cargar lista del usuario
+  // CÓDIGO inicial + cargar lista según rol
   useEffect(() => {
     if (loading || !usuario?.email) return;
     let alive = true;
     (async () => {
       try {
         const [reqs, cod] = await Promise.all([
-          obtenerRequerimientosPorUsuario(usuario.email),
+          obtenerRequerimientosPorRol(usuario.email, usuario.rol),
           generarCodigoRequerimiento(),
         ]);
         if (!alive) return;
-        // Orden local (más recientes primero si tienen creadoEn ISO)
         (reqs || []).sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
         setRequerimientos(reqs || []);
         setForm((prev) => ({
@@ -102,11 +101,11 @@ const Requerimientos = () => {
           solicitante: usuario.email,
         }));
       } catch (e) {
-        console.error("Error cargando requerimientos/código:", e);
+        console.error("Error cargando requerimientos:", e);
       }
     })();
     return () => { alive = false; };
-  }, [loading, usuario?.email]);
+  }, [loading, usuario?.email, usuario?.rol]);
 
   // Si quieres TIEMPO REAL, descomenta y quita la carga una sola vez de arriba:
   // useEffect(() => {
@@ -195,7 +194,8 @@ const Requerimientos = () => {
     const nuevo = {
       ...form,
       codigo,
-      estado: "Pendiente",
+      estado: "Pendiente de Operaciones", // Cambiado para entrar al flujo de aprobación
+      asignadoA: null, // Reset de asignación para que sea visible por el rol
       centroCosto: form.centroCosto,
       centroCostoId: form.centroCostoId || null,
       usuario: usuario.email, // importante para jalar por usuario
@@ -210,7 +210,7 @@ const Requerimientos = () => {
       // refresco de lista + nuevo correlativo
       const [next, lista] = await Promise.all([
         generarCodigoRequerimiento().catch(() => `RQ-${Date.now()}`),
-        obtenerRequerimientosPorUsuario(usuario.email).catch(() => []),
+        obtenerRequerimientosPorRol(usuario.email, usuario.rol).catch(() => []),
       ]);
       (lista || []).sort((a, b) => String(b.creadoEn || "").localeCompare(String(a.creadoEn || "")));
       setRequerimientos(lista || []);
@@ -229,16 +229,19 @@ const Requerimientos = () => {
     }
   };
 
+  // Acceso controlado por RutaProtegida en AppRoutes; aquí solo protección mínima
   if (loading) return <div className="p-6">Cargando usuario…</div>;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
-    return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
+
+  // Solo comprador puede crear nuevos requerimientos
+  const puedeCrear = ["admin", "comprador"].includes((usuario?.rol || "").toLowerCase());
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Requerimientos de Compra</h2>
 
-      {/* Card del formulario */}
-      <div className="bg-white p-6 rounded shadow mb-6">
+      {/* Card del formulario — solo para roles que pueden crear */}
+      {puedeCrear && <div className="bg-white p-6 rounded shadow mb-6">
         {/* Fila: Código / Fecha / Centro */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Código (solo lectura) */}
@@ -440,7 +443,7 @@ const Requerimientos = () => {
             </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">

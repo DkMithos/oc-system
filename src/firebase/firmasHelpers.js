@@ -18,6 +18,12 @@ export const obtenerFirmaGuardada = async (email) => {
  */
 export const guardarFirmaUsuario = async (email, firmaDataUrl) => {
   if (!email || !firmaDataUrl) throw new Error("Falta email o firma");
+  
+  // Validación de seguridad: evitar documentos de Firestore > 1MB
+  if (firmaDataUrl.length > 800000) {
+    throw new Error("La imagen de la firma es demasiado pesada. Intenta con una más pequeña.");
+  }
+
   const ref = doc(db, "firmas", email.toLowerCase());
   await setDoc(ref, { email: email.toLowerCase(), firma: firmaDataUrl }, { merge: true });
 };

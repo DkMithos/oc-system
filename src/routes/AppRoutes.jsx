@@ -43,7 +43,7 @@ const AppRoutes = () => {
         <Route
           path="historial"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "comprador", "operaciones", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas"]}>
+            <RutaProtegida rolesPermitidos={["admin", "soporte", "comprador", "operaciones", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "finanzas", "administracion", "legal"]}>
               <Historial />
             </RutaProtegida>
           }
@@ -146,7 +146,7 @@ const AppRoutes = () => {
         <Route
           path="dashboard"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "finanzas", "gerencia"]}>
+            <RutaProtegida rolesPermitidos={["admin", "soporte", "finanzas", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "operaciones"]}>
               <Dashboard />
             </RutaProtegida>
           }
@@ -202,7 +202,7 @@ const AppRoutes = () => {
         <Route
           path="resumen"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "gerencia", "operaciones"]}>
+            <RutaProtegida rolesPermitidos={["admin", "soporte", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "operaciones", "finanzas"]}>
               <ResumenGeneral />
             </RutaProtegida>
           }
@@ -210,7 +210,7 @@ const AppRoutes = () => {
         <Route
           path="indicadores"
           element={
-            <RutaProtegida rolesPermitidos={["admin", "gerencia", "operaciones"]}>
+            <RutaProtegida rolesPermitidos={["admin", "soporte", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "operaciones", "finanzas"]}>
               <Indicadores />
             </RutaProtegida>
           }

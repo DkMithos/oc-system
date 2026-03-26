@@ -33,7 +33,7 @@ const Dashboard = () => {
     if (!loading) cargarDatos();
   }, [loading]);
 
-  if (loading || !usuario) {
+  if (loading) {
     return <div className="p-6">Cargando dashboard...</div>;
   }
 
@@ -43,9 +43,9 @@ const Dashboard = () => {
     return acc;
   }, {});
 
-  // ▶ Monto total de OCs aprobadas
+  // ▶ Monto total de OCs aprobadas (estado real: "Aprobada")
   const montoAprobado = ocData
-    .filter((oc) => oc.estado === "Aprobado")
+    .filter((oc) => oc.estado === "Aprobada")
     .reduce((acc, oc) => acc + (oc.resumen?.total || 0), 0);
 
   // ▶ Top proveedores
@@ -88,8 +88,8 @@ const Dashboard = () => {
 
   const colores = ["#34D399", "#F87171"];
 
-  if (loading) return <div className="p-6">Cargando usuario.</div>;
-  if (!usuario || !["admin", "gerencia", "operaciones"].includes(usuario?.rol)) return <div className="p-6">Acceso no autorizado</div>;
+  // Guard redundante — el acceso real lo controla RutaProtegida en AppRoutes
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">

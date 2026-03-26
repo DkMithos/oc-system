@@ -74,6 +74,8 @@ const permisosPorRol = {
     "/cotizaciones",
     "/proveedores",
     "/requerimientos",
+    "/reportes",
+    "/exportaciones",
   ],
 
   // Operaciones (jefatura logística/operaciones)
@@ -86,6 +88,8 @@ const permisosPorRol = {
     "/flujos-financieros",
     "/reportes",
     "/exportaciones",
+    "/proveedores",
+    "/cotizaciones",
   ],
 
   // Gerencia de Operaciones y Proyectos
