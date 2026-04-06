@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import Logo from "../assets/Logo_OC.png";
 import { useUsuario } from "../context/UsuarioContext";
+import { cargarConfigIGV, IGV_TASA_DEFAULT } from "../utils/igv";
 
 import {
   guardarOrden,
@@ -43,6 +44,9 @@ const CrearOC = () => {
   const [cotizaciones, setCotizaciones] = useState([]);
   const [requerimientos, setRequerimientos] = useState([]);
 
+  const [igvTasa, setIgvTasa] = useState(IGV_TASA_DEFAULT);
+  const [exoneradoIGV, setExoneradoIGV] = useState(false);
+
   const [bancosProveedor, setBancosProveedor] = useState([]);
   const [bancoSeleccionado, setBancoSeleccionado] = useState("");
   const [monedaSeleccionada, setMonedaSeleccionada] = useState("");
@@ -78,15 +82,20 @@ const CrearOC = () => {
   const totals = useMemo(() => {
     const sub = form.items.reduce(
       (acc, it) =>
-        acc +
-        (Number(it.cantidad || 0) * Number(it.pu || 0) -
-          Number(it.dscto || 0)),
+        acc + (Number(it.cantidad || 0) * Number(it.pu || 0) - Number(it.dscto || 0)),
       0
     );
-    const igv = Math.round(sub * 0.18 * 100) / 100;
+    const tasa = exoneradoIGV ? 0 : igvTasa;
+    const igv  = Math.round(sub * (tasa / 100) * 100) / 100;
     const total = Math.round((sub + igv) * 100) / 100;
-    return { sub, igv, total };
-  }, [form.items]);
+    return { sub, igv, igvTasa: tasa, total };
+  }, [form.items, igvTasa, exoneradoIGV]);
+
+  useEffect(() => {
+    cargarConfigIGV().then((cfg) => {
+      if (cfg?.tasaDefault) setIgvTasa(cfg.tasaDefault);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -356,9 +365,11 @@ const CrearOC = () => {
         items,
         resumen: {
           subtotal: totals.sub,
+          igvTasa: totals.igvTasa,
           igv: totals.igv,
+          exoneradoIGV,
           otros: 0,
-          total: totals.sub + totals.igv,
+          total: totals.total,
         },
 
         permiteEdicion: false,
@@ -635,11 +646,24 @@ const CrearOC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <div className="md:col-span-2" />
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={exoneradoIGV}
+                  onChange={(e) => setExoneradoIGV(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Zona exonerada de IGV (Amazonía)</span>
+              </label>
+            </div>
             <div className="text-right">
               <div className="text-sm">SubTotal: <strong>{totals.sub.toFixed(2)}</strong></div>
-              <div className="text-sm">IGV (18%): <strong>{totals.igv.toFixed(2)}</strong></div>
-              <div className="text-base">Total: <strong>{(totals.sub + totals.igv).toFixed(2)}</strong></div>
+              <div className="text-sm">
+                IGV ({totals.igvTasa}%): <strong>{totals.igv.toFixed(2)}</strong>
+                {exoneradoIGV && <span className="ml-1 text-xs text-amber-600">(exonerado)</span>}
+              </div>
+              <div className="text-base">Total: <strong>{totals.total.toFixed(2)}</strong></div>
             </div>
           </div>
         </div>

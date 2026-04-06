@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   limit,
+  startAfter,
   runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
@@ -162,6 +163,36 @@ export const guardarOrden = async (ordenData) => {
   });
 
   return newId;
+};
+
+/**
+ * Paginación cursor para OCs — usa startAfter para no recargar documentos ya vistos.
+ * @param {number} limite - Registros por página
+ * @param {import("firebase/firestore").QueryDocumentSnapshot|null} cursor - Último doc de la página anterior
+ * @returns {{ items: object[], lastDoc: QueryDocumentSnapshot|null, hasMore: boolean }}
+ */
+export const obtenerOCsPaginadas = async (limite = 20, cursor = null) => {
+  const constraints = [
+    orderBy("numero", "desc"),
+    limit(limite + 1), // pedimos uno extra para saber si hay más
+  ];
+  if (cursor) constraints.push(startAfter(cursor));
+
+  const q        = query(collection(db, OC_COLLECTION), ...constraints);
+  const snapshot = await getDocs(q);
+  const docs     = snapshot.docs;
+  const hasMore  = docs.length > limite;
+  const pageDocs = hasMore ? docs.slice(0, limite) : docs;
+
+  const items = pageDocs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((x) => x?.eliminada !== true);
+
+  return {
+    items,
+    lastDoc: pageDocs[pageDocs.length - 1] || null,
+    hasMore,
+  };
 };
 
 // Obtener todas las órdenes (excluye eliminadas) y ordena por correlativo (desc)

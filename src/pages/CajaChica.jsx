@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Select from "react-select";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import {
@@ -283,30 +284,75 @@ const CajaChica = () => {
     return { ingresos, egresos, saldoInicial, saldoActual };
   }, [movsPeriodo, estadoCaja]);
 
-  // Toolbar exportar
+  // Toolbar exportar — formato contable: columnas Ingresos/Egresos separadas
   const exportarExcel = () => {
-    if (!movsFiltrados.length) return alert("No hay datos para exportar");
-    const cajaLabel = CAJAS.find((c) => c.id === cajaId)?.label || cajaId;
-    const data = movsFiltrados.map((m) => ({
-      Caja: cajaLabel,
-      Tipo: m.tipo,
-      Monto: m.monto,
-      Fecha: m.fechaISO,
-      "Centro de Costo": m.centroCostoNombre,
-      "Razón Social": m.razonSocial,
-      "Tipo de Documento": m.tipoDocumentoNombre,
-      Comprobante: m.comprobante,
-      Descripción: m.descripcion,
-      "Creado Por": m.creadoPorEmail,
-      "Archivo Nombre": m.archivoNombre || "",
-      "Archivo URL": m.archivoUrl || "",
+    if (!movsFiltrados.length) { toast.warning("No hay datos para exportar."); return; }
+
+    const cajaLabel  = CAJAS.find((c) => c.id === cajaId)?.label || cajaId;
+    const fechaGen   = new Date().toLocaleString("es-PE");
+    const totalIng   = movsFiltrados.filter((m) => m.tipo === "Ingreso").reduce((s, m) => s + Number(m.monto || 0), 0);
+    const totalEgr   = movsFiltrados.filter((m) => m.tipo === "Egreso").reduce((s, m) => s + Number(m.monto || 0), 0);
+    const saldo      = totalIng - totalEgr;
+
+    // Filas de datos con columnas Ingresos / Egresos separadas (estilo libro contable)
+    const rows = movsFiltrados.map((m, i) => ({
+      "#":               i + 1,
+      "Fecha":           m.fechaISO || "",
+      "Tipo Doc.":       m.tipoDocumentoNombre || "",
+      "N° Comprobante":  m.comprobante || "",
+      "Razón Social":    m.razonSocial || "",
+      "Centro de Costo": m.centroCostoNombre || "",
+      "Descripción":     m.descripcion || "",
+      "Ingresos (S/)":   m.tipo === "Ingreso" ? Number(m.monto || 0).toFixed(2) : "",
+      "Egresos (S/)":    m.tipo === "Egreso"  ? Number(m.monto || 0).toFixed(2) : "",
+      "Registrado Por":  m.creadoPorEmail || "",
+      "Archivo":         m.archivoUrl ? m.archivoNombre || "Ver" : "",
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Fila de totales al final
+    rows.push({
+      "#": "",
+      "Fecha": "",
+      "Tipo Doc.": "",
+      "N° Comprobante": "",
+      "Razón Social": "",
+      "Centro de Costo": "",
+      "Descripción": "TOTALES",
+      "Ingresos (S/)": totalIng.toFixed(2),
+      "Egresos (S/)":  totalEgr.toFixed(2),
+      "Registrado Por": `Saldo: ${saldo >= 0 ? "+" : ""}${saldo.toFixed(2)}`,
+      "Archivo": "",
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Ancho de columnas
+    ws["!cols"] = [
+      { wch: 4 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 30 },
+      { wch: 20 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 20 },
+    ];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "CajaChica");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    saveAs(blob, `CajaChica_${cajaId}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Caja Chica");
+
+    // Hoja de resumen
+    const resumen = [
+      ["REPORTE CAJA CHICA — MEMPHIS MAQUINARIAS"],
+      ["Caja:", cajaLabel],
+      ["Generado:", fechaGen],
+      ["Registros:", movsFiltrados.length],
+      [],
+      ["Total Ingresos:", totalIng.toFixed(2)],
+      ["Total Egresos:", totalEgr.toFixed(2)],
+      ["Saldo:", saldo.toFixed(2)],
+    ];
+    const wsRes = XLSX.utils.aoa_to_sheet(resumen);
+    XLSX.utils.book_append_sheet(wb, wsRes, "Resumen");
+
+    const buf  = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `CajaChica_${cajaLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`Exportado: ${movsFiltrados.length} movimientos`);
   };
 
   // Apertura / Cierre

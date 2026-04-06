@@ -327,3 +327,82 @@ export const enviarNotificacionTest = onCall(
     return { sent, errors };
   }
 );
+
+// ── Re-export SUNAT proxy (ver firebase.json rewrite /api/sunat) ──
+export { sunatProxy } from "./sunatProxy.js";
+
+// ───────────────────────────────────────────────────────────────
+// TICKET CREADO → notificar al agente asignado
+// ───────────────────────────────────────────────────────────────
+export const onTicketCreated = onDocumentCreated(
+  "tickets/{ticketId}",
+  async (event) => {
+    const ticketId = event.params.ticketId;
+    const ticket   = event.data?.data();
+    if (!ticket) return;
+
+    const agenteEmail = String(ticket.asignadoA?.email || "").toLowerCase();
+    const creadorEmail = String(ticket.creadoPor?.email || "").toLowerCase();
+    if (!agenteEmail) return;
+
+    const titulo = String(ticket.asunto || "Nuevo ticket").slice(0, 80);
+    const cuerpo = `De: ${creadorEmail} | Categoría: ${ticket.categoria || "—"} | Prioridad: ${ticket.prioridad || "—"}`;
+
+    // Notificar al agente asignado
+    const tokensAgente = await getUserTokensByEmail(agenteEmail);
+    if (tokensAgente.length) {
+      await sendToTokens({ title: `🎫 ${titulo}`, body: cuerpo, ocId: ticketId, tokens: tokensAgente });
+    } else {
+      const db = getFirestore();
+      await db.collection("notificaciones").add({
+        destinatario: agenteEmail,
+        title: `🎫 ${titulo}`,
+        body: cuerpo,
+        ocId: ticketId,
+        leida: false,
+        creadaEn: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+);
+
+// ───────────────────────────────────────────────────────────────
+// TICKET ACTUALIZADO (estado cambia a resuelto/cerrado) → notificar al creador
+// ───────────────────────────────────────────────────────────────
+export const onTicketUpdated = onDocumentUpdated(
+  "tickets/{ticketId}",
+  async (event) => {
+    const ticketId = event.params.ticketId;
+    const antes  = event.data?.before?.data();
+    const despues = event.data?.after?.data();
+    if (!antes || !despues) return;
+
+    const estadoAntes  = antes.estado  || "";
+    const estadoDespues = despues.estado || "";
+
+    // Solo disparar cuando el estado cambia a resuelto o cerrado
+    if (estadoAntes === estadoDespues) return;
+    if (!["resuelto", "cerrado"].includes(estadoDespues)) return;
+
+    const creadorEmail = String(despues.creadoPor?.email || "").toLowerCase();
+    if (!creadorEmail) return;
+
+    const titulo = `Tu ticket fue ${estadoDespues}`;
+    const cuerpo = `"${despues.asunto}" ha sido marcado como ${estadoDespues}.`;
+
+    const tokens = await getUserTokensByEmail(creadorEmail);
+    if (tokens.length) {
+      await sendToTokens({ title: titulo, body: cuerpo, ocId: ticketId, tokens });
+    } else {
+      const db = getFirestore();
+      await db.collection("notificaciones").add({
+        destinatario: creadorEmail,
+        title: titulo,
+        body: cuerpo,
+        ocId: ticketId,
+        leida: false,
+        creadaEn: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+);
