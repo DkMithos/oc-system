@@ -336,15 +336,22 @@ const Cotizaciones = () => {
 
   // ======= render =======
   if (loading) return <div className="p-6">Cargando usuario…</div>;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
+  if (!usuario || !["admin", "comprador", "operaciones"].includes(usuario?.rol))
     return <div className="p-6">Acceso no autorizado</div>;
+
+  const soloLectura = !["admin", "comprador"].includes(usuario?.rol);
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Registro de Cotizaciones</h2>
 
-      {/* Formulario */}
-      <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Formulario — oculto para roles de solo lectura */}
+      {soloLectura && (
+        <div className="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+          Vista de solo lectura. Solo compradores pueden crear o editar cotizaciones.
+        </div>
+      )}
+      <div className={`bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 ${soloLectura ? "hidden" : ""}`}>
         <input
           type="text"
           placeholder="Código (ej: COT-001)"
@@ -700,24 +707,31 @@ const Cotizaciones = () => {
                     </td>
                     <td className="p-2">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => editar(cot)}
-                          className="px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => generarOrden(cot)}
-                          className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                        >
-                          Generar orden
-                        </button>
-                        <button
-                          onClick={() => borrar(cot)}
-                          className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                        >
-                          <Trash2 size={16}/>
-                        </button>
+                        {!soloLectura && (
+                          <button
+                            onClick={() => editar(cot)}
+                            className="px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
+                          >
+                            Editar
+                          </button>
+                        )}
+                        {!soloLectura && (
+                          <button
+                            onClick={() => generarOrden(cot)}
+                            className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                          >
+                            Generar orden
+                          </button>
+                        )}
+                        {!soloLectura && (
+                          <button
+                            onClick={() => borrar(cot)}
+                            className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                          >
+                            <Trash2 size={16}/>
+                          </button>
+                        )}
+                        {soloLectura && <span className="text-gray-400 text-xs">Solo lectura</span>}
                       </div>
                     </td>
                   </tr>

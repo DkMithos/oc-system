@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Archivos adjuntos a OCs: cualquier usuario autenticado puede leer/escribir
+    match /ordenes/{ocId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 20 * 1024 * 1024  // max 20 MB
+                   && request.resource.contentType.matches('application/pdf|image/.*|application/vnd\\..*|application/msword|application/zip');
+    }
+
+    // Archivos adjuntos a Requerimientos
+    match /requerimientos/{reqId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Archivos adjuntos a Cotizaciones
+    match /cotizaciones/{cotId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Firmas digitales (imágenes base64 convertidas a blob)
+    match /firmas/{userId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Bloquear todo lo demás
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

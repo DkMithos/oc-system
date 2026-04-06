@@ -6,7 +6,7 @@ import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
-import { ocPendingForRole } from "../utils/aprobaciones";
+import { ocPendingForRole, etapasRequeridas, obtenerConfigAprobaciones } from "../utils/aprobaciones";
 
 const up = (s = "") => s.toUpperCase();
 const findDetraccion = (bancos = []) => {
@@ -32,6 +32,11 @@ const VerOC = () => {
 
   const { usuario, cargando: loading } = useUsuario();
   const [oc, setOC] = useState(null);
+  const [configAprobaciones, setConfigAprobaciones] = useState(null);
+
+  useEffect(() => {
+    obtenerConfigAprobaciones().then(setConfigAprobaciones);
+  }, []);
 
   // Carga OC inicial
   useEffect(() => {
@@ -73,32 +78,46 @@ const VerOC = () => {
   );
 
   const { subtotal, igv, total } = useMemo(() => {
-    const sub = items.reduce(
+    const sub = oc?.resumen?.subtotal ?? items.reduce(
       (acc, it) =>
         acc +
         (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) -
           Number(it.descuento || 0)),
       0
     );
-    const igvCalc = Math.round(sub * 0.18 * 100) / 100;
-    const totalCalc = Math.round((sub + igvCalc) * 100) / 100;
+    const igvCalc = oc?.resumen?.igv ?? Math.round(sub * 0.18 * 100) / 100;
+    const totalCalc = oc?.resumen?.total ?? Math.round((sub + igvCalc) * 100) / 100;
     return { subtotal: sub, igv: igvCalc, total: totalCalc };
-  }, [items]);
+  }, [oc?.resumen, items]);
 
   const detraccionCuenta = useMemo(
     () => oc?.detraccion?.cuenta || findDetraccion(oc?.proveedor?.bancos),
     [oc?.detraccion?.cuenta, oc?.proveedor?.bancos]
   );
 
-  const puedeExportar = useMemo(() => oc?.estado === "Aprobado", [oc?.estado]);
+  const puedeExportar = useMemo(() => oc?.estado === "Aprobada", [oc?.estado]);
   const puedeFirmar = useMemo(
     () => (!!usuario && oc ? ocPendingForRole(oc, usuario.rol, usuario.email) : false),
     [oc, usuario]
   );
 
-  const firmaOperaciones = useMemo(() => pickFirma(oc || {}, "firmaOperaciones", "operaciones"), [oc]);
-  const firmaGerOp = useMemo(() => pickFirma(oc || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"), [oc]);
-  const firmaGerGral = useMemo(() => pickFirma(oc || {}, "firmaGerenciaGeneral", "gerenciaGeneral"), [oc]);
+  const firmaComprador   = useMemo(() => pickFirma(oc || {}, "firmaComprador",        "comprador"),   [oc]);
+  const firmaOperaciones = useMemo(() => pickFirma(oc || {}, "firmaOperaciones",       "operaciones"), [oc]);
+  const firmaGerGral     = useMemo(() => pickFirma(oc || {}, "firmaGerenciaGeneral",   "gerenciaGeneral"), [oc]);
+
+  const etapas = useMemo(
+    () => etapasRequeridas(oc?.resumen?.total || 0, oc?.monedaSeleccionada || "Soles", configAprobaciones),
+    [oc?.resumen?.total, oc?.monedaSeleccionada, configAprobaciones]
+  );
+
+  const ORDEN_ESTADOS = [
+    "Pendiente de Comprador",
+    "Pendiente de Operaciones",
+    "Pendiente de Gerencia General",
+    "Aprobada",
+    "Rechazada",
+  ];
+  const estadoIdx = useMemo(() => ORDEN_ESTADOS.indexOf(oc?.estado || ""), [oc?.estado]);
 
   const exportarPDF = () => {
     const el = document.getElementById("contenido-oc");
@@ -256,14 +275,40 @@ const VerOC = () => {
           </div>
         </div>
 
+        {/* OBLIGACIONES TRIBUTARIAS */}
+        {(oc?.detraccion?.aplica || oc?.retencion?.aplica) && (
+          <div className="mb-2">
+            <h3 className="font-semibold text-blue-900 mb-1">OBLIGACIONES TRIBUTARIAS (SUNAT)</h3>
+            <div className="grid grid-cols-2 gap-2 border p-2 rounded text-[8px]">
+              {oc?.detraccion?.aplica && (
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="font-semibold text-orange-700">Detracción SPOT: </span>
+                  <span>{(oc.detraccion.tasa * 100).toFixed(0)}% — {formatearMoneda(oc.detraccion.monto, simbolo)}</span>
+                  {oc?.detraccion?.cuenta && (
+                    <span className="ml-2 text-gray-600">Cta BN: {oc.detraccion.cuenta}</span>
+                  )}
+                </div>
+              )}
+              {oc?.retencion?.aplica && (
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="font-semibold text-purple-700">Retención IGV: </span>
+                  <span>{(oc.retencion.tasa * 100).toFixed(0)}% — {formatearMoneda(oc.retencion.monto, simbolo)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* FIRMAS */}
-        <div className="grid grid-cols-3 gap-4 text-center mt-3">
+        <div className={`grid gap-4 text-center mt-3 ${etapas.includes("Pendiente de Gerencia General") ? "grid-cols-3" : "grid-cols-2"}`}>
           {[
-            { rol: "Operaciones", src: firmaOperaciones },
-            { rol: "Gerencia Operaciones", src: firmaGerOp },
-            { rol: "Gerencia General", src: firmaGerGral },
-          ].map(({ rol, src }) => (
-            <div key={rol} className="flex flex-col items-center">
+            { rol: "Comprador",        src: firmaComprador,   key: "comprador" },
+            { rol: "Operaciones",      src: firmaOperaciones, key: "operaciones" },
+            ...(etapas.includes("Pendiente de Gerencia General")
+              ? [{ rol: "Gerencia General", src: firmaGerGral, key: "gerenciaGeneral" }]
+              : []),
+          ].map(({ rol, src, key }) => (
+            <div key={key} className="flex flex-col items-center">
               {src ? <img src={src} alt={`Firma ${rol}`} className="h-14 object-contain mb-1" /> : <div className="h-14 mb-1" />}
               <p className="font-semibold">{rol}</p>
             </div>
@@ -278,6 +323,59 @@ const VerOC = () => {
             <li>CONSULTA DE PAGOS: dmendez@memphis.pe</li>
           </ul>
           <p className="mt-1 italic">El presente servicio o producto cumple con los lineamientos de nuestro Sistema de Gestión Antisoborno.</p>
+        </div>
+      </div>
+
+      {/* TIMELINE DE APROBACIÓN */}
+      <div className="mt-4 max-w-[794px] mx-auto bg-white border rounded p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">Flujo de Aprobación</h3>
+        <div className="flex items-center gap-0">
+          {etapas.map((etapa, i) => {
+            const completado = estadoIdx > i || oc?.estado === "Aprobada";
+            const actual     = oc?.estado === etapa;
+            const rechazado  = oc?.estado === "Rechazada" && actual;
+            return (
+              <React.Fragment key={etapa}>
+                <div className="flex flex-col items-center flex-1 min-w-0">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                    rechazado  ? "bg-red-100 border-red-500 text-red-700" :
+                    completado ? "bg-green-500 border-green-500 text-white" :
+                    actual     ? "bg-amber-400 border-amber-500 text-white" :
+                                 "bg-gray-100 border-gray-300 text-gray-400"
+                  }`}>
+                    {completado && !actual ? "✓" : i + 1}
+                  </div>
+                  <p className={`text-[10px] text-center mt-1 leading-tight max-w-[70px] ${
+                    actual ? "font-semibold text-amber-700" :
+                    completado ? "text-green-700" : "text-gray-400"
+                  }`}>
+                    {etapa.replace("Pendiente de ", "")}
+                  </p>
+                </div>
+                {i < etapas.length - 1 && (
+                  <div className={`h-0.5 flex-1 mt-[-14px] ${completado ? "bg-green-400" : "bg-gray-200"}`} />
+                )}
+              </React.Fragment>
+            );
+          })}
+          {/* Nodo final: Aprobada */}
+          <div className={`h-0.5 flex-1 mt-[-14px] ${oc?.estado === "Aprobada" ? "bg-green-400" : "bg-gray-200"}`} />
+          <div className="flex flex-col items-center flex-1 min-w-0">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+              oc?.estado === "Aprobada" ? "bg-green-600 border-green-600 text-white" :
+              oc?.estado === "Rechazada" ? "bg-red-500 border-red-500 text-white" :
+              "bg-gray-100 border-gray-300 text-gray-400"
+            }`}>
+              {oc?.estado === "Rechazada" ? "✗" : "✓"}
+            </div>
+            <p className={`text-[10px] text-center mt-1 leading-tight max-w-[70px] ${
+              oc?.estado === "Aprobada" ? "font-semibold text-green-700" :
+              oc?.estado === "Rechazada" ? "font-semibold text-red-700" :
+              "text-gray-400"
+            }`}>
+              {oc?.estado === "Rechazada" ? "Rechazada" : "Aprobada"}
+            </p>
+          </div>
         </div>
       </div>
 

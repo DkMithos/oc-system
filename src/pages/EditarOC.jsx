@@ -97,17 +97,12 @@ const EditarOC = () => {
         Number(item.cantidad || 0),
     0
   );
-  const igv = subtotal * 0.18;
+  const igv = formData.exoneradoIGV ? 0 : subtotal * 0.18;
   const totalFinal = subtotal + igv + Number(otros || 0);
 
   const validarFormulario = () => {
-    if (
-      !formData.fechaEmision ||
-      !formData.fechaEntrega ||
-      !formData.comprador ||
-      !formData.proveedor?.ruc
-    ) {
-      alert("Completa todos los campos obligatorios.");
+    if (!formData.proveedor?.ruc) {
+      alert("Selecciona un proveedor.");
       return false;
     }
     const tieneItemsValidos = items.some(
@@ -134,14 +129,15 @@ const EditarOC = () => {
         otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
-      // Reencola en el flujo
-      estado: "Pendiente de Operaciones",
+      // Reencola al inicio del flujo (comprador debe re-firmar)
+      estado: "Pendiente de Comprador",
       // notas ya viene en formData.notas
       historial: [
         ...(formData.historial || []),
         {
-          accion: "Edición y reenvío a Operaciones",
+          accion: "Edición tras rechazo — pendiente de firma del comprador",
           por: usuario.email,
+          estadoNuevo: "Pendiente de Comprador",
           fecha: new Date().toLocaleString("es-PE"),
         },
       ],

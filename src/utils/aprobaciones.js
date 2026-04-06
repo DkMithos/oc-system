@@ -62,18 +62,22 @@ const aSOL = (monto, moneda, tipoCambio) => {
 
 /**
  * Calcula las etapas requeridas para una OC según su monto.
+ * Flujo: Comprador → Operaciones → (si >umbral) Gerencia General → Aprobada
  * @param {number} montoTotal - Total de la OC
  * @param {string} moneda - "Soles" | "Dólares"
  * @param {object|null} config - De obtenerConfigAprobaciones()
  * @returns {string[]} Lista de estados en orden
  */
 export const etapasRequeridas = (montoTotal = 0, moneda = "Soles", config = null) => {
-  const cfg   = config || UMBRALES_DEFAULT;
-  const tc    = cfg.tipoCambioDef || 3.8;
-  const mSOL  = aSOL(montoTotal, moneda, tc);
+  const cfg    = config || UMBRALES_DEFAULT;
+  const tc     = cfg.tipoCambioDef || 3.8;
+  const mSOL   = aSOL(montoTotal, moneda, tc);
   const umbral = Number(cfg.soloOperaciones ?? cfg.gerenciaGeneral ?? 5000);
 
-  const etapas = ["Pendiente de Operaciones"];
+  const etapas = [
+    "Pendiente de Comprador",
+    "Pendiente de Operaciones",
+  ];
 
   if (mSOL > umbral) {
     etapas.push("Pendiente de Gerencia General");
@@ -83,9 +87,9 @@ export const etapasRequeridas = (montoTotal = 0, moneda = "Soles", config = null
 };
 
 /**
- * Estado inicial de una OC recién creada.
+ * Estado inicial de una OC recién creada (antes de que el comprador la firme).
  */
-export const determinarEstadoInicial = () => "Pendiente de Operaciones";
+export const determinarEstadoInicial = () => "Pendiente de Comprador";
 
 /**
  * Siguiente estado tras una aprobación.
@@ -103,7 +107,8 @@ export const siguienteEstado = (estadoActual, montoTotal = 0, moneda = "Soles", 
 export const puedeAprobarEnEstado = (estadoOC, rol) => {
   const r = String(rol || "").toLowerCase().trim();
   const MAPA = {
-    "Pendiente de Operaciones":    [ROLES.OPERACIONES, ROLES.ADMIN],
+    "Pendiente de Comprador":        [ROLES.COMPRADOR, ROLES.ADMIN],
+    "Pendiente de Operaciones":      [ROLES.OPERACIONES, ROLES.ADMIN],
     "Pendiente de Gerencia General": [ROLES.GERENCIA_GEN, ROLES.GERENCIA, ROLES.ADMIN],
   };
   return (MAPA[estadoOC] || []).includes(r);
@@ -111,9 +116,9 @@ export const puedeAprobarEnEstado = (estadoOC, rol) => {
 
 // ─── Roles de interfaz ───────────────────────────────────────────────────────
 
-const GERENCIA_ROLES  = [ROLES.GERENCIA_OP, ROLES.GERENCIA_GEN, ROLES.GERENCIA];
-const BANDEJA_ROLES   = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
-const APPROVAL_ROLES  = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
+const GERENCIA_ROLES  = [ROLES.GERENCIA_GEN, ROLES.GERENCIA];
+const BANDEJA_ROLES   = [ROLES.COMPRADOR, ROLES.OPERACIONES, ...GERENCIA_ROLES];
+const APPROVAL_ROLES  = [ROLES.COMPRADOR, ROLES.OPERACIONES, ...GERENCIA_ROLES];
 
 export const isGerenciaRole  = (r = "") => GERENCIA_ROLES.includes(String(r || "").toLowerCase());
 export const isBandejaRole   = (r = "") => BANDEJA_ROLES.includes(String(r || "").toLowerCase());
@@ -121,10 +126,10 @@ export const isApprovalRole  = (r = "") => APPROVAL_ROLES.includes(String(r || "
 
 /** Estados que este rol debe ver en su bandeja */
 const PENDING_BY_ROLE = {
+  [ROLES.COMPRADOR]:    ["Pendiente de Comprador"],
   [ROLES.OPERACIONES]:  ["Pendiente de Operaciones"],
   [ROLES.GERENCIA_GEN]: ["Pendiente de Gerencia General"],
   [ROLES.GERENCIA]:     ["Pendiente de Gerencia General"],
-  [ROLES.GERENCIA_OP]:  ["Pendiente de Gerencia General"],
 };
 
 export const pendingStatesForRole = (role = "") => {

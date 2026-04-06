@@ -289,8 +289,8 @@ const Historial = () => {
           className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         >
           <option value="Todos">Todos los estados</option>
+          <option value="Pendiente de Comprador">Pendiente de Comprador</option>
           <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
-          <option value="Pendiente de Gerencia Operaciones">Pendiente de Gerencia Operaciones</option>
           <option value="Pendiente de Gerencia General">Pendiente de Gerencia General</option>
           <option value="Aprobada">Aprobada</option>
           <option value="Rechazada">Rechazada</option>

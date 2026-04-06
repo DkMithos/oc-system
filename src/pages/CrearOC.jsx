@@ -5,6 +5,8 @@ import Select from "react-select";
 import Logo from "../assets/Logo_OC.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { cargarConfigIGV, IGV_TASA_DEFAULT } from "../utils/igv";
+import { calcularDetraccion, calcularRetencion } from "../utils/detracciones";
+import { determinarEstadoInicial } from "../utils/aprobaciones";
 
 import {
   guardarOrden,
@@ -57,6 +59,10 @@ const CrearOC = () => {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
+  // Detracción / Retención
+  const [tipoOperacion, setTipoOperacion] = useState("");
+  const [esAgenteRetencion, setEsAgenteRetencion] = useState(false);
+
   const [form, setForm] = useState({
     tipoOrden: "OC",
     fechaEmision: new Date().toISOString().split("T")[0],
@@ -90,6 +96,14 @@ const CrearOC = () => {
     const total = Math.round((sub + igv) * 100) / 100;
     return { sub, igv, igvTasa: tasa, total };
   }, [form.items, igvTasa, exoneradoIGV]);
+
+  // Cálculo de obligaciones tributarias
+  const obligaciones = useMemo(() => {
+    if (!totals.total || form.tipoOrden === "OI") return null;
+    const detraccion = calcularDetraccion(totals.total, monedaSeleccionada || "Soles", tipoOperacion);
+    const retencion  = calcularRetencion(totals.total, monedaSeleccionada || "Soles", esAgenteRetencion);
+    return { detraccion, retencion };
+  }, [totals.total, monedaSeleccionada, tipoOperacion, esAgenteRetencion, form.tipoOrden]);
 
   useEffect(() => {
     cargarConfigIGV().then((cfg) => {
@@ -372,11 +386,31 @@ const CrearOC = () => {
           total: totals.total,
         },
 
+        // Obligaciones tributarias
+        detraccion: obligaciones?.detraccion || { aplica: false, tasa: 0, monto: 0 },
+        retencion:  obligaciones?.retencion  || { aplica: false, tasa: 0, monto: 0 },
+        tipoOperacion: tipoOperacion || "",
+        esAgenteRetencion,
+
+        // Flujo de aprobación: empieza en "Pendiente de Comprador"
+        // La firma del comprador queda registrada automáticamente al crear
+        estado: determinarEstadoInicial(),
+        firmas: {
+          comprador: {
+            por:   usuario?.email || "",
+            rol:   usuario?.rol || "comprador",
+            fecha: new Date().toISOString(),
+            firma: null, // firma dibujada no requerida al crear, solo identificación
+          },
+        },
+
         permiteEdicion: false,
         historial: [
           {
-            accion: "Creación",
+            accion: "Creación y firma del comprador",
             por: usuario?.email || "",
+            rol: usuario?.rol || "comprador",
+            estadoNuevo: determinarEstadoInicial(),
             fecha: new Date().toLocaleString("es-PE"),
           },
         ],
@@ -697,6 +731,69 @@ const CrearOC = () => {
             placeholder="Garantías, penalidades u observaciones"
           />
         </div>
+
+        {/* Panel de Detracción / Retención (solo OC/OS con proveedor) */}
+        {form.tipoOrden !== "OI" && totals.total > 0 && (
+          <div className="border rounded-lg p-4 bg-amber-50 border-amber-200 space-y-3">
+            <h3 className="text-sm font-semibold text-amber-800">Obligaciones Tributarias (SUNAT)</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de bien/servicio</label>
+                <select
+                  value={tipoOperacion}
+                  onChange={(e) => setTipoOperacion(e.target.value)}
+                  className="border rounded px-2 py-1 w-full text-sm"
+                >
+                  <option value="">Sin detracción específica</option>
+                  <option value="BIENES">Bienes (genérico 10%)</option>
+                  <option value="SERVICIOS EMPRESARIALES">Servicios empresariales (12%)</option>
+                  <option value="MANTENIMIENTO REPARACION">Mantenimiento / Reparación (12%)</option>
+                  <option value="TRANSPORTE BIENES">Transporte de bienes (4%)</option>
+                  <option value="CONTRATOS CONSTRUCCION">Construcción (4%)</option>
+                  <option value="ARRENDAMIENTO DE BIENES">Arrendamiento de bienes (10%)</option>
+                  <option value="DEMAS SERVICIOS">Demás servicios (12%)</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 pt-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={esAgenteRetencion}
+                    onChange={(e) => setEsAgenteRetencion(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Empresa es agente de retención (3%)</span>
+                </label>
+              </div>
+            </div>
+
+            {obligaciones && (
+              <div className="grid grid-cols-2 gap-2 text-xs border-t border-amber-200 pt-2 mt-1">
+                <div>
+                  <span className="text-gray-500">Detracción:</span>{" "}
+                  {obligaciones.detraccion.aplica
+                    ? <span className="text-red-700 font-semibold">
+                        {Math.round(obligaciones.detraccion.tasa * 100)}% = {monedaSeleccionada === "Dólares" ? "$ " : "S/ "}
+                        {obligaciones.detraccion.monto.toFixed(2)}
+                      </span>
+                    : <span className="text-green-700">No aplica — {obligaciones.detraccion.motivo}</span>
+                  }
+                </div>
+                <div>
+                  <span className="text-gray-500">Retención:</span>{" "}
+                  {obligaciones.retencion.aplica
+                    ? <span className="text-red-700 font-semibold">
+                        3% = {monedaSeleccionada === "Dólares" ? "$ " : "S/ "}
+                        {obligaciones.retencion.monto.toFixed(2)}
+                      </span>
+                    : <span className="text-green-700">No aplica</span>
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button type="submit" disabled={guardando}
