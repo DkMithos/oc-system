@@ -4,6 +4,7 @@ import {
   agregarRequerimiento,
   obtenerRequerimientosPorRol,
   generarCodigoRequerimiento,
+  actualizarEstadoRequerimiento,
 } from "../firebase/requerimientosHelpers";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import { PlusCircle } from "lucide-react";
@@ -30,11 +31,24 @@ const selectStyles = {
   menu: (base) => ({ ...base, zIndex: 9999 }),
 };
 
+const ESTADO_BADGE = {
+  "Pendiente de Operaciones": "bg-amber-100 text-amber-800",
+  "En Proceso":               "bg-blue-100 text-blue-800",
+  "Completado":               "bg-green-100 text-green-800",
+  "Rechazado":                "bg-red-100 text-red-800",
+  "Cancelado":                "bg-gray-100 text-gray-600",
+};
+
+const ITEMS_POR_PAGINA = 15;
+
 const Requerimientos = () => {
   const { usuario, cargando: loading } = useUsuario();
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroCentro, setFiltroCentro] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("Todos");
+  const [pagina, setPagina] = useState(1);
+  const [cambiandoEstado, setCambiandoEstado] = useState(null); // id del RQ en proceso
 
   const [centrosOptions, setCentrosOptions] = useState([]);
   const [centrosLoading, setCentrosLoading] = useState(true);
@@ -129,9 +143,34 @@ const Requerimientos = () => {
       const matchCentro = filtroCentro
         ? (r.centroCosto || "").toLowerCase().includes(filtroCentro.toLowerCase())
         : true;
-      return matchTexto && matchCentro;
+      const matchEstado = filtroEstado === "Todos" || r.estado === filtroEstado;
+      return matchTexto && matchCentro && matchEstado;
     });
-  }, [requerimientos, busqueda, filtroCentro]);
+  }, [requerimientos, busqueda, filtroCentro, filtroEstado]);
+
+  const totalPaginas = Math.max(1, Math.ceil(requerimientosFiltrados.length / ITEMS_POR_PAGINA));
+  const requerimientosPaginados = useMemo(() => {
+    const start = (pagina - 1) * ITEMS_POR_PAGINA;
+    return requerimientosFiltrados.slice(start, start + ITEMS_POR_PAGINA);
+  }, [requerimientosFiltrados, pagina]);
+
+  const cambiarEstado = async (rq, nuevoEstado) => {
+    if (cambiandoEstado) return;
+    setCambiandoEstado(rq.id);
+    try {
+      await actualizarEstadoRequerimiento(rq.id, nuevoEstado, usuario.email);
+      setRequerimientos((prev) =>
+        prev.map((r) => (r.id === rq.id ? { ...r, estado: nuevoEstado } : r))
+      );
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo actualizar el estado.");
+    } finally {
+      setCambiandoEstado(null);
+    }
+  };
+
+  const puedeGestionarEstado = ["admin", "operaciones"].includes((usuario?.rol || "").toLowerCase());
 
   const reqExportData = requerimientosFiltrados.map((r) => ({
     codigo: r.codigo, fecha: r.fecha, centroCosto: r.centroCosto,
@@ -431,21 +470,21 @@ const Requerimientos = () => {
       </div>}
 
       {/* Filtros */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
         <input
           type="text"
           placeholder="Buscar por código o detalle..."
           value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="border p-2 rounded w-full md:w-1/3"
+          onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
+          className="border p-2 rounded w-full md:w-60 text-sm"
         />
 
         <input
           type="text"
-          placeholder="Filtrar por Centro de Costo..."
+          placeholder="Centro de Costo..."
           value={filtroCentro}
-          onChange={(e) => setFiltroCentro(e.target.value)}
-          className="border p-2 rounded w-full md:w-1/4"
+          onChange={(e) => { setFiltroCentro(e.target.value); setPagina(1); }}
+          className="border p-2 rounded w-full md:w-44 text-sm"
           list="centrosCostoList"
         />
         <datalist id="centrosCostoList">
@@ -454,42 +493,107 @@ const Requerimientos = () => {
           ))}
         </datalist>
 
-        <ExportMenu
-          data={reqExportData}
-          nombre={`requerimientos-${new Date().toISOString().slice(0,10)}`}
-          titulo="Requerimientos"
-          headers={reqExportHeaders}
-        />
+        <select
+          value={filtroEstado}
+          onChange={(e) => { setFiltroEstado(e.target.value); setPagina(1); }}
+          className="border p-2 rounded text-sm"
+        >
+          <option value="Todos">Todos los estados</option>
+          <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
+          <option value="En Proceso">En Proceso</option>
+          <option value="Completado">Completado</option>
+          <option value="Rechazado">Rechazado</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+
+        <div className="ml-auto">
+          <ExportMenu
+            data={reqExportData}
+            nombre={`requerimientos-${new Date().toISOString().slice(0,10)}`}
+            titulo="Requerimientos"
+            headers={reqExportHeaders}
+          />
+        </div>
       </div>
 
       {/* Tabla */}
-      <h3 className="text-lg font-semibold mb-2">Requerimientos Registrados</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-semibold">Requerimientos Registrados</h3>
+        <span className="text-xs text-gray-500">{requerimientosFiltrados.length} resultado{requerimientosFiltrados.length !== 1 ? "s" : ""}</span>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2">Código</th>
-              <th className="p-2">Fecha</th>
-              <th className="p-2">Centro</th>
-              <th className="p-2">Detalle</th>
-              <th className="p-2">Ítems</th>
-              <th className="p-2">Estado</th>
+              <th className="p-2 text-left">Código</th>
+              <th className="p-2 text-left">Fecha</th>
+              <th className="p-2 text-left">Centro</th>
+              <th className="p-2 text-left">Detalle</th>
+              <th className="p-2 text-center">Ítems</th>
+              <th className="p-2 text-center">Estado</th>
+              {puedeGestionarEstado && <th className="p-2 text-center">Acciones</th>}
             </tr>
           </thead>
           <tbody>
-            {requerimientosFiltrados.map((r, i) => (
-              <tr key={r.id || i} className="border-t">
-                <td className="p-2">{r.codigo}</td>
-                <td className="p-2">{r.fecha}</td>
-                <td className="p-2">{r.centroCosto}</td>
-                <td className="p-2">{r.detalle}</td>
-                <td className="p-2">{(r.items || []).length}</td>
-                <td className="p-2">{r.estado}</td>
+            {requerimientosPaginados.map((r, i) => (
+              <tr key={r.id || i} className="border-t hover:bg-gray-50">
+                <td className="p-2 font-mono text-xs">{r.codigo}</td>
+                <td className="p-2 text-xs">{r.fecha}</td>
+                <td className="p-2 text-xs">{r.centroCosto}</td>
+                <td className="p-2 max-w-[200px] truncate" title={r.detalle}>{r.detalle || "—"}</td>
+                <td className="p-2 text-center">{(r.items || []).length}</td>
+                <td className="p-2 text-center">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_BADGE[r.estado] || "bg-gray-100 text-gray-600"}`}>
+                    {r.estado || "Sin estado"}
+                  </span>
+                </td>
+                {puedeGestionarEstado && (
+                  <td className="p-2 text-center">
+                    <div className="flex gap-1 justify-center flex-wrap">
+                      {r.estado === "Pendiente de Operaciones" && (
+                        <button
+                          onClick={() => cambiarEstado(r, "En Proceso")}
+                          disabled={cambiandoEstado === r.id}
+                          className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          En Proceso
+                        </button>
+                      )}
+                      {(r.estado === "Pendiente de Operaciones" || r.estado === "En Proceso") && (
+                        <>
+                          <button
+                            onClick={() => cambiarEstado(r, "Completado")}
+                            disabled={cambiandoEstado === r.id}
+                            className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                          >
+                            Completado
+                          </button>
+                          <button
+                            onClick={() => cambiarEstado(r, "Rechazado")}
+                            disabled={cambiandoEstado === r.id}
+                            className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                          >
+                            Rechazar
+                          </button>
+                        </>
+                      )}
+                      {!["Completado","Cancelado"].includes(r.estado) && (
+                        <button
+                          onClick={() => cambiarEstado(r, "Cancelado")}
+                          disabled={cambiandoEstado === r.id}
+                          className="text-xs px-2 py-1 rounded bg-gray-400 text-white hover:bg-gray-500 disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
-            {requerimientosFiltrados.length === 0 && (
+            {requerimientosPaginados.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-gray-500 p-4">
+                <td colSpan={puedeGestionarEstado ? 7 : 6} className="text-center text-gray-500 p-4">
                   Sin resultados.
                 </td>
               </tr>
@@ -497,6 +601,35 @@ const Requerimientos = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {totalPaginas > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-4">
+          <button
+            onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            disabled={pagina === 1}
+            className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+          >
+            Anterior
+          </button>
+          {[...Array(totalPaginas)].map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setPagina(i + 1)}
+              className={`px-3 py-1 rounded border text-sm ${pagina === i + 1 ? "bg-[#004990] text-white" : "hover:bg-gray-100"}`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+            disabled={pagina === totalPaginas}
+            className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
     </div>
   );
 };

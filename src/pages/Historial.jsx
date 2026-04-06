@@ -34,9 +34,11 @@ const flattenOC = (oc) => ({
   ...oc,
   proveedor_rs:  oc.proveedor?.razonSocial || "",
   proveedor_ruc: oc.proveedor?.ruc || "",
-  subtotal: oc.resumen?.subtotal?.toFixed(2) || "",
-  igv:      oc.resumen?.igv?.toFixed(2) || "",
-  total:    oc.resumen?.total?.toFixed(2) || "",
+  subtotal:      (oc.resumen?.subtotal != null ? Number(oc.resumen.subtotal).toFixed(2) : ""),
+  igv:           (oc.resumen?.igv      != null ? Number(oc.resumen.igv     ).toFixed(2) : ""),
+  total:         (oc.resumen?.total    != null ? Number(oc.resumen.total   ).toFixed(2) : ""),
+  requerimiento: oc.requerimiento || oc.numeroRequerimiento || "",
+  cotizacion:    oc.cotizacion    || oc.numeroCotizacion    || "",
 });
 
 // Mini card para móvil
@@ -327,7 +329,12 @@ const Historial = () => {
 
         <div className="flex items-center justify-end gap-2">
           <button
-            onClick={() => { setBusqueda(""); setEstadoFiltro("Todos"); setFechaDesde(""); setFechaHasta(""); setFiltroCentroCosto(""); setPaginaActual(1); }}
+            onClick={async () => {
+              setBusqueda(""); setEstadoFiltro("Todos"); setFechaDesde(""); setFechaHasta(""); setFiltroCentroCosto(""); setPaginaActual(1);
+              // Resetea cursor y recarga desde el inicio
+              const { items, lastDoc: ld, hasMore: hm } = await obtenerOCsPaginadas(30, null);
+              setOrdenes(items); setLastDoc(ld); setHasMore(hm);
+            }}
             className="text-sm text-gray-500 underline"
           >
             Limpiar
