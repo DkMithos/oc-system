@@ -11,17 +11,21 @@ const PAGOS_HEADERS = {
   numeroOC: "N° OC", tipoOrden: "Tipo", proveedor_rs: "Proveedor", proveedor_ruc: "RUC",
   numeroFactura: "N° Factura", fechaPago: "Fecha Pago", tipoPago: "Tipo Pago",
   monedaSeleccionada: "Moneda", total_oc: "Total OC", montoPagado: "Monto Pagado",
-  detraccion_monto: "Detracción", centroCosto: "Centro Costo",
+  montoPendiente: "Pendiente", detraccion_monto: "Detracción", retencion_monto: "Retención",
+  tipoCambio: "T/C", centroCosto: "Centro Costo",
   responsable: "Responsable", requerimiento: "Requerimiento",
 };
 const PAGOS_COLS = Object.keys(PAGOS_HEADERS);
 const flattenPago = (o) => ({
   ...o,
-  proveedor_rs:    o.proveedor?.razonSocial || "",
-  proveedor_ruc:   o.proveedor?.ruc || "",
-  total_oc:        o.resumen?.total?.toFixed(2) || "",
-  montoPagado:     o.montoPagado != null ? Number(o.montoPagado).toFixed(2) : "",
+  proveedor_rs:     o.proveedor?.razonSocial || "",
+  proveedor_ruc:    o.proveedor?.ruc || "",
+  total_oc:         o.resumen?.total?.toFixed(2) || "",
+  montoPagado:      o.montoPagado != null ? Number(o.montoPagado).toFixed(2) : "",
+  montoPendiente:   o.montoPendiente != null ? Number(o.montoPendiente).toFixed(2) : "",
   detraccion_monto: o.detraccion?.aplica ? Number(o.detraccion.monto || 0).toFixed(2) : "",
+  retencion_monto:  o.retencion?.aplica  ? Number(o.retencion.monto  || 0).toFixed(2) : "",
+  tipoCambio:       o.tipoCambio ? Number(o.tipoCambio).toFixed(3) : "",
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -41,7 +45,7 @@ const HistorialPagos = () => {
     (async () => {
       try {
         const data = await obtenerOCs(500);
-        setPagadas((data || []).filter((o) => o.estado === "Pagado"));
+        setPagadas((data || []).filter((o) => o.estado === "Pagado" || o.estado === "Pago Parcial"));
       } finally {
         setCargando(false);
       }
@@ -126,53 +130,71 @@ const HistorialPagos = () => {
           <thead className="bg-gray-100">
             <tr>
               <th className="p-2 text-left">N° OC</th>
+              <th className="p-2 text-left">Estado</th>
               <th className="p-2 text-left">Proveedor</th>
               <th className="p-2 text-left">N° Factura</th>
               <th className="p-2 text-left">Fecha Pago</th>
               <th className="p-2 text-left">Tipo Pago</th>
               <th className="p-2 text-right">Total OC</th>
-              <th className="p-2 text-right">Monto Pagado</th>
+              <th className="p-2 text-right">Pagado</th>
+              <th className="p-2 text-right">Pendiente</th>
               <th className="p-2 text-center">Detracción</th>
+              <th className="p-2 text-center">Retención</th>
+              <th className="p-2 text-center">T/C</th>
               <th className="p-2 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {filtradas.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-4 text-center text-gray-500">
+                <td colSpan={13} className="p-4 text-center text-gray-500">
                   No hay pagos registrados con los filtros actuales.
                 </td>
               </tr>
-            ) : filtradas.map((o) => (
-              <tr key={o.id} className="border-t hover:bg-gray-50">
-                <td className="p-2 font-mono font-semibold">{o.numeroOC || o.numero}</td>
-                <td className="p-2">{o.proveedor?.razonSocial || "—"}</td>
-                <td className="p-2">{o.numeroFactura || "—"}</td>
-                <td className="p-2">{o.fechaPago || "—"}</td>
-                <td className="p-2">{o.tipoPago || "—"}</td>
-                <td className="p-2 text-right">
-                  {formatearMoneda(o.resumen?.total || 0, o.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}
-                </td>
-                <td className="p-2 text-right text-green-700 font-semibold">
-                  {o.montoPagado != null
-                    ? formatearMoneda(Number(o.montoPagado), o.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")
-                    : "—"}
-                </td>
-                <td className="p-2 text-center text-xs">
-                  {o.detraccion?.aplica
-                    ? <span className="text-amber-700">{o.detraccion.tasa}% ({formatearMoneda(o.detraccion.monto, "Soles")})</span>
-                    : <span className="text-gray-400">No</span>}
-                </td>
-                <td className="p-2">
-                  <button
-                    className="text-blue-700 underline text-xs"
-                    onClick={() => verFacturas(o)}
-                  >
-                    Ver adjuntos
-                  </button>
-                </td>
-              </tr>
-            ))}
+            ) : filtradas.map((o) => {
+              const moneda = o.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
+              return (
+                <tr key={o.id} className="border-t hover:bg-gray-50">
+                  <td className="p-2 font-mono font-semibold">{o.numeroOC || o.numero}</td>
+                  <td className="p-2">
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                      o.estado === "Pagado" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                    }`}>{o.estado}</span>
+                  </td>
+                  <td className="p-2">{o.proveedor?.razonSocial || "—"}</td>
+                  <td className="p-2">{o.numeroFactura || "—"}</td>
+                  <td className="p-2">{o.fechaPago || "—"}</td>
+                  <td className="p-2">{o.tipoPago || "—"}</td>
+                  <td className="p-2 text-right">{formatearMoneda(o.resumen?.total || 0, moneda)}</td>
+                  <td className="p-2 text-right text-green-700 font-semibold">
+                    {o.montoPagado != null ? formatearMoneda(Number(o.montoPagado), moneda) : "—"}
+                  </td>
+                  <td className="p-2 text-right text-red-600">
+                    {o.montoPendiente != null && o.montoPendiente > 0
+                      ? formatearMoneda(Number(o.montoPendiente), moneda)
+                      : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="p-2 text-center text-xs">
+                    {o.detraccion?.aplica
+                      ? <span className="text-amber-700">{o.detraccion.tasa}% ({formatearMoneda(o.detraccion.monto, "Soles")})</span>
+                      : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="p-2 text-center text-xs">
+                    {o.retencion?.aplica
+                      ? <span className="text-purple-700">{o.retencion.tasa}% ({formatearMoneda(o.retencion.monto, "Soles")})</span>
+                      : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="p-2 text-center text-xs text-gray-600">
+                    {o.tipoCambio ? Number(o.tipoCambio).toFixed(3) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="p-2">
+                    <button className="text-blue-700 underline text-xs" onClick={() => verFacturas(o)}>
+                      Ver adjuntos
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

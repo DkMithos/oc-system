@@ -47,8 +47,8 @@ const RegistrarPago = () => {
 
   const cargarOCs = async () => {
     const data = await obtenerOCs(200);
-    // Solo OCs aprobadas (estado correcto) y no pagadas
-    setOCs((data || []).filter((o) => o.estado === "Aprobada"));
+    // OCs aprobadas o con pago parcial pendiente
+    setOCs((data || []).filter((o) => o.estado === "Aprobada" || o.estado === "Pago Parcial"));
   };
 
   useEffect(() => {
@@ -60,10 +60,14 @@ const RegistrarPago = () => {
     const o = ocs.find((x) => x.id === id);
     setSel(o || null);
     const det = calcularDetraccion(o);
+    // Para pago parcial, sugerir el monto pendiente; si es primera vez, el total
+    const montoPendiente = o?.montoPendiente != null
+      ? Number(o.montoPendiente).toFixed(2)
+      : o?.resumen?.total?.toFixed(2) || "";
     setForm({
       numero:    "",
       fecha:     new Date().toISOString().split("T")[0],
-      monto:     o?.resumen?.total?.toFixed(2) || "",
+      monto:     montoPendiente,
       tipoPago:  "Transferencia",
       notas:     "",
       archivo:   null,
@@ -110,46 +114,56 @@ const RegistrarPago = () => {
         tipo: "factura",
       });
 
-      // 2) Actualizar OC — estado "Pagado" + snapshot de pago
+      // 2) Calcular acumulados para determinar si pago es parcial o total
+      const totalOC          = sel.resumen?.total || 0;
+      const yaAcumulado      = Number(sel.montoPagado || 0);
+      const nuevoAcumulado   = yaAcumulado + Number(form.monto);
+      const pendiente        = Math.max(0, totalOC - nuevoAcumulado);
+      const esPagoCompleto   = pendiente <= totalOC * 0.01; // tolerancia 1%
+      const nuevoEstado      = esPagoCompleto ? "Pagado" : "Pago Parcial";
+
       await actualizarOC(sel.id, {
-        estado:        "Pagado",
-        numeroFactura: form.numero.trim(),
-        fechaPago:     form.fecha,
-        montoPagado:   Number(form.monto),
+        estado:          nuevoEstado,
+        numeroFactura:   form.numero.trim(),
+        fechaPago:       form.fecha,
+        montoPagado:     nuevoAcumulado,
+        montoPendiente:  pendiente,
         montoNeto,
-        tipoPago:      form.tipoPago,
-        detraccion:    form.aplicaDetraccion ? detraccion : null,
+        tipoPago:        form.tipoPago,
+        detraccion:      form.aplicaDetraccion ? detraccion : null,
         historial: [
           ...(sel.historial || []),
           {
-            accion: "Pago registrado",
-            por:    usuario?.email || "",
-            rol:    usuario?.rol   || "",
-            monto:  Number(form.monto),
+            accion:   esPagoCompleto ? "Pago registrado" : "Pago parcial registrado",
+            por:      usuario?.email || "",
+            rol:      usuario?.rol   || "",
+            monto:    Number(form.monto),
             tipoPago: form.tipoPago,
-            fecha:  new Date().toLocaleString("es-PE"),
+            fecha:    new Date().toLocaleString("es-PE"),
           },
         ],
       });
 
       // 3) Log
       await registrarLog({
-        accion:     "pago_registrado",
+        accion:     esPagoCompleto ? "pago_registrado" : "pago_parcial_registrado",
         ocId:       sel.id,
         usuario:    usuario?.email,
         rol:        usuario?.rol,
-        comentario: `Factura ${form.numero} por ${formatearMoneda(Number(form.monto), sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}`,
+        comentario: `Factura ${form.numero} por ${formatearMoneda(Number(form.monto), sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}${!esPagoCompleto ? ` — pendiente ${formatearMoneda(pendiente, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}` : ""}`,
       });
 
       // 4) Notificar al creador de la OC
       notificarUsuario({
         email: sel.creadoPor || "",
-        title: "OC Pagada 💰",
-        body:  `La OC ${sel.numero} ha sido registrada como pagada.`,
+        title: esPagoCompleto ? "OC Pagada 💰" : "Pago parcial registrado",
+        body:  esPagoCompleto
+          ? `La OC ${sel.numeroOC || sel.numero} ha sido pagada completamente.`
+          : `La OC ${sel.numeroOC || sel.numero} tiene un pago parcial. Pendiente: ${formatearMoneda(pendiente, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}.`,
         ocId:  sel.id,
       }).catch(() => {});
 
-      toast.success("Pago registrado correctamente ✅");
+      toast.success(esPagoCompleto ? "Pago total registrado ✅" : `Pago parcial registrado. Pendiente: ${formatearMoneda(pendiente, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")} ✅`);
       await cargarOCs();
       setSel(null);
       setForm({ numero: "", fecha: new Date().toISOString().split("T")[0], monto: "", tipoPago: "Transferencia", notas: "", archivo: null, aplicaDetraccion: false });
@@ -194,16 +208,28 @@ const RegistrarPago = () => {
         )}
 
         {sel && (
-          <div className="mt-4 grid md:grid-cols-3 gap-3 text-sm bg-blue-50 rounded p-3">
-            <div><b>Proveedor:</b> {sel.proveedor?.razonSocial}</div>
-            <div><b>RUC:</b> {sel.proveedor?.ruc || "—"}</div>
-            <div><b>Moneda:</b> {sel.monedaSeleccionada || "Soles"}</div>
-            <div><b>Subtotal:</b> {formatearMoneda(sel.resumen?.subtotal || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</div>
-            <div><b>IGV ({sel.resumen?.igvTasa ?? 18}%):</b> {formatearMoneda(sel.resumen?.igv || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</div>
-            <div><b>Total OC:</b> <span className="font-bold">{formatearMoneda(sel.resumen?.total || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</span></div>
-            <div><b>Banco:</b> {sel.bancoSeleccionado || "—"}</div>
-            <div><b>Cuenta:</b> {sel.cuenta?.cuenta || "—"}</div>
-            <div><b>CCI:</b> {sel.cuenta?.cci || "—"}</div>
+          <div className="mt-4 text-sm bg-blue-50 rounded p-3 space-y-2">
+            <div className="grid md:grid-cols-3 gap-3">
+              <div><b>Proveedor:</b> {sel.proveedor?.razonSocial}</div>
+              <div><b>RUC:</b> {sel.proveedor?.ruc || "—"}</div>
+              <div><b>Moneda:</b> {sel.monedaSeleccionada || "Soles"}</div>
+              <div><b>Subtotal:</b> {formatearMoneda(sel.resumen?.subtotal || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</div>
+              <div><b>IGV ({sel.resumen?.igvTasa ?? 18}%):</b> {formatearMoneda(sel.resumen?.igv || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</div>
+              <div><b>Total OC:</b> <span className="font-bold">{formatearMoneda(sel.resumen?.total || 0, sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</span></div>
+              <div><b>Banco:</b> {sel.bancoSeleccionado || "—"}</div>
+              <div><b>Cuenta:</b> {sel.cuenta?.cuenta || "—"}</div>
+              <div><b>CCI:</b> {sel.cuenta?.cci || "—"}</div>
+            </div>
+            {/* Progreso de pago (solo visible si ya tiene pagos parciales) */}
+            {sel.estado === "Pago Parcial" && (
+              <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-1">
+                <p className="text-amber-800 font-medium text-xs mb-1">Pago parcial registrado</p>
+                <div className="flex gap-4 text-xs">
+                  <span>Ya pagado: <b className="text-green-700">{formatearMoneda(Number(sel.montoPagado || 0), sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</b></span>
+                  <span>Pendiente: <b className="text-red-700">{formatearMoneda(Number(sel.montoPendiente || 0), sel.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles")}</b></span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

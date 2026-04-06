@@ -60,9 +60,10 @@ const calcTotalOC = (oc) => {
   }, 0);
 };
 
-const estadoEsAprobado = (estado = "") =>
-  String(estado).toLowerCase().includes("aprobado") ||
-  String(estado).toLowerCase() === "pagado";
+const estadoEsAprobado = (estado = "") => {
+  const e = String(estado).toLowerCase();
+  return e === "aprobada" || e === "aprobado" || e === "pagado" || e === "pago parcial";
+};
 
 // ─────────────────────────────────────────────────────────────
 // Componente
@@ -176,7 +177,11 @@ const Indicadores = () => {
     (o) => String(o?.prioridad || "").toLowerCase() === "alta"
   ).length;
 
-  const sinFirmaFinal = ordenesFiltradas.filter((o) => !o?.firmaGerencia).length;
+  // OCs en flujo de aprobación que no han alcanzado "Aprobada" ni "Pagado"
+  const sinFirmaFinal = ordenesFiltradas.filter((o) => {
+    const e = String(o?.estado || "");
+    return e.startsWith("Pendiente") && !o?.firmas?.gerenciaGeneral;
+  }).length;
 
   // ─────────────────────────────────────────────────────────────
   // Distribuciones / rankings
