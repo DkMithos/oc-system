@@ -1,10 +1,9 @@
 // ✅ src/pages/Historial.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { useLocation } from "react-router-dom";
+import ExportMenu from "../components/ExportMenu";
 
-import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { obtenerOCsPaginadas } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
 import { ocPendingForRole, isGerenciaRole } from "../utils/aprobaciones";
@@ -24,20 +23,21 @@ const parseDate = (s) => {
   return isNaN(t) ? -Infinity : t;
 };
 
-const exportarExcel = (ordenes) => {
-  const data = ordenes.map((oc) => ({
-    "N° OC": oc.numeroOC || oc.numero || "",
-    Proveedor: oc.proveedor?.razonSocial || "",
-    "Fecha Emisión": oc.fechaEmision || "",
-    Estado: oc.estado || "",
-    "N° Factura": oc.numeroFactura || "",
-  }));
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Ordenes de Compra");
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), `Historial_OC_${new Date().toISOString().slice(0, 10)}.xlsx`);
+const HISTORIAL_COLS = ["numeroOC","tipoOrden","proveedor_rs","proveedor_ruc","fechaEmision","centroCosto","responsable","monedaSeleccionada","subtotal","igv","total","estado","numeroFactura","requerimiento","cotizacion"];
+const HISTORIAL_HEADERS = {
+  numeroOC: "N° OC", tipoOrden: "Tipo", proveedor_rs: "Proveedor", proveedor_ruc: "RUC Proveedor",
+  fechaEmision: "Fecha Emisión", centroCosto: "Centro Costo", responsable: "Responsable",
+  monedaSeleccionada: "Moneda", subtotal: "Subtotal", igv: "IGV", total: "Total",
+  estado: "Estado", numeroFactura: "N° Factura", requerimiento: "Requerimiento", cotizacion: "Cotización",
 };
+const flattenOC = (oc) => ({
+  ...oc,
+  proveedor_rs:  oc.proveedor?.razonSocial || "",
+  proveedor_ruc: oc.proveedor?.ruc || "",
+  subtotal: oc.resumen?.subtotal?.toFixed(2) || "",
+  igv:      oc.resumen?.igv?.toFixed(2) || "",
+  total:    oc.resumen?.total?.toFixed(2) || "",
+});
 
 // Mini card para móvil
 const CardOC = ({ oc, onVer }) => (
@@ -61,10 +61,12 @@ const CardOC = ({ oc, onVer }) => (
           className={`inline-block mt-0.5 text-xs font-medium px-2 py-1 rounded-full ${
             oc.estado === "Pagado"
               ? "text-green-700 bg-green-100"
-              : oc.estado === "Rechazado"
-              ? "text-red-700 bg-red-100"
-              : oc.estado?.includes("Aprobado")
+              : oc.estado === "Aprobada"
               ? "text-blue-700 bg-blue-100"
+              : (oc.estado === "Rechazada" || oc.estado === "Rechazado")
+              ? "text-red-700 bg-red-100"
+              : oc.estado?.startsWith("Pendiente")
+              ? "text-amber-700 bg-amber-100"
               : "text-gray-700 bg-gray-100"
           }`}
         >
@@ -84,7 +86,7 @@ const CardOC = ({ oc, onVer }) => (
 // Componente
 // ───────────────────────────────────────────────────────────────────────────────
 const Historial = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const { search } = useLocation();
   const params = new URLSearchParams(search);
 
@@ -92,9 +94,15 @@ const Historial = () => {
   const onlyPendientesParam =
     params.get("pendientes") === "1" || params.get("bandeja") === "1";
 
-  const [ordenes, setOrdenes] = useState([]);
+  const [ordenes, setOrdenes]     = useState([]);
+  const [lastDoc, setLastDoc]     = useState(null);
+  const [hasMore, setHasMore]     = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("Todos");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [filtroCentroCosto, setFiltroCentroCosto] = useState("");
 
   // Ordenamiento (default: N° OC de mayor a menor)
   const [sortKey, setSortKey] = useState("numero");
@@ -108,15 +116,30 @@ const Historial = () => {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
 
-  // Carga
+  // Carga inicial con paginación cursor
   useEffect(() => {
     if (!loading && usuario) {
       (async () => {
-        const data = await obtenerOCs();
-        setOrdenes(data || []);
+        const { items, lastDoc: ld, hasMore: hm } = await obtenerOCsPaginadas(30, null);
+        setOrdenes(items);
+        setLastDoc(ld);
+        setHasMore(hm);
       })();
     }
   }, [usuario, loading]);
+
+  const cargarMas = async () => {
+    if (!hasMore || cargandoMas) return;
+    setCargandoMas(true);
+    try {
+      const { items, lastDoc: ld, hasMore: hm } = await obtenerOCsPaginadas(30, lastDoc);
+      setOrdenes((prev) => [...prev, ...items]);
+      setLastDoc(ld);
+      setHasMore(hm);
+    } finally {
+      setCargandoMas(false);
+    }
+  };
 
   // 🔄 Escuchar actualizaciones globales de OCs (ej. desde /firmar)
   useEffect(() => {
@@ -150,7 +173,7 @@ const Historial = () => {
     return baseSegunRol;
   }, [baseSegunRol, ordenes, onlyPendientesParam, usuario]);
 
-  // 3) Filtros de UI (texto/estado)
+  // 3) Filtros de UI (texto, estado, fechas, centro de costo)
   const ordenesProcesadas = useMemo(() => {
     const filtradas = (baseConParam || []).filter((oc) => {
       const q = normalizeStr(busqueda);
@@ -159,7 +182,15 @@ const Historial = () => {
       const e = normalizeStr(oc.estado);
       const matchTexto = n.includes(q) || p.includes(q) || e.includes(q);
       const matchEstado = estadoFiltro === "Todos" || oc.estado === estadoFiltro;
-      return matchTexto && matchEstado;
+
+      const fechaOC = oc.fechaEmision || "";
+      const matchDesde = !fechaDesde || fechaOC >= fechaDesde;
+      const matchHasta = !fechaHasta || fechaOC <= fechaHasta;
+
+      const matchCC = !filtroCentroCosto ||
+        normalizeStr(oc.centroCosto).includes(normalizeStr(filtroCentroCosto));
+
+      return matchTexto && matchEstado && matchDesde && matchHasta && matchCC;
     });
 
     const compare = (a, b) => {
@@ -194,7 +225,7 @@ const Historial = () => {
     };
 
     return [...filtradas].sort(compare);
-  }, [baseConParam, busqueda, estadoFiltro, sortKey, sortDir]);
+  }, [baseConParam, busqueda, estadoFiltro, fechaDesde, fechaHasta, filtroCentroCosto, sortKey, sortDir]);
 
   const totalPaginas = Math.ceil(ordenesProcesadas.length / elementosPorPagina);
   const ordenesPaginadas = ordenesProcesadas.slice(
@@ -243,42 +274,71 @@ const Historial = () => {
       )}
 
       {/* Filtros */}
-      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <input
           type="text"
-          placeholder="Buscar por N° OC, proveedor o estado"
+          placeholder="Buscar N° OC, proveedor, estado..."
           value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setPaginaActual(1);
-          }}
-          className="p-2 border rounded w-full md:w-1/2 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(1); }}
+          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         />
 
         <select
           value={estadoFiltro}
-          onChange={(e) => {
-            setEstadoFiltro(e.target.value);
-            setPaginaActual(1);
-          }}
-          className="p-2 border rounded w-full md:w-1/3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          onChange={(e) => { setEstadoFiltro(e.target.value); setPaginaActual(1); }}
+          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         >
           <option value="Todos">Todos los estados</option>
-          <option value="Pendiente de Firma del Comprador">Pendiente de Firma del Comprador</option>
           <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
-          <option value="Aprobado por Operaciones">Aprobado por Operaciones</option>
-          <option value="Aprobado por Gerencia">Aprobado por Gerencia</option>
-          <option value="Rechazado">Rechazado</option>
+          <option value="Pendiente de Gerencia Operaciones">Pendiente de Gerencia Operaciones</option>
+          <option value="Pendiente de Gerencia General">Pendiente de Gerencia General</option>
+          <option value="Aprobada">Aprobada</option>
+          <option value="Rechazada">Rechazada</option>
           <option value="Pagado">Pagado</option>
         </select>
 
-        <div className="ml-auto">
+        <input
+          type="text"
+          placeholder="Filtrar por centro de costo..."
+          value={filtroCentroCosto}
+          onChange={(e) => { setFiltroCentroCosto(e.target.value); setPaginaActual(1); }}
+          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+        />
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-600 whitespace-nowrap">Desde:</label>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => { setFechaDesde(e.target.value); setPaginaActual(1); }}
+            className="p-2 border rounded text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-600 whitespace-nowrap">Hasta:</label>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => { setFechaHasta(e.target.value); setPaginaActual(1); }}
+            className="p-2 border rounded text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
           <button
-            onClick={() => exportarExcel(ordenesProcesadas)}
-            className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded"
+            onClick={() => { setBusqueda(""); setEstadoFiltro("Todos"); setFechaDesde(""); setFechaHasta(""); setFiltroCentroCosto(""); setPaginaActual(1); }}
+            className="text-sm text-gray-500 underline"
           >
-            Exportar listado
+            Limpiar
           </button>
+          <ExportMenu
+            data={ordenesProcesadas.map(flattenOC)}
+            nombre={`historial-oc-${new Date().toISOString().slice(0,10)}`}
+            titulo="Historial de Órdenes de Compra"
+            columnas={HISTORIAL_COLS}
+            headers={HISTORIAL_HEADERS}
+          />
         </div>
       </div>
 
@@ -396,8 +456,8 @@ const Historial = () => {
             ))}
           </div>
 
-          {/* Paginación */}
-          <div className="flex justify-center mt-4 gap-2">
+          {/* Paginación de páginas */}
+          <div className="flex justify-center mt-4 gap-2 flex-wrap">
             {Array.from({ length: totalPaginas }, (_, i) => (
               <button
                 key={i}
@@ -412,6 +472,19 @@ const Historial = () => {
               </button>
             ))}
           </div>
+
+          {/* Cargar más desde Firestore */}
+          {hasMore && (
+            <div className="flex justify-center mt-3">
+              <button
+                onClick={cargarMas}
+                disabled={cargandoMas}
+                className="px-5 py-2 border border-[#004990] text-[#004990] rounded hover:bg-[#004990] hover:text-white text-sm transition-colors disabled:opacity-50"
+              >
+                {cargandoMas ? "Cargando…" : `Cargar más (${ordenes.length} cargadas)`}
+              </button>
+            </div>
+          )}
         </>
       )}
 

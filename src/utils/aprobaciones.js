@@ -1,77 +1,130 @@
-// ✅ src/utils/aprobaciones.js
+// src/utils/aprobaciones.js
+// Flujo de aprobaciones configurable.
+// Los umbrales se leen desde Firestore (configuracion/aprobaciones).
+// Default: ≤5000 SOL → solo Operaciones; >5000 → Gerencia General obligatoria.
 
-// Diccionario centralizado de roles para evitar typos
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../firebase/config";
+
+/** Catálogo central de roles */
 export const ROLES = {
-  ADMIN: "admin",
-  SOPORTE: "soporte",
-  COMPRADOR: "comprador",
-  OPERACIONES: "operaciones",
-  GERENCIA_OP: "gerencia operaciones",
-  GERENCIA_GEN: "gerencia general",
-  GERENCIA: "gerencia",
-  FINANZAS: "finanzas",
-  GERENCIA_FIN: "gerencia finanzas",
+  ADMIN:          "admin",
+  SOPORTE:        "soporte",
+  COMPRADOR:      "comprador",
+  OPERACIONES:    "operaciones",
+  GERENCIA_OP:    "gerencia operaciones",
+  GERENCIA_GEN:   "gerencia general",
+  GERENCIA:       "gerencia",
+  FINANZAS:       "finanzas",
+  GERENCIA_FIN:   "gerencia finanzas",
   ADMINISTRACION: "administracion",
-  LEGAL: "legal"
+  LEGAL:          "legal",
 };
 
-// ⚙️ Configuración dinámica de IGV (Zonas Especiales)
-export const TAX_CONFIG = {
-  IGV_STANDARD: 0.18,
-  ZONAS_EXONERADAS: ["LORETO", "AMAZONAS", "SAN MARTIN", "UCAYALI", "MADRE DE DIOS"],
-  obtenerTasa: (departamento = "") => {
-    const dep = String(departamento).toUpperCase().trim();
-    return TAX_CONFIG.ZONAS_EXONERADAS.includes(dep) ? 0 : TAX_CONFIG.IGV_STANDARD;
+/** Umbrales por defecto (modificables desde Admin → Firestore) */
+export const UMBRALES_DEFAULT = {
+  soloOperaciones:   5000,   // ≤ este valor → solo firma Operaciones
+  gerenciaGeneral:   5000,   // > este valor → requiere Gerencia General
+  monedaBase:        "Soles",
+  tipoCambioDef:     3.8,    // usado para convertir USD → SOL si monto en USD
+};
+
+/** Lee la configuración de aprobaciones desde Firestore */
+export const obtenerConfigAprobaciones = async () => {
+  try {
+    const snap = await getDoc(doc(db, "configuracion", "aprobaciones"));
+    return snap.exists() ? snap.data() : UMBRALES_DEFAULT;
+  } catch {
+    return UMBRALES_DEFAULT;
   }
 };
 
-// 💰 Tiers de Aprobación (Regla de Negocio)
-export const getRequiredApprovals = (montoTotal = 0) => {
-  const steps = [ROLES.OPERACIONES]; // Siempre empieza en operaciones
-  
-  if (montoTotal > 10000) {
-    steps.push(ROLES.GERENCIA_OP);
-  }
-  if (montoTotal >= 50000) {
-    steps.push(ROLES.GERENCIA_GEN);
-  }
-  return steps;
+/** Guarda la configuración de aprobaciones (solo admin) */
+export const guardarConfigAprobaciones = async (config) => {
+  await setDoc(doc(db, "configuracion", "aprobaciones"), {
+    ...UMBRALES_DEFAULT,
+    ...config,
+    actualizadoEn: new Date().toISOString(),
+  }, { merge: true });
 };
 
-export const calcularSiguienteEstado = (monto, rolActual) => {
-  if (monto > 10000 && rolActual === ROLES.OPERACIONES) return "Pendiente de Gerencia Operaciones";
-  if (monto >= 50000 && rolActual === ROLES.GERENCIA_OP) return "Pendiente de Gerencia General";
-  return "Aprobada";
+/**
+ * Convierte monto a Soles para comparación con umbrales.
+ * @param {number} monto
+ * @param {string} moneda - "Soles" | "Dólares"
+ * @param {number} tipoCambio
+ */
+const aSOL = (monto, moneda, tipoCambio) => {
+  const m = Number(monto) || 0;
+  if (moneda === "Dólares" || moneda === "USD") return m * (Number(tipoCambio) || 3.8);
+  return m;
 };
 
-// Roles de GERENCIA
-const GERENCIA_ROLES = [
-  ROLES.GERENCIA_OP,
-  ROLES.GERENCIA_GEN,
-  ROLES.GERENCIA,
-];
+/**
+ * Calcula las etapas requeridas para una OC según su monto.
+ * @param {number} montoTotal - Total de la OC
+ * @param {string} moneda - "Soles" | "Dólares"
+ * @param {object|null} config - De obtenerConfigAprobaciones()
+ * @returns {string[]} Lista de estados en orden
+ */
+export const etapasRequeridas = (montoTotal = 0, moneda = "Soles", config = null) => {
+  const cfg   = config || UMBRALES_DEFAULT;
+  const tc    = cfg.tipoCambioDef || 3.8;
+  const mSOL  = aSOL(montoTotal, moneda, tc);
+  const umbral = Number(cfg.soloOperaciones ?? cfg.gerenciaGeneral ?? 5000);
 
-// Roles que muestran "Bandeja/Pendientes" en el header
-const BANDEJA_ROLES = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
+  const etapas = ["Pendiente de Operaciones"];
 
-// Roles que aprueban/firman (para contadores u otros permisos)
-const APPROVAL_ROLES = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
+  if (mSOL > umbral) {
+    etapas.push("Pendiente de Gerencia General");
+  }
 
-export const isGerenciaRole = (role = "") =>
-  GERENCIA_ROLES.includes(String(role || "").toLowerCase());
+  return etapas;
+};
 
-export const isBandejaRole = (role = "") =>
-  BANDEJA_ROLES.includes(String(role || "").toLowerCase());
+/**
+ * Estado inicial de una OC recién creada.
+ */
+export const determinarEstadoInicial = () => "Pendiente de Operaciones";
 
-export const isApprovalRole = (role = "") =>
-  APPROVAL_ROLES.includes(String(role || "").toLowerCase());
+/**
+ * Siguiente estado tras una aprobación.
+ */
+export const siguienteEstado = (estadoActual, montoTotal = 0, moneda = "Soles", config = null) => {
+  const etapas = etapasRequeridas(montoTotal, moneda, config);
+  const idx    = etapas.indexOf(estadoActual);
+  if (idx === -1 || idx + 1 >= etapas.length) return "Aprobada";
+  return etapas[idx + 1];
+};
 
-// Estados “pendientes” por rol con el nuevo flujo
+/**
+ * ¿Puede este rol aprobar en el estado actual?
+ */
+export const puedeAprobarEnEstado = (estadoOC, rol) => {
+  const r = String(rol || "").toLowerCase().trim();
+  const MAPA = {
+    "Pendiente de Operaciones":    [ROLES.OPERACIONES, ROLES.ADMIN],
+    "Pendiente de Gerencia General": [ROLES.GERENCIA_GEN, ROLES.GERENCIA, ROLES.ADMIN],
+  };
+  return (MAPA[estadoOC] || []).includes(r);
+};
+
+// ─── Roles de interfaz ───────────────────────────────────────────────────────
+
+const GERENCIA_ROLES  = [ROLES.GERENCIA_OP, ROLES.GERENCIA_GEN, ROLES.GERENCIA];
+const BANDEJA_ROLES   = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
+const APPROVAL_ROLES  = [ROLES.OPERACIONES, ...GERENCIA_ROLES];
+
+export const isGerenciaRole  = (r = "") => GERENCIA_ROLES.includes(String(r || "").toLowerCase());
+export const isBandejaRole   = (r = "") => BANDEJA_ROLES.includes(String(r || "").toLowerCase());
+export const isApprovalRole  = (r = "") => APPROVAL_ROLES.includes(String(r || "").toLowerCase());
+
+/** Estados que este rol debe ver en su bandeja */
 const PENDING_BY_ROLE = {
-  [ROLES.OPERACIONES]: ["Pendiente de Operaciones"],
-  [ROLES.GERENCIA_OP]: ["Pendiente de Gerencia Operaciones"],
-  [ROLES.GERENCIA]: ["Pendiente de Gerencia Operaciones"], 
+  [ROLES.OPERACIONES]:  ["Pendiente de Operaciones"],
   [ROLES.GERENCIA_GEN]: ["Pendiente de Gerencia General"],
+  [ROLES.GERENCIA]:     ["Pendiente de Gerencia General"],
+  [ROLES.GERENCIA_OP]:  ["Pendiente de Gerencia General"],
 };
 
 export const pendingStatesForRole = (role = "") => {
@@ -80,10 +133,7 @@ export const pendingStatesForRole = (role = "") => {
 };
 
 /**
- * ¿Esta OC está pendiente para que la firme/apruebe este rol/usuario?
- * - Filtra por estados esperados según rol
- * - Respeta asignación directa (asignadoA)
- * - Evita contar si el usuario ya firmó (si usas oc.aprobadores[])
+ * ¿Esta OC está pendiente para este usuario?
  */
 export const ocPendingForRole = (oc = {}, role = "", email = "") => {
   const estados = pendingStatesForRole(role);
@@ -92,23 +142,27 @@ export const ocPendingForRole = (oc = {}, role = "", email = "") => {
   const estado = oc?.estado || "";
   if (!estados.includes(estado)) return false;
 
-  // Asignado a una persona concreta
-  if (
-    oc?.asignadoA &&
-    String(oc.asignadoA).toLowerCase() !== String(email || "").toLowerCase()
-  ) {
+  if (oc?.asignadoA && String(oc.asignadoA).toLowerCase() !== String(email).toLowerCase()) {
     return false;
   }
 
-  // Ya firmó (si manejas aprovadores por persona)
   if (Array.isArray(oc?.aprobadores)) {
     const yo = oc.aprobadores.find(
-      (a) =>
-        String(a?.email || "").toLowerCase() ===
-        String(email || "").toLowerCase()
+      (a) => String(a?.email || "").toLowerCase() === String(email).toLowerCase()
     );
     if (yo?.firmado) return false;
   }
 
   return true;
+};
+
+// ─── Config de IGV inline (para no importar igvHelpers desde aquí) ────────────
+
+export const TAX_CONFIG = {
+  IGV_STANDARD: 0.18,
+  ZONAS_EXONERADAS: ["LORETO", "AMAZONAS", "SAN MARTIN", "UCAYALI", "MADRE DE DIOS"],
+  obtenerTasa: (departamento = "") => {
+    const dep = String(departamento).toUpperCase().trim();
+    return TAX_CONFIG.ZONAS_EXONERADAS.includes(dep) ? 0 : TAX_CONFIG.IGV_STANDARD;
+  },
 };

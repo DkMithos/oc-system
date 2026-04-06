@@ -34,7 +34,7 @@ const num = (v) => {
 
 const Cotizaciones = () => {
   const navigate = useNavigate();
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
 
   const [cotizaciones, setCotizaciones] = useState([]);
   const [proveedores, setProveedores] = useState([]);

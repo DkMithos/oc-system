@@ -8,8 +8,8 @@ import {
 import { consultarSunat } from "../utils/consultaSunat";
 import { Pencil } from "lucide-react";
 import CuentaBancariaForm from "../components/CuentaBancariaForm";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportExcelMultiHoja, exportCSV, exportPDF } from "../utils/exportUtils";
+import ExportMenu from "../components/ExportMenu";
 import { useUsuario } from "../context/UsuarioContext";
 
 const esRucValido = (raw) => {
@@ -25,7 +25,7 @@ const esRucValido = (raw) => {
 };
 
 const Proveedores = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
 
   const [proveedores, setProveedores] = useState([]);
   const [form, setForm] = useState({
@@ -166,47 +166,42 @@ const Proveedores = () => {
   const fin = inicio + porPagina;
   const proveedoresPaginados = proveedoresFiltrados.slice(inicio, fin);
 
-  // Exportación en 2 hojas
-  const exportarExcel = () => {
-    if (!proveedoresFiltrados.length) {
-      alert("No hay proveedores para exportar");
-      return;
-    }
-    const dataProveedores = proveedoresFiltrados.map((p) => ({
-      RUC: p.ruc,
-      "Razón Social": p.razonSocial,
-      Dirección: p.direccion,
-      Teléfono: p.telefono,
-      Email: p.email,
-      Contacto: p.contacto,
-      Estado: p.estado || "Activo",
-      "Nº Cuentas": Array.isArray(p.bancos) ? p.bancos.length : 0,
-    }));
-    const dataCuentas = [];
-    proveedoresFiltrados.forEach((p) => {
-      (p.bancos || []).forEach((b) => {
-        dataCuentas.push({
-          RUC: p.ruc,
-          "Razón Social": p.razonSocial,
-          Banco: b.nombre || "",
-          Moneda: b.moneda || "",
-          Cuenta: b.cuenta || "",
-          CCI: b.cci || "",
-          Contacto: p.contacto || "",
-          Email: p.email || "",
-          EstadoProveedor: p.estado || "Activo",
-        });
-      });
-    });
+  // Exportación multi-hoja (proveedores + cuentas)
+  const exportarExcelProveedores = () => {
+    if (!proveedoresFiltrados.length) return;
+    const nombre = `proveedores-${new Date().toISOString().slice(0,10)}`;
+    exportExcelMultiHoja([
+      {
+        hoja: "Proveedores",
+        data: proveedoresFiltrados.map((p) => ({
+          RUC: p.ruc, "Razón Social": p.razonSocial, Dirección: p.direccion,
+          Teléfono: p.telefono, Email: p.email, Contacto: p.contacto,
+          Estado: p.estado || "Activo",
+          "Nº Cuentas": Array.isArray(p.bancos) ? p.bancos.length : 0,
+        })),
+      },
+      {
+        hoja: "Cuentas Bancarias",
+        data: proveedoresFiltrados.flatMap((p) =>
+          (p.bancos || []).map((b) => ({
+            RUC: p.ruc, "Razón Social": p.razonSocial,
+            Banco: b.nombre || "", Moneda: b.moneda || "",
+            Cuenta: b.cuenta || "", CCI: b.cci || "",
+            Contacto: p.contacto || "", Email: p.email || "",
+          }))
+        ),
+      },
+    ], nombre);
+  };
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataProveedores), "Proveedores");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataCuentas), "Cuentas");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    saveAs(blob, `Proveedores_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const proveedoresExportData = proveedoresFiltrados.map((p) => ({
+    ruc: p.ruc, razonSocial: p.razonSocial, direccion: p.direccion,
+    telefono: p.telefono, email: p.email, contacto: p.contacto,
+    estado: p.estado || "Activo",
+  }));
+  const proveedoresExportHeaders = {
+    ruc: "RUC", razonSocial: "Razón Social", direccion: "Dirección",
+    telefono: "Teléfono", email: "Email", contacto: "Contacto", estado: "Estado",
   };
 
   if (loading) return <div className="p-6">Cargando usuario.</div>;
@@ -336,12 +331,21 @@ const Proveedores = () => {
           }}
           className="border px-3 py-2 rounded w-full md:w-1/2"
         />
-        <button
-          onClick={exportarExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
-        >
-          Exportar a Excel
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={exportarExcelProveedores}
+            disabled={!proveedoresFiltrados.length}
+            className="btn btn-export btn-sm disabled:opacity-50"
+          >
+            Excel (2 hojas)
+          </button>
+          <ExportMenu
+            data={proveedoresExportData}
+            nombre={`proveedores-${new Date().toISOString().slice(0,10)}`}
+            titulo="Proveedores"
+            headers={proveedoresExportHeaders}
+          />
+        </div>
       </div>
 
       {/* Tabla */}

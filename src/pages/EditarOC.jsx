@@ -31,7 +31,7 @@ const selectStyles = {
 const EditarOC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
 
   const ocId = new URLSearchParams(location.search).get("id");
 

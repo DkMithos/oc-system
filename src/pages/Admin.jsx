@@ -23,6 +23,7 @@ import ResumenCards from "../components/admin/ResumenCards";
 import GestorUsuarios from "../components/admin/GestorUsuarios";
 import GestorCentrosCosto from "../components/admin/GestorCentrosCosto";
 import GestorCondicionesPago from "../components/admin/GestorCondicionesPago";
+import GestorAprobaciones from "../components/admin/GestorAprobaciones";
 
 const Admin = () => {
   const { usuario, cargando } = useUsuario();
@@ -139,10 +140,14 @@ const Admin = () => {
   if (loadingPanel) return <div className="p-6">Cargando panel…</div>;
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Panel de Administración</h2>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="page-header">
+        <h2 className="page-title">Panel de Administración</h2>
+      </div>
 
       <ResumenCards ordenes={ordenes} cotizaciones={cotizaciones} proveedores={proveedores} />
+
+      <GestorAprobaciones />
 
       <GestorCentrosCosto centros={centros} agregar={agregarCentroCosto} cambiarEstado={cambiarEstadoCentro} />
 

@@ -8,7 +8,7 @@ import { useUsuario } from "../context/UsuarioContext";
 import { scheduleCredit, scheduleCash, firstFridayOnOrAfter } from "../utils/fechas";
 
 const ActualizarPago = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const navigate = useNavigate();
   const ocId = new URLSearchParams(useLocation().search).get("id");
 

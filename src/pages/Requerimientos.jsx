@@ -7,9 +7,8 @@ import {
 } from "../firebase/requerimientosHelpers";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import { PlusCircle } from "lucide-react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { useUsuario } from "../context/UsuarioContext";
+import ExportMenu from "../components/ExportMenu";
 import Select from "react-select";
 
 // (Opcional) Si quieres tiempo real, habilita estas líneas y el import de db:
@@ -32,7 +31,7 @@ const selectStyles = {
 };
 
 const Requerimientos = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroCentro, setFiltroCentro] = useState("");
@@ -134,27 +133,13 @@ const Requerimientos = () => {
     });
   }, [requerimientos, busqueda, filtroCentro]);
 
-  const exportarExcel = () => {
-    if (!requerimientosFiltrados.length) {
-      alert("No hay datos para exportar");
-      return;
-    }
-    const data = requerimientosFiltrados.map((r) => ({
-      Código: r.codigo,
-      Fecha: r.fecha,
-      "Centro de Costo": r.centroCosto,
-      Detalle: r.detalle,
-      "Cantidad de Ítems": (r.items || []).length,
-      Estado: r.estado,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Requerimientos");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    saveAs(blob, `Requerimientos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const reqExportData = requerimientosFiltrados.map((r) => ({
+    codigo: r.codigo, fecha: r.fecha, centroCosto: r.centroCosto,
+    detalle: r.detalle, cantItems: (r.items || []).length, estado: r.estado,
+  }));
+  const reqExportHeaders = {
+    codigo: "Código", fecha: "Fecha", centroCosto: "Centro de Costo",
+    detalle: "Detalle", cantItems: "Cantidad de Ítems", estado: "Estado",
   };
 
   const agregarItem = () => {
@@ -469,12 +454,12 @@ const Requerimientos = () => {
           ))}
         </datalist>
 
-        <button
-          onClick={exportarExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full md:w-auto"
-        >
-          Exportar a Excel
-        </button>
+        <ExportMenu
+          data={reqExportData}
+          nombre={`requerimientos-${new Date().toISOString().slice(0,10)}`}
+          titulo="Requerimientos"
+          headers={reqExportHeaders}
+        />
       </div>
 
       {/* Tabla */}

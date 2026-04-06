@@ -1,3 +1,182 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+   DESIGN TOKENS — Memphis ERP Enterprise
+   Paleta: azul marino corporativo + ámbar + grises neutros
+   ────────────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --brand-900: #012b5a;
+  --brand-800: #014080;
+  --brand-700: #01579b;
+  --brand-600: #0277bd;
+  --brand-100: #e3f2fd;
+  --brand-50:  #f0f7ff;
+
+  /* Accent */
+  --accent:    #f59e0b;
+  --accent-lt: #fef3c7;
+
+  /* Surface */
+  --surface:   #f4f6fa;
+  --card:      #ffffff;
+  --border:    #dde3ee;
+
+  /* Text */
+  --text-primary:   #1a2540;
+  --text-secondary: #4b5f82;
+  --text-muted:     #8a9bbf;
+
+  /* Status */
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger:  #dc2626;
+  --info:    #0284c7;
+
+  /* Sidebar */
+  --sidebar-bg:     var(--brand-900);
+  --sidebar-w:      256px;
+  --sidebar-active: var(--accent);
+
+  /* Topbar */
+  --topbar-h:  56px;
+  --topbar-bg: var(--brand-900);
+
+  /* Transitions */
+  --t-fast:  150ms ease;
+  --t-base:  250ms ease;
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { font-size: 15px; }
+
+body {
+  margin: 0;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--surface);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar enterprise ───────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Utilidades de componentes ──────────────────────────────── */
+@layer components {
+  /* Card base */
+  .erp-card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+
+  /* KPI card */
+  .kpi-card {
+    @apply erp-card p-4 flex flex-col gap-1;
+  }
+
+  /* Botones */
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+           font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-[--brand-900] text-white hover:bg-[--brand-800];
+  }
+  .btn-secondary {
+    @apply btn bg-white text-[--text-primary] border border-[--border] hover:bg-[--surface];
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-success {
+    @apply btn bg-green-600 text-white hover:bg-green-700;
+  }
+  .btn-export {
+    @apply btn bg-emerald-600 text-white hover:bg-emerald-700;
+  }
+  .btn-warning {
+    @apply btn bg-amber-500 text-white hover:bg-amber-600;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+  .btn-lg {
+    @apply px-5 py-2.5 text-base;
+  }
+
+  /* Input */
+  .erp-input {
+    @apply block w-full rounded-lg border border-[--border] bg-white px-3 py-2
+           text-sm text-[--text-primary] placeholder:text-[--text-muted]
+           focus:outline-none focus:ring-2 focus:ring-[--brand-700]/40 focus:border-[--brand-700]
+           transition;
+  }
+
+  /* Select */
+  .erp-select {
+    @apply erp-input appearance-none;
+  }
+
+  /* Label */
+  .erp-label {
+    @apply block text-xs font-semibold text-[--text-secondary] mb-1 tracking-wide uppercase;
+  }
+
+  /* Badge de estado */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold;
+  }
+  .badge-green  { @apply badge bg-green-100 text-green-800; }
+  .badge-yellow { @apply badge bg-yellow-100 text-yellow-800; }
+  .badge-red    { @apply badge bg-red-100 text-red-800; }
+  .badge-blue   { @apply badge bg-blue-100 text-blue-800; }
+  .badge-gray   { @apply badge bg-gray-100 text-gray-700; }
+  .badge-orange { @apply badge bg-orange-100 text-orange-800; }
+
+  /* Tabla enterprise */
+  .erp-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .erp-table th {
+    @apply bg-[--brand-900] text-white text-left px-3 py-2.5 text-xs font-semibold
+           uppercase tracking-wider whitespace-nowrap;
+  }
+  .erp-table td {
+    @apply px-3 py-2.5 border-b border-[--border] text-[--text-primary] align-middle;
+  }
+  .erp-table tr:hover td {
+    @apply bg-[--brand-50];
+  }
+  .erp-table tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply flex items-center justify-between mb-6 pb-4 border-b border-[--border];
+  }
+  .page-title {
+    @apply text-xl font-bold text-[--text-primary];
+  }
+
+  /* Section */
+  .erp-section {
+    @apply erp-card p-5 mb-6;
+  }
+  .section-title {
+    @apply text-sm font-semibold text-[--text-secondary] uppercase tracking-wider mb-4;
+  }
+
+  /* Sidebar item active */
+  .sidebar-active {
+    background: var(--accent);
+    color: var(--brand-900);
+    font-weight: 600;
+  }
+}

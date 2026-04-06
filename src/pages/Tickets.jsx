@@ -46,7 +46,7 @@ const infoSoporte = {
 };
 
 const Tickets = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const [misTickets, setMisTickets] = useState([]);
   const [seleccionado, setSeleccionado] = useState(null);
   const [guardando, setGuardando] = useState(false);

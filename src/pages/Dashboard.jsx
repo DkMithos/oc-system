@@ -18,7 +18,7 @@ import { format, parseISO, subMonths } from "date-fns";
 import { useUsuario } from "../context/UsuarioContext";
 
 const Dashboard = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const [ocData, setOcData] = useState([]);
   const [movimientosCaja, setMovimientosCaja] = useState([]);
 

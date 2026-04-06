@@ -4,7 +4,7 @@ import TicketChat from "../components/TicketChat";
 import { useUsuario } from "../context/UsuarioContext";
 
 const AdminTickets = () => {
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const [tickets, setTickets] = useState([]);
   const [seleccionado, setSeleccionado] = useState(null);
   const [filtro, setFiltro] = useState({ estado: "", prioridad: "" });

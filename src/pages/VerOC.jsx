@@ -30,7 +30,7 @@ const VerOC = () => {
   const ocId = new URLSearchParams(location.search).get("id");
   const stateOC = location.state?.orden;
 
-  const { usuario, loading } = useUsuario();
+  const { usuario, cargando: loading } = useUsuario();
   const [oc, setOC] = useState(null);
 
   // Carga OC inicial
