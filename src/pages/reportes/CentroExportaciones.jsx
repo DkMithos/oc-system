@@ -27,7 +27,7 @@ const normalizeDocForExcel = (docSnap, extra = {}) => {
 
 const exportJsonToExcel = (rows, fileName, sheetName = "Datos") => {
   if (!rows || rows.length === 0) {
-    alert("No hay datos para exportar.");
+    toast.info("No hay datos para exportar.");
     return;
   }
 
@@ -86,7 +86,7 @@ const CentroExportaciones = () => {
       exportJsonToExcel(rows, "ordenes_compra.xlsx", "OrdenesCompra");
     } catch (e) {
       console.error("Error exportando ordenesCompra:", e);
-      alert("Error exportando órdenes de compra. Revisa la consola.");
+      toast.error("Error exportando órdenes de compra. Revisa la consola.");
     } finally {
       setLoadingKey("ordenes", false);
     }
@@ -102,7 +102,7 @@ const CentroExportaciones = () => {
       exportJsonToExcel(rows, "proveedores.xlsx", "Proveedores");
     } catch (e) {
       console.error("Error exportando proveedores:", e);
-      alert("Error exportando proveedores. Revisa la consola.");
+      toast.error("Error exportando proveedores. Revisa la consola.");
     } finally {
       setLoadingKey("proveedores", false);
     }
@@ -118,7 +118,7 @@ const CentroExportaciones = () => {
       exportJsonToExcel(rows, "cotizaciones.xlsx", "Cotizaciones");
     } catch (e) {
       console.error("Error exportando cotizaciones:", e);
-      alert("Error exportando cotizaciones. Revisa la consola.");
+      toast.error("Error exportando cotizaciones. Revisa la consola.");
     } finally {
       setLoadingKey("cotizaciones", false);
     }
@@ -134,7 +134,7 @@ const CentroExportaciones = () => {
       exportJsonToExcel(rows, "requerimientos.xlsx", "Requerimientos");
     } catch (e) {
       console.error("Error exportando requerimientos:", e);
-      alert("Error exportando requerimientos. Revisa la consola.");
+      toast.error("Error exportando requerimientos. Revisa la consola.");
     } finally {
       setLoadingKey("requerimientos", false);
     }
@@ -170,7 +170,7 @@ const CentroExportaciones = () => {
       exportJsonToExcel(allRows, "caja_chica_movimientos.xlsx", "CajaChica");
     } catch (e) {
       console.error("Error exportando caja chica:", e);
-      alert("Error exportando Caja Chica. Revisa la consola.");
+      toast.error("Error exportando Caja Chica. Revisa la consola.");
     } finally {
       setLoadingKey("caja", false);
     }

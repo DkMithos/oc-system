@@ -200,9 +200,9 @@ const CajaChica = () => {
 
   const onGuardar = async () => {
     try {
-      if (!estadoCaja?.abierta) return alert("Debes abrir la caja antes de registrar movimientos.");
+      if (!estadoCaja?.abierta) return toast.warning("Debes abrir la caja antes de registrar movimientos.");
       const v = validar();
-      if (v) return alert(v);
+      if (v) return toast.info(v);
 
       let archivoUrl = "";
       let archivoNombre = "";
@@ -219,7 +219,7 @@ const CajaChica = () => {
         creadoPorEmail: usuario.email,
       });
 
-      alert("Movimiento registrado ✅");
+      toast.success("Movimiento registrado ✅");
       setForm((prev) => ({
         ...prev,
         tipo: "Ingreso",
@@ -237,7 +237,7 @@ const CajaChica = () => {
       // No hace falta recargar: onSnapshot ya refresca
     } catch (e) {
       console.error(e);
-      alert(e.message || "No se pudo registrar el movimiento.");
+      toast.error(e.message || "No se pudo registrar el movimiento.");
     }
   };
 
@@ -365,27 +365,27 @@ const CajaChica = () => {
   const onAbrirCaja = async () => {
     try {
       const val = Number(saldoInicialInput || 0);
-      if (Number.isNaN(val)) return alert("Saldo inicial inválido.");
+      if (Number.isNaN(val)) return toast.warning("Saldo inicial inválido.");
       await abrirCaja({ cajaId, saldoInicial: val, fecha: new Date().toISOString().slice(0, 10), email: usuario.email });
       await cargarEstadoCaja(cajaId);
       setSaldoInicialInput("");
-      alert("Caja abierta ✅");
+      toast.success("Caja abierta ✅");
     } catch (e) {
       console.error(e);
-      alert(e.message || "No se pudo abrir la caja.");
+      toast.error(e.message || "No se pudo abrir la caja.");
     }
   };
 
   const onCerrarCaja = async () => {
     try {
       const val = Number(saldoCierreInput);
-      if (Number.isNaN(val)) return alert("Saldo final inválido.");
+      if (Number.isNaN(val)) return toast.warning("Saldo final inválido.");
       await cerrarCaja({ cajaId, saldoFinal: val, fecha: new Date().toISOString().slice(0, 10), email: usuario.email });
       await cargarEstadoCaja(cajaId);
-      alert("Caja cerrada ✅");
+      toast.success("Caja cerrada ✅");
     } catch (e) {
       console.error(e);
-      alert(e.message || "No se pudo cerrar la caja.");
+      toast.error(e.message || "No se pudo cerrar la caja.");
     }
   };
 

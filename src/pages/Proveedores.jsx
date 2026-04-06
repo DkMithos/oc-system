@@ -99,32 +99,32 @@ const Proveedores = () => {
 
   const guardar = async () => {
     if (!form.ruc || !form.razonSocial) {
-      alert("El RUC y la razón social son obligatorios");
+      toast.info("El RUC y la razón social son obligatorios");
       return;
     }
     if (!esRucValido(form.ruc)) {
-      alert("RUC inválido. Verifica los 11 dígitos.");
+      toast.warning("RUC inválido. Verifica los 11 dígitos.");
       return;
     }
 
     try {
       if (editandoId) {
         if (form.estado !== "Activo" && !form.motivoCambio.trim()) {
-          alert("Debes ingresar el motivo del cambio de estado");
+          toast.warning("Debes ingresar el motivo del cambio de estado");
           return;
         }
         await actualizarProveedor(editandoId, form);
-        alert("Proveedor actualizado ✅");
+        toast.success("Proveedor actualizado ✅");
       } else {
         await agregarProveedor(form);
-        alert("Proveedor agregado ✅");
+        toast.success("Proveedor agregado ✅");
       }
 
       limpiarFormulario();
       cargarProveedores();
     } catch (e) {
       console.error("Error al guardar:", e);
-      alert("Hubo un error");
+      toast.error("Hubo un error");
     }
   };
 

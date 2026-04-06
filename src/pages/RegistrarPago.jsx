@@ -83,6 +83,11 @@ const RegistrarPago = () => {
     if (!form.numero.trim()) return toast.warning("Ingresa el N° de factura.");
     if (!form.fecha)         return toast.warning("Ingresa la fecha de pago.");
     if (!form.monto || Number(form.monto) <= 0) return toast.warning("Ingresa un monto válido.");
+    const totalOC = sel?.resumen?.total || 0;
+    if (totalOC > 0 && Number(form.monto) > totalOC * 1.01) {
+      // Permite hasta 1% de diferencia por redondeo
+      return toast.warning(`El monto (${form.monto}) no puede exceder el total de la OC (${totalOC.toFixed(2)}).`);
+    }
 
     setGuardando(true);
     try {

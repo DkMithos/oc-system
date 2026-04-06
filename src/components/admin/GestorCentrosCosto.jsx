@@ -14,7 +14,7 @@ const GestorCentrosCosto = ({ centros = [], agregar, cambiarEstado }) => {
     .map((c) => ({ ...c, estado: c.estado || "Activo" }));
 
   const handleAgregar = async () => {
-    if (!nuevo.trim()) return alert("Nombre requerido");
+    if (!nuevo.trim()) return toast.warning("Nombre requerido");
     await agregar(nuevo.trim());
     setNuevo("");
     setPagina(1);

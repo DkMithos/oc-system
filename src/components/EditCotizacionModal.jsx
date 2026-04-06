@@ -61,7 +61,7 @@ const EditCotizacionModal = ({ cotizacion, open, onClose, onSaved }) => {
   const save = async () => {
     // Validación mínima
     if (!items.length || items.some((i) => !i.nombre || i.precioUnitario <= 0)) {
-      alert("Completa los ítems (nombre y precio > 0).");
+      toast.warning("Completa los ítems (nombre y precio > 0).");
       return;
     }
 
@@ -90,10 +90,10 @@ const EditCotizacionModal = ({ cotizacion, open, onClose, onSaved }) => {
       await actualizarCotizacion(cotizacion.id, update);
       onSaved?.();
       onClose?.();
-      alert("Cotización actualizada ✅");
+      toast.success("Cotización actualizada ✅");
     } catch (e) {
       console.error(e);
-      alert("No se pudo actualizar la cotización.");
+      toast.error("No se pudo actualizar la cotización.");
     } finally {
       setGuardando(false);
     }

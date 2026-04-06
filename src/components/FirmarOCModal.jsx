@@ -9,7 +9,7 @@ import {
   puedeAprobarEnEstado,
   obtenerConfigAprobaciones,
 } from "../utils/aprobaciones";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { notificarRol } from "../firebase/notifs";
 
 // Mapa: estado → key de firma en el objeto firmas
 const FIRMA_KEY = {
@@ -68,15 +68,11 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
   const otros = Number(oc.resumen?.otros || 0);
   const total = oc.resumen?.total ?? (subtotal + igv + otros);
 
-  // ── Notificación al siguiente rol ────────────────────────────────────────
-  const notifyRole = async (toRole, title, body, ocId) => {
-    try {
-      const fn = httpsCallable(getFunctions(undefined, "us-central1"), "enviarNotificacionRol");
-      await fn({ toRole, payload: { title, body, ocId } });
-    } catch (e) {
-      console.warn("[Notificación] No se pudo enviar:", e?.message || e);
-    }
-  };
+  // ── Notificación al siguiente rol via notifs.js (con fallback a Firestore) ─
+  const notifyRole = (toRole, title, body, ocId) =>
+    notificarRol({ rol: toRole, title, body, ocId }).catch((e) =>
+      console.warn("[Notificación] No se pudo enviar:", e?.message || e)
+    );
 
   // ── Validar si el usuario puede actuar en este estado ───────────────────
   const puedeActuar = usuario && puedeAprobarEnEstado(oc.estado, usuario.rol);
@@ -85,7 +81,7 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
   // ── Aprobar ──────────────────────────────────────────────────────────────
   const aprobarYFirmar = async () => {
     if (!usuario || !puedeActuar) {
-      alert("No puedes firmar esta orden en su estado actual.");
+      toast.info("No puedes firmar esta orden en su estado actual.");
       return;
     }
     if (!miFirma) {
@@ -101,7 +97,7 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
       (oc.estado === "Pendiente de Gerencia General" && oc.firmaGerenciaGeneral);
 
     if (yaFirmo) {
-      alert("Ya existe una firma para esta etapa.");
+      toast.warning("Ya existe una firma para esta etapa.");
       return;
     }
 
@@ -173,11 +169,11 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
       } catch {}
 
       if (onSigned) onSigned(ocActualizada);
-      alert(`Orden ${nuevoEstado === "Aprobada" ? "aprobada ✅" : "firmada y enviada a la siguiente etapa ✅"}`);
+      toast.success(`Orden ${nuevoEstado === "Aprobada" ? "aprobada ✅" : "firmada y enviada a la siguiente etapa ✅"}`);
       onClose?.();
     } catch (e) {
       console.error(e);
-      alert("No se pudo aprobar la orden.");
+      toast.error("No se pudo aprobar la orden.");
     } finally {
       setEnviando(false);
     }
@@ -187,7 +183,7 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
   const rechazar = async () => {
     if (!usuario) return;
     if (!motivoRechazo.trim()) {
-      alert("Indica un motivo de rechazo.");
+      toast.warning("Indica un motivo de rechazo.");
       return;
     }
     setEnviando(true);
@@ -225,11 +221,11 @@ const FirmarOCModal = ({ oc, onClose, onSigned }) => {
       } catch {}
 
       if (onSigned) onSigned(ocActualizada);
-      alert("Orden rechazada.");
+      toast.info("Orden rechazada.");
       onClose?.();
     } catch (e) {
       console.error(e);
-      alert("No se pudo rechazar la orden.");
+      toast.error("No se pudo rechazar la orden.");
     } finally {
       setEnviando(false);
     }

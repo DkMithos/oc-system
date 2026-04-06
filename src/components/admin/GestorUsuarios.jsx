@@ -53,7 +53,7 @@ const GestorUsuarios = ({
   const handleCrear = async (e) => {
     e.preventDefault();
     if (!nuevo.email || !nuevo.rol || !nuevo.password) {
-      alert("Completa email, rol y contraseña.");
+      toast.warning("Completa email, rol y contraseña.");
       return;
     }
     try {
@@ -65,7 +65,7 @@ const GestorUsuarios = ({
       resetForm();
     } catch (err) {
       console.error(err);
-      alert("No se pudo crear el usuario.");
+      toast.error("No se pudo crear el usuario.");
     }
   };
 
@@ -74,7 +74,7 @@ const GestorUsuarios = ({
       await cambiarRol(email, nuevoRol);
     } catch (err) {
       console.error(err);
-      alert("No se pudo cambiar el rol.");
+      toast.error("No se pudo cambiar el rol.");
     }
   };
 
@@ -89,7 +89,7 @@ const GestorUsuarios = ({
       await cambiarEstadoUsuario(u.email, destino, motivo || "");
     } catch (err) {
       console.error(err);
-      alert("No se pudo cambiar el estado.");
+      toast.error("No se pudo cambiar el estado.");
     }
   };
 
@@ -98,10 +98,10 @@ const GestorUsuarios = ({
     if (!nueva) return;
     try {
       await actualizarPassword(u.email, nueva);
-      alert("Contraseña actualizada ✅");
+      toast.success("Contraseña actualizada ✅");
     } catch (err) {
       console.error(err);
-      alert("No se pudo actualizar la contraseña.");
+      toast.error("No se pudo actualizar la contraseña.");
     }
   };
 
@@ -112,7 +112,7 @@ const GestorUsuarios = ({
       await eliminarUsuario(u.email);
     } catch (err) {
       console.error(err);
-      alert("No se pudo eliminar.");
+      toast.error("No se pudo eliminar.");
     }
   };
 

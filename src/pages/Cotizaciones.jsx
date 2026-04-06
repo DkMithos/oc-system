@@ -127,7 +127,7 @@ const Cotizaciones = () => {
     if (!rq) return;
     const mapped = mapRqItemsToCot(rq);
     if (!mapped.length) {
-      alert("El requerimiento seleccionado no tiene ítems.");
+      toast.warning("El requerimiento seleccionado no tiene ítems.");
       return;
     }
     setForm((prev) => ({ ...prev, items: mapped }));
@@ -149,7 +149,7 @@ const Cotizaciones = () => {
   // ======= ítems (alta rápida + edición en línea) =======
   const agregarItem = () => {
     if (!itemActual.nombre) {
-      alert("Ingresa al menos la descripción del ítem.");
+      toast.warning("Ingresa al menos la descripción del ítem.");
       return;
     }
     setForm((prev) => ({
@@ -213,7 +213,7 @@ const Cotizaciones = () => {
   }, [cotizaciones, busqueda, filtroProveedor]);
 
   const exportarExcel = () => {
-    if (!cotizacionesFiltradas.length) return alert("No hay datos para exportar");
+    if (!cotizacionesFiltradas.length) return toast.info("No hay datos para exportar");
     const data = cotizacionesFiltradas.map((cot) => {
       const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
       return {
@@ -240,14 +240,14 @@ const Cotizaciones = () => {
   // ======= guardar =======
   const guardar = async () => {
     if (!form.codigo || !form.proveedorId || !form.requerimientoId || form.items.length === 0) {
-      alert("Completa código, proveedor, requerimiento y agrega ítems.");
+      toast.warning("Completa código, proveedor, requerimiento y agrega ítems.");
       return;
     }
     const yaExiste = cotizaciones.some(
       (c) => String(c.codigo || "").trim().toLowerCase() === form.codigo.trim().toLowerCase()
     );
     if (yaExiste) {
-      alert("Ya existe una cotización con ese código.");
+      toast.warning("Ya existe una cotización con ese código.");
       return;
     }
 
@@ -285,7 +285,7 @@ const Cotizaciones = () => {
         await actualizarCotizacion(newId, { archivoUrl: url });
       }
 
-      alert("Cotización guardada ✅");
+      toast.success("Cotización guardada ✅");
       // reset
       setForm({
         codigo: "",
@@ -302,7 +302,7 @@ const Cotizaciones = () => {
       setCotizaciones(lista || []);
     } catch (e) {
       console.error("Error guardando cotización:", e);
-      alert("Ocurrió un error al guardar la cotización.");
+      toast.error("Ocurrió un error al guardar la cotización.");
     } finally {
       setGuardando(false);
     }
@@ -320,7 +320,7 @@ const Cotizaciones = () => {
       setCotizaciones((prev) => prev.filter((x) => x.id !== cot.id));
     } catch (e) {
       console.error(e);
-      alert("No se pudo eliminar.");
+      toast.error("No se pudo eliminar.");
     }
   };
 

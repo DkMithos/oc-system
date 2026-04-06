@@ -71,10 +71,10 @@ const MiFirma = () => {
       const dataUrl = c.toDataURL("image/png");
       await guardarFirmaUsuario(email, dataUrl);
       setActual(dataUrl);
-      alert("Firma guardada ✅");
+      toast.success("Firma guardada ✅");
     } catch (e) {
       console.error(e);
-      alert("No se pudo guardar la firma.");
+      toast.error("No se pudo guardar la firma.");
     }
     setSaving(false);
   };
@@ -83,17 +83,17 @@ const MiFirma = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!/^image\/(png|jpeg|jpg)$/i.test(file.type)) {
-      alert("Sube un PNG o JPG.");
+      toast.warning("Sube un PNG o JPG.");
       return;
     }
     setSaving(true);
     try {
       const url = await guardarFirmaDesdeArchivo(email, file);
       setActual(url);
-      alert("Firma actualizada ✅");
+      toast.success("Firma actualizada ✅");
     } catch (err) {
       console.error(err);
-      alert("No se pudo subir la firma.");
+      toast.error("No se pudo subir la firma.");
     }
     setSaving(false);
   };

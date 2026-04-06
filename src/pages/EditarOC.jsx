@@ -47,19 +47,19 @@ const EditarOC = () => {
       const oc = await obtenerOCporId(ocId);
       const estadosEditables = ["Rechazada", "Rechazado"]; // normalizar ambas formas
       if (!oc || !estadosEditables.includes(oc.estado)) {
-        alert("Esta orden no puede ser editada (debe estar en estado Rechazada).");
+        toast.info("Esta orden no puede ser editada (debe estar en estado Rechazada).");
         navigate("/");
         return;
       }
       if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
-        alert("No tienes permiso para editar esta orden.");
+        toast.info("No tienes permiso para editar esta orden.");
         navigate("/");
         return;
       }
       // Solo el comprador original o admin puede editar
       const esCreador = oc.creadoPor === usuario.email || oc.comprador === usuario.email;
       if (usuario.rol !== "admin" && !esCreador) {
-        alert("Solo el comprador que creó esta orden puede editarla.");
+        toast.info("Solo el comprador que creó esta orden puede editarla.");
         navigate("/");
         return;
       }
@@ -110,14 +110,14 @@ const EditarOC = () => {
 
   const validarFormulario = () => {
     if (!formData.proveedor?.ruc) {
-      alert("Selecciona un proveedor.");
+      toast.warning("Selecciona un proveedor.");
       return false;
     }
     const tieneItemsValidos = items.some(
       (item) => item.nombre && Number(item.cantidad) > 0
     );
     if (!tieneItemsValidos) {
-      alert("Agrega al menos un ítem válido.");
+      toast.warning("Agrega al menos un ítem válido.");
       return false;
     }
     return true;
@@ -158,11 +158,11 @@ const EditarOC = () => {
 
     try {
       await actualizarOC(formData.id, nuevaData);
-      alert("Orden de compra actualizada ✅");
+      toast.success("Orden de compra actualizada ✅");
       navigate("/ver?id=" + formData.id);
     } catch (err) {
       console.error(err);
-      alert("Error al actualizar la OC.");
+      toast.error("Error al actualizar la OC.");
     }
   };
 

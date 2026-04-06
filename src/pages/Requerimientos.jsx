@@ -164,7 +164,7 @@ const Requerimientos = () => {
       );
     } catch (e) {
       console.error(e);
-      alert("No se pudo actualizar el estado.");
+      toast.error("No se pudo actualizar el estado.");
     } finally {
       setCambiandoEstado(null);
     }
@@ -183,7 +183,7 @@ const Requerimientos = () => {
 
   const agregarItem = () => {
     if (!itemActual.nombre || !itemActual.unidad || Number(itemActual.cantidad) <= 0) {
-      alert("Completa los datos del ítem");
+      toast.warning("Completa los datos del ítem");
       return;
     }
     setForm((prev) => ({
@@ -213,7 +213,7 @@ const Requerimientos = () => {
     }
 
     const v = validarForm();
-    if (v) return alert(v);
+    if (v) return toast.info(v);
 
     const nuevo = {
       ...form,
@@ -229,7 +229,7 @@ const Requerimientos = () => {
 
     try {
       await agregarRequerimiento(nuevo);
-      alert("Requerimiento guardado ✅");
+      toast.success("Requerimiento guardado ✅");
 
       // refresco de lista + nuevo correlativo
       const [next, lista] = await Promise.all([
@@ -249,7 +249,7 @@ const Requerimientos = () => {
       });
     } catch (e) {
       console.error(e);
-      alert("No se pudo guardar el requerimiento.");
+      toast.error("No se pudo guardar el requerimiento.");
     }
   };
 

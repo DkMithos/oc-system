@@ -9,7 +9,7 @@ const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
   const [guardando, setGuardando] = useState(false);
 
   const handleSubmit = async () => {
-    if (!motivo.trim()) return alert("Describe el motivo de la edición.");
+    if (!motivo.trim()) return toast.warning("Describe el motivo de la edición.");
     try {
       setGuardando(true);
       await crearSolicitudEdicion(oc.id, {
@@ -21,10 +21,10 @@ const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
       setGuardando(false);
       onSubmitted && onSubmitted();
       onClose();
-      alert("Solicitud enviada ✅");
+      toast.success("Solicitud enviada ✅");
     } catch (e) {
       console.error(e);
-      alert("No se pudo enviar la solicitud.");
+      toast.error("No se pudo enviar la solicitud.");
       setGuardando(false);
     }
   };

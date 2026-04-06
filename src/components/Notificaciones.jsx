@@ -1,8 +1,12 @@
 // src/components/Notificaciones.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { onMessageListener } from "../firebase/fcm";
 import { useNavigate } from "react-router-dom";
+import { updateDoc, doc } from "firebase/firestore";
+import { db } from "../firebase/config";
+import { obtenerNotificacionesInApp } from "../firebase/notifs";
+import { useUsuario } from "../context/UsuarioContext";
 
 const SONIDO = "/sonidos/notif.mp3";
 const LS_KEY = "notificaciones";
@@ -23,6 +27,7 @@ const normalizePayload = (p = {}) => {
 
 const Notificaciones = () => {
   const navigate = useNavigate();
+  const { usuario } = useUsuario();
 
   const [notificaciones, setNotificaciones] = useState(() => {
     try {
@@ -46,7 +51,37 @@ const Notificaciones = () => {
   const contenedorRef = useRef(null);
   const audioRef = useRef(null);
 
-  // Persistencia
+  // ── Cargar notificaciones in-app desde Firestore ────────────────────────
+  const cargarInApp = useCallback(async () => {
+    if (!usuario?.email) return;
+    const inApp = await obtenerNotificacionesInApp(usuario.email, usuario.rol);
+    if (!inApp.length) return;
+    setNotificaciones((prev) => {
+      const idsExistentes = new Set(prev.map((n) => n.id));
+      const nuevas = inApp
+        .filter((n) => !idsExistentes.has(n.id))
+        .map((n) => ({
+          id: n.id,
+          titulo: n.title || "Notificación",
+          cuerpo:  n.body  || "",
+          fecha:   n.creadoEn?.toDate?.()?.toLocaleString("es-PE") || new Date().toLocaleString("es-PE"),
+          leida:   n.leida || false,
+          ocId:    n.ocId  || null,
+          link:    n.ocId  ? `/ver?id=${n.ocId}` : null,
+          _firestoreId: n.id, // para marcar como leída en Firestore
+        }));
+      return nuevas.length ? [...nuevas, ...prev].slice(0, MAX_GUARDADAS) : prev;
+    });
+  }, [usuario?.email, usuario?.rol]);
+
+  // Polling inicial + cada 60 s
+  useEffect(() => {
+    cargarInApp();
+    const interval = setInterval(cargarInApp, 60_000);
+    return () => clearInterval(interval);
+  }, [cargarInApp]);
+
+  // ── Persistencia ────────────────────────────────────────────────────────
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(notificaciones.slice(0, MAX_GUARDADAS)));
@@ -113,7 +148,14 @@ const Notificaciones = () => {
 
   const marcarComoLeida = (id) => {
     setNotificaciones((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, leida: true } : n))
+      prev.map((n) => {
+        if (n.id !== id) return n;
+        // Marcar en Firestore si viene de in-app
+        if (n._firestoreId) {
+          updateDoc(doc(db, "notificaciones", n._firestoreId), { leida: true }).catch(() => {});
+        }
+        return { ...n, leida: true };
+      })
     );
   };
 
