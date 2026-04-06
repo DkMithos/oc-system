@@ -45,13 +45,21 @@ const EditarOC = () => {
   useEffect(() => {
     const cargar = async () => {
       const oc = await obtenerOCporId(ocId);
-      if (!oc || oc.estado !== "Rechazado") {
-        alert("Esta orden no puede ser editada.");
+      const estadosEditables = ["Rechazada", "Rechazado"]; // normalizar ambas formas
+      if (!oc || !estadosEditables.includes(oc.estado)) {
+        alert("Esta orden no puede ser editada (debe estar en estado Rechazada).");
         navigate("/");
         return;
       }
       if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
         alert("No tienes permiso para editar esta orden.");
+        navigate("/");
+        return;
+      }
+      // Solo el comprador original o admin puede editar
+      const esCreador = oc.creadoPor === usuario.email || oc.comprador === usuario.email;
+      if (usuario.rol !== "admin" && !esCreador) {
+        alert("Solo el comprador que creó esta orden puede editarla.");
         navigate("/");
         return;
       }

@@ -1,6 +1,6 @@
 //src/firebase/usuariosHelpers.js
 import { db } from "./config";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth } from "./config";
 
 export const obtenerUsuarioActual = async () => {

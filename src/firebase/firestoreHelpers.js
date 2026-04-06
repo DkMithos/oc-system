@@ -16,6 +16,7 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
+import { determinarEstadoInicial } from "../utils/aprobaciones";
 
 /** =========================
  *  Constantes de colecciones
@@ -115,7 +116,7 @@ export const obtenerSiguienteNumeroOrden = async () => {
 // Guarda OC/OS/OI con correlativo único y reglas de enlace (SP->COT->OC/OS)
 // - tipoOrden: "OC" | "OS" | "OI"
 // - OC/OS deben estar ligadas a una cotización, y la cotización a un requerimiento
-// - Estado inicial: "Pendiente", firmas nulas (comprador NO firma), soft-delete=false
+// - Estado inicial: determinarEstadoInicial() → "Pendiente de Comprador" (configurable)
 export const guardarOrden = async (ordenData) => {
   const { tipoOrden, cotizacionId, requerimientoId } = ordenData || {};
   if (!["OC", "OS", "OI"].includes(tipoOrden)) {
@@ -138,14 +139,15 @@ export const guardarOrden = async (ordenData) => {
     tx.set(ref, {
       ...ordenData,
       numero,
-      // 👇 Al inicio pasa a Operaciones (coincide con cadena de firmas)
-      estado: "Pendiente de Operaciones",
+      // El estado inicial lo define determinarEstadoInicial() — "Pendiente de Comprador"
+      // Si ordenData ya trae estado (ej. CrearOC lo setea vía determinarEstadoInicial), se respeta
+      estado: ordenData.estado || determinarEstadoInicial(),
       firmas: {
+        // Preservar firmas que vengan del payload (ej. firma del comprador en creación)
         comprador: null,
         operaciones: null,
-        gerenciaOperaciones: null,
         gerenciaGeneral: null,
-        finanzas: null,
+        ...(ordenData.firmas || {}),
       },
       creadaEn: serverTimestamp(),
       eliminada: false,

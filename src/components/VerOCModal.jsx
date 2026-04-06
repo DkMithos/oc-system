@@ -51,26 +51,31 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     [ocLocal?.monedaSeleccionada]
   );
 
-  const subtotal = useMemo(
-    () =>
-      items.reduce(
-        (acc, it) =>
-          acc +
-          (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) -
-            Number(it.descuento || 0)),
-        0
-      ),
-    [items]
-  );
-  const igv = useMemo(() => Math.round(subtotal * 0.18 * 100) / 100, [subtotal]);
-  const total = useMemo(() => Math.round((subtotal + igv) * 100) / 100, [subtotal, igv]);
+  const subtotal = useMemo(() => {
+    if (ocLocal?.resumen?.subtotal != null) return Number(ocLocal.resumen.subtotal);
+    return items.reduce(
+      (acc, it) =>
+        acc + (Number(it.cantidad || 0) * Number(it.precioUnitario || 0) - Number(it.descuento || 0)),
+      0
+    );
+  }, [ocLocal?.resumen?.subtotal, items]);
+
+  const igv = useMemo(() => {
+    if (ocLocal?.resumen?.igv != null) return Number(ocLocal.resumen.igv);
+    return Math.round(subtotal * 0.18 * 100) / 100;
+  }, [ocLocal?.resumen?.igv, subtotal]);
+
+  const total = useMemo(() => {
+    if (ocLocal?.resumen?.total != null) return Number(ocLocal.resumen.total);
+    return Math.round((subtotal + igv) * 100) / 100;
+  }, [ocLocal?.resumen?.total, subtotal, igv]);
 
   const detraccionCuenta = useMemo(
     () => ocLocal?.detraccion?.cuenta || findDetraccion(ocLocal?.proveedor?.bancos),
     [ocLocal?.detraccion?.cuenta, ocLocal?.proveedor?.bancos]
   );
 
-  const puedeExportar = ocLocal?.estado === "Aprobado";
+  const puedeExportar = ocLocal?.estado === "Aprobada";
   const puedeFirmar = !!usuario && ocPendingForRole(ocLocal, usuario.rol, usuario.email);
 
   const exportarPDF = () => {
@@ -95,9 +100,9 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     onUpdated?.(ocActualizada);
   };
 
-  const firmaOperaciones = useMemo(() => pickFirma(ocLocal || {}, "firmaOperaciones", "operaciones"), [ocLocal]);
-  const firmaGerOp = useMemo(() => pickFirma(ocLocal || {}, "firmaGerenciaOperaciones", "gerenciaOperaciones"), [ocLocal]);
-  const firmaGerGral = useMemo(() => pickFirma(ocLocal || {}, "firmaGerenciaGeneral", "gerenciaGeneral"), [ocLocal]);
+  const firmaComprador   = useMemo(() => pickFirma(ocLocal || {}, "firmaComprador",      "comprador"),      [ocLocal]);
+  const firmaOperaciones = useMemo(() => pickFirma(ocLocal || {}, "firmaOperaciones",     "operaciones"),    [ocLocal]);
+  const firmaGerGral     = useMemo(() => pickFirma(ocLocal || {}, "firmaGerenciaGeneral", "gerenciaGeneral"),[ocLocal]);
 
   return (
     <ModalShell title={`Orden ${ocLocal.numeroOC || ""}`} onClose={onClose}>
@@ -230,13 +235,13 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         {/* Firmas (compactas) */}
         <div className="grid grid-cols-3 gap-4 text-center mt-3">
           {[
-            { rol: "Operaciones", src: firmaOperaciones },
-            { rol: "Gerencia Operaciones", src: firmaGerOp },
-            { rol: "Gerencia General", src: firmaGerGral },
+            { rol: "Comprador",        src: firmaComprador   },
+            { rol: "Operaciones",      src: firmaOperaciones },
+            { rol: "Gerencia General", src: firmaGerGral     },
           ].map(({ rol, src }) => (
             <div key={rol} className="flex flex-col items-center">
               {src ? <img src={src} alt={`Firma ${rol}`} className="h-14 object-contain mb-1" /> : <div className="h-14 mb-1" />}
-              <p className="font-semibold">{rol}</p>
+              <p className="font-semibold text-xs">{rol}</p>
             </div>
           ))}
         </div>

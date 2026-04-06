@@ -58,7 +58,7 @@ export const calcularDetraccion = (
   config = null
 ) => {
   const m = Number(monto) || 0;
-  const esSoles = moneda === "Soles";
+  const esSoles = moneda === "Soles" || moneda === "PEN";
   const umbral  = esSoles ? UMBRAL_DETRACCION_SOLES : UMBRAL_DETRACCION_USD;
 
   if (m <= umbral) {
@@ -112,7 +112,7 @@ export const calcularRetencion = (
   }
 
   const m      = Number(monto) || 0;
-  const umbral = moneda === "Soles" ? UMBRAL_RETENCION_SOLES : 200;
+  const umbral = (moneda === "Soles" || moneda === "PEN") ? UMBRAL_RETENCION_SOLES : 200;
 
   if (m <= umbral) {
     return { aplica: false, tasa: 0, monto: 0, motivo: `Monto ≤ ${umbral}` };
