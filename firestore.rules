@@ -209,28 +209,36 @@ service cloud.firestore {
       let prev = resource.data.estado;
       let next = request.resource.data.estado;
       let rol  = myRole();
-      // Admin/soporte pueden hacer cualquier transición
-      if (rol == 'admin' || rol == 'soporte') return true;
-      // Comprador solo puede re-enviar una OC rechazada
-      if (rol == 'comprador')
-        return prev == next ||
-               (prev == 'Rechazada' && next == 'Pendiente de Comprador');
-      // Operaciones puede aprobar/rechazar desde su etapa
-      if (rol == 'operaciones')
-        return prev == next ||
-               (prev == 'Pendiente de Operaciones' &&
-                (next == 'Pendiente de Gerencia General' || next == 'Aprobada' || next == 'Rechazada'));
-      // Gerencia general aprueba/rechaza la última etapa
-      if (rol == 'gerencia general')
-        return prev == next ||
-               (prev == 'Pendiente de Gerencia General' &&
-                (next == 'Aprobada' || next == 'Rechazada'));
-      // Finanzas registra pagos
-      if (rol == 'finanzas' || rol == 'gerencia finanzas')
-        return prev == next ||
-               ((prev == 'Aprobada' || prev == 'Pago Parcial') &&
-                (next == 'Pagado' || next == 'Pago Parcial'));
-      return true;
+      // Firestore Rules no permite if/return: se usan expresiones booleanas
+      return
+        // Admin/soporte: cualquier transición
+        (rol == 'admin' || rol == 'soporte') ||
+        // Comprador: re-enviar rechazada o sin cambio de estado
+        (rol == 'comprador' && (
+          prev == next ||
+          (prev == 'Rechazada' && next == 'Pendiente de Comprador')
+        )) ||
+        // Operaciones: aprobar/rechazar desde su etapa o sin cambio
+        (rol == 'operaciones' && (
+          prev == next ||
+          (prev == 'Pendiente de Operaciones' &&
+           (next == 'Pendiente de Gerencia General' || next == 'Aprobada' || next == 'Rechazada'))
+        )) ||
+        // Gerencia general: aprobar/rechazar última etapa o sin cambio
+        (rol == 'gerencia general' && (
+          prev == next ||
+          (prev == 'Pendiente de Gerencia General' &&
+           (next == 'Aprobada' || next == 'Rechazada'))
+        )) ||
+        // Finanzas: registrar pagos o sin cambio
+        ((rol == 'finanzas' || rol == 'gerencia finanzas') && (
+          prev == next ||
+          ((prev == 'Aprobada' || prev == 'Pago Parcial') &&
+           (next == 'Pagado' || next == 'Pago Parcial'))
+        )) ||
+        // Otros roles con acceso amplio (gerencia, administracion, legal, etc.)
+        (rol != 'comprador' && rol != 'operaciones' &&
+         rol != 'gerencia general' && rol != 'finanzas' && rol != 'gerencia finanzas');
     }
 
     match /ordenesCompra/{ocId} {
