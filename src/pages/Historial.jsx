@@ -75,17 +75,38 @@ const CardOC = ({ oc, onVer, seleccionable, seleccionada, onToggle }) => (
         />
       )}
       <div className="flex-1 flex items-start justify-between gap-2">
-        <span className="font-bold text-[#004990] text-base font-mono leading-tight">
-          {oc.numeroOC || oc.numero || "—"}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-bold text-[#004990] text-base font-mono leading-tight truncate">
+            {oc.numeroOC || oc.numero || "—"}
+          </span>
+          {oc.tieneSolicitudEdicion && (
+            <span className="flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700" title="Solicitud de edición pendiente">
+              ✏️ Edit
+            </span>
+          )}
+          {oc.permiteEdicion && (
+            <span className="flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700" title="Edición habilitada">
+              ✔ Editar
+            </span>
+          )}
+        </div>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${estadoBadgeClass(oc.estado || "")}`}>
           {estadoCorto(oc.estado || "—")}
         </span>
       </div>
     </div>
-    <div className="text-sm text-gray-700 mb-2 leading-snug">
+    <div className="text-sm text-gray-700 mb-1 leading-snug">
       {oc.proveedor?.razonSocial || "—"}
     </div>
+    {(oc.resumen?.total ?? oc.total) != null && (
+      <div className="text-sm font-semibold text-gray-800 mb-1 font-mono">
+        {oc.monedaSeleccionada === "Dólares" ? "USD" : "S/"}{" "}
+        {Number(oc.resumen?.total ?? oc.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+      </div>
+    )}
+    {oc.centroCosto && (
+      <div className="text-xs text-gray-400 mb-1">{oc.centroCosto}</div>
+    )}
     <div className="flex items-center justify-between">
       <span className="text-xs text-gray-400">{oc.fechaEmision || "—"}</span>
       <button
@@ -489,13 +510,16 @@ const Historial = () => {
                   >
                     Estado
                   </th>
-                  <th className="border px-3 py-2">Factura</th>
+                  <th className="border px-3 py-2 text-right">Monto</th>
+                  <th className="border px-3 py-2">Centro Costo</th>
                   <th className="border px-3 py-2">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {ordenesPaginadas.map((oc) => {
                   const esFirmable = ocPendingForRole(oc, usuario?.rol, usuario?.email);
+                  const total = oc.resumen?.total ?? oc.total ?? null;
+                  const simbolo = oc.monedaSeleccionada === "Dólares" ? "USD" : "S/";
                   return (
                   <tr key={oc.id} className={`text-center border-t ${seleccionados.has(oc.id) ? "bg-blue-50" : ""}`}>
                     {puedeFireMasiva && (
@@ -511,7 +535,15 @@ const Historial = () => {
                       </td>
                     )}
                     <td className="border px-3 py-2 font-semibold">
-                      {oc.numeroOC || oc.numero}
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span>{oc.numeroOC || oc.numero}</span>
+                        {oc.tieneSolicitudEdicion && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-normal">✏️ Solicitud edición</span>
+                        )}
+                        {oc.permiteEdicion && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-normal">✔ Edición habilitada</span>
+                        )}
+                      </div>
                     </td>
                     <td className="border px-3 py-2">
                       {oc.proveedor?.razonSocial || "—"}
@@ -519,21 +551,24 @@ const Historial = () => {
                     <td className="border px-3 py-2">{oc.fechaEmision || "—"}</td>
                     <td className="border px-3 py-2">
                       <span
-                        className={`font-medium px-2 py-1 rounded-full ${
+                        className={`font-medium px-2 py-1 rounded-full text-xs ${
                           oc.estado === "Pagado"
                             ? "text-green-700 bg-green-100"
-                            : oc.estado === "Rechazado"
+                            : oc.estado === "Rechazado" || oc.estado === "Rechazada"
                             ? "text-red-700 bg-red-100"
-                            : oc.estado?.includes("Aprobado")
+                            : oc.estado?.includes("Aprobad")
                             ? "text-blue-700 bg-blue-100"
-                            : "text-gray-700 bg-gray-100"
+                            : "text-amber-700 bg-amber-100"
                         }`}
                       >
-                        {oc.estado}
+                        {estadoCorto(oc.estado || "—")}
                       </span>
                     </td>
-                    <td className="border px-3 py-2 text-xs">
-                      {oc.estado === "Pagado" && oc.numeroFactura ? oc.numeroFactura : "—"}
+                    <td className="border px-3 py-2 text-right font-mono text-sm whitespace-nowrap">
+                      {total != null ? `${simbolo} ${Number(total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}` : "—"}
+                    </td>
+                    <td className="border px-3 py-2 text-xs text-left">
+                      {oc.centroCosto || "—"}
                     </td>
                     <td className="border px-3 py-2">
                       <div className="flex flex-wrap justify-center gap-3">

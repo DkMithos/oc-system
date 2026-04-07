@@ -2,7 +2,9 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
 import { crearSolicitudEdicion } from "../firebase/solicitudesHelpers";
+import { actualizarOC } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
   const { usuario } = useUsuario();
@@ -13,19 +15,34 @@ const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
     if (!motivo.trim()) return toast.warning("Describe el motivo de la edición.");
     try {
       setGuardando(true);
+      const numeroOC = oc.numeroOC || oc.numero || oc.id;
       await crearSolicitudEdicion(oc.id, {
         motivo,
-        numeroOC: oc.numeroOC || oc.numero || "",
+        numeroOC,
         creadoPorEmail: usuario.email,
         creadoPorNombre: usuario.nombre || usuario.email,
       });
-      setGuardando(false);
+      // Marcar en la OC que tiene solicitud pendiente (para badge en Historial)
+      await actualizarOC(oc.id, { tieneSolicitudEdicion: true }).catch(() => {});
+      // Notificar a operaciones
+      try {
+        const fn = httpsCallable(getFunctions(undefined, "us-central1"), "enviarNotificacionRol");
+        await fn({
+          toRole: "operaciones",
+          payload: {
+            title: `Solicitud de edición: ${numeroOC}`,
+            body: `${usuario.nombre || usuario.email} solicita editar la OC ${numeroOC}. Motivo: ${motivo}`,
+            ocId: oc.id,
+          },
+        });
+      } catch {}
       onSubmitted && onSubmitted();
       onClose();
       toast.success("Solicitud enviada ✅");
     } catch (e) {
       console.error(e);
       toast.error("No se pudo enviar la solicitud.");
+    } finally {
       setGuardando(false);
     }
   };

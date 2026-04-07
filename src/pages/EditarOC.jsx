@@ -45,10 +45,11 @@ const EditarOC = () => {
   useEffect(() => {
     const cargar = async () => {
       const oc = await obtenerOCporId(ocId);
-      const estadosEditables = ["Rechazada", "Rechazado"]; // normalizar ambas formas
-      if (!oc || !estadosEditables.includes(oc.estado)) {
-        toast.info("Esta orden no puede ser editada (debe estar en estado Rechazada).");
-        navigate("/");
+      const estadosEditables = ["Rechazada", "Rechazado"];
+      const puedeEditar = estadosEditables.includes(oc.estado) || oc.permiteEdicion === true;
+      if (!oc || !puedeEditar) {
+        toast.info("Esta orden no puede ser editada. Debe estar rechazada o tener edición habilitada.");
+        navigate("/historial");
         return;
       }
       if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
@@ -60,7 +61,7 @@ const EditarOC = () => {
       const esCreador = oc.creadoPor === usuario.email || oc.comprador === usuario.email;
       if (usuario.rol !== "admin" && !esCreador) {
         toast.info("Solo el comprador que creó esta orden puede editarla.");
-        navigate("/");
+        navigate("/historial");
         return;
       }
 

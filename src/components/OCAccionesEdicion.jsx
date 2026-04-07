@@ -1,13 +1,16 @@
 // src/components/OCAccionesEdicion.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import SolicitarEdicionModal from "./SolicitarEdicionModal";
 import { listarSolicitudesEdicion, resolverSolicitudEdicion } from "../firebase/solicitudesHelpers";
+import { actualizarOC } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { isApprovalRole } from "../utils/aprobaciones";
 
 const OCAccionesEdicion = ({ oc, onRefetch }) => {
   const { usuario } = useUsuario();
+  const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [solicitudes, setSolicitudes] = useState([]);
 
@@ -35,9 +38,23 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
         resueltoPorNombre: usuario.nombre || usuario.email,
         observacion: "",
       });
-      toast.success("Solicitud aprobada ✅");
+      // ✅ Habilitar edición en el documento OC
+      await actualizarOC(oc.id, {
+        permiteEdicion: true,
+        tieneSolicitudEdicion: false,
+        historial: [
+          ...(oc.historial || []),
+          {
+            accion: "Solicitud de edición aprobada",
+            por: usuario.email,
+            rol: usuario.rol,
+            fecha: new Date().toLocaleString("es-PE"),
+          },
+        ],
+      });
+      toast.success("Solicitud aprobada — el comprador ya puede editar la orden ✅");
       await recargar();
-      onRefetch && onRefetch();
+      onRefetch && onRefetch({ permiteEdicion: true });
     } catch (e) {
       console.error(e);
       toast.error("No se pudo aprobar la solicitud.");
@@ -51,10 +68,12 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
         resueltoPorNombre: usuario.nombre || usuario.email,
         observacion: motivoRechazo.trim(),
       });
+      await actualizarOC(oc.id, { tieneSolicitudEdicion: false }).catch(() => {});
       toast.info("Solicitud rechazada.");
       setRechazandoId(null);
       setMotivoRechazo("");
       await recargar();
+      onRefetch && onRefetch();
     } catch (e) {
       console.error(e);
       toast.error("No se pudo rechazar la solicitud.");
@@ -76,9 +95,12 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
         )}
 
         {esComprador && oc.permiteEdicion && (
-          <span className="text-sm px-2 py-1 rounded-full bg-green-100 text-green-700">
-            Edición habilitada ✔
-          </span>
+          <button
+            onClick={() => navigate(`/editar?id=${oc.id}`)}
+            className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 font-semibold text-sm"
+          >
+            ✏️ Editar orden
+          </button>
         )}
       </div>
 
