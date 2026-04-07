@@ -1,5 +1,6 @@
 // src/components/FirmarOCModal.jsx
 import React, { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
 import { actualizarOC, registrarLog } from "../firebase/firestoreHelpers";
 import { obtenerFirmaGuardada } from "../firebase/firmasHelpers";

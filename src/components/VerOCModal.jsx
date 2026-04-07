@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import html2pdf from "html2pdf.js";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import FirmarOCModal from "./FirmarOCModal";
+import OCAccionesEdicion from "./OCAccionesEdicion";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole } from "../utils/aprobaciones";
@@ -258,6 +259,13 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           </p>
         </div>
       </div>
+
+      {/* Solicitudes de edición — solo comprador o roles de aprobación */}
+      {["comprador", "operaciones", "gerencia general", "admin"].includes(usuario?.rol) && (
+        <div className="px-3 pb-2">
+          <OCAccionesEdicion oc={ocLocal} onRefetch={() => {}} />
+        </div>
+      )}
 
       {/* acciones */}
       <div className="sticky bottom-0 bg-white flex items-center justify-between p-2 border-t">

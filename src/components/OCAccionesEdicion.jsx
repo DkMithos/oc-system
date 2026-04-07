@@ -1,5 +1,6 @@
 // src/components/OCAccionesEdicion.jsx
 import React, { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import SolicitarEdicionModal from "./SolicitarEdicionModal";
 import { listarSolicitudesEdicion, resolverSolicitudEdicion } from "../firebase/solicitudesHelpers";
 import { useUsuario } from "../context/UsuarioContext";
@@ -24,25 +25,40 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oc.id]);
 
+  const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [rechazandoId, setRechazandoId]   = useState(null);
+
   const aprobar = async (s) => {
-    if (!confirm("¿Aprobar solicitud de edición?")) return;
-    await resolverSolicitudEdicion(oc.id, s.id, "aprobada", {
-      resueltoPorEmail: usuario.email,
-      resueltoPorNombre: usuario.nombre || usuario.email,
-      observacion: "",
-    });
-    await recargar();
-    onRefetch && onRefetch();
+    try {
+      await resolverSolicitudEdicion(oc.id, s.id, "aprobada", {
+        resueltoPorEmail: usuario.email,
+        resueltoPorNombre: usuario.nombre || usuario.email,
+        observacion: "",
+      });
+      toast.success("Solicitud aprobada ✅");
+      await recargar();
+      onRefetch && onRefetch();
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo aprobar la solicitud.");
+    }
   };
 
   const rechazar = async (s) => {
-    const obs = prompt("Motivo de rechazo (opcional):") || "";
-    await resolverSolicitudEdicion(oc.id, s.id, "rechazada", {
-      resueltoPorEmail: usuario.email,
-      resueltoPorNombre: usuario.nombre || usuario.email,
-      observacion: obs,
-    });
-    await recargar();
+    try {
+      await resolverSolicitudEdicion(oc.id, s.id, "rechazada", {
+        resueltoPorEmail: usuario.email,
+        resueltoPorNombre: usuario.nombre || usuario.email,
+        observacion: motivoRechazo.trim(),
+      });
+      toast.info("Solicitud rechazada.");
+      setRechazandoId(null);
+      setMotivoRechazo("");
+      await recargar();
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo rechazar la solicitud.");
+    }
   };
 
   return (
@@ -81,13 +97,35 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
             </div>
 
             {puedeAprobar && s.estado === "pendiente" && (
-              <div className="flex gap-2">
-                <button className="px-2 py-1 text-white bg-green-600 rounded" onClick={() => aprobar(s)}>
-                  Aprobar
-                </button>
-                <button className="px-2 py-1 text-white bg-red-600 rounded" onClick={() => rechazar(s)}>
-                  Rechazar
-                </button>
+              <div className="flex flex-col gap-1 items-end">
+                {rechazandoId === s.id ? (
+                  <div className="flex flex-col gap-1 w-48">
+                    <input
+                      type="text"
+                      className="border rounded px-2 py-1 text-xs"
+                      placeholder="Motivo (opcional)"
+                      value={motivoRechazo}
+                      onChange={(e) => setMotivoRechazo(e.target.value)}
+                    />
+                    <div className="flex gap-1">
+                      <button className="flex-1 px-2 py-1 text-white bg-red-600 rounded text-xs" onClick={() => rechazar(s)}>
+                        Confirmar
+                      </button>
+                      <button className="flex-1 px-2 py-1 bg-gray-100 rounded text-xs" onClick={() => { setRechazandoId(null); setMotivoRechazo(""); }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button className="px-2 py-1 text-white bg-green-600 rounded text-xs" onClick={() => aprobar(s)}>
+                      Aprobar
+                    </button>
+                    <button className="px-2 py-1 text-white bg-red-600 rounded text-xs" onClick={() => setRechazandoId(s.id)}>
+                      Rechazar
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
 import {
   obtenerTodasOC,
   obtenerTodosMovimientosCaja,
@@ -117,7 +118,15 @@ const Dashboard = () => {
   }, [ocData, periodo]);
 
   // ── Render guards ────────────────────────────────────────────────────────
-  if (loading) return <div className="p-6 text-gray-500">Cargando dashboard…</div>;
+  if (loading) return (
+    <div className="p-6 space-y-6">
+      <SkeletonKPI count={4} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <SkeletonCard lines={4} />
+        <SkeletonCard lines={4} />
+      </div>
+    </div>
+  );
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   const totalOCs = ocData.length;

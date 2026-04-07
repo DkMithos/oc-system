@@ -7,6 +7,7 @@ import { obtenerOCsPaginadas } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
 import { ocPendingForRole, isGerenciaRole } from "../utils/aprobaciones";
+import { SkeletonTable } from "../components/ui/Skeleton";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -243,7 +244,12 @@ const Historial = () => {
     setOcSeleccionada(ocActualizada);
   };
 
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (loading) return (
+    <div className="p-6 space-y-4">
+      <div className="h-8 w-48 animate-pulse bg-gray-200 rounded" />
+      <SkeletonTable rows={8} cols={6} />
+    </div>
+  );
   if (
     !usuario ||
     ![
@@ -297,6 +303,7 @@ const Historial = () => {
           <option value="Aprobada">Aprobada</option>
           <option value="Rechazada">Rechazada</option>
           <option value="Pagado">Pagado</option>
+          <option value="Pago Parcial">Pago Parcial</option>
         </select>
 
         <input

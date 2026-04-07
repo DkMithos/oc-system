@@ -1,5 +1,6 @@
 // src/components/SolicitarEdicionModal.jsx
 import React, { useState } from "react";
+import { toast } from "react-toastify";
 import { crearSolicitudEdicion } from "../firebase/solicitudesHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 
