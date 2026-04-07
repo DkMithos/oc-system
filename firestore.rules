@@ -200,15 +200,53 @@ service cloud.firestore {
     /* ─────────────────────────────
      * Órdenes de compra
      * ───────────────────────────── */
+    // ── Helpers de OC ──────────────────────────────────────────
+    function ocEsCreador() {
+      return resource.data.creadoPor == userEmail();
+    }
+
+    function ocTransicionValida() {
+      let prev = resource.data.estado;
+      let next = request.resource.data.estado;
+      let rol  = myRole();
+      // Admin/soporte pueden hacer cualquier transición
+      if (rol == 'admin' || rol == 'soporte') return true;
+      // Comprador solo puede re-enviar una OC rechazada
+      if (rol == 'comprador')
+        return prev == next ||
+               (prev == 'Rechazada' && next == 'Pendiente de Comprador');
+      // Operaciones puede aprobar/rechazar desde su etapa
+      if (rol == 'operaciones')
+        return prev == next ||
+               (prev == 'Pendiente de Operaciones' &&
+                (next == 'Pendiente de Gerencia General' || next == 'Aprobada' || next == 'Rechazada'));
+      // Gerencia general aprueba/rechaza la última etapa
+      if (rol == 'gerencia general')
+        return prev == next ||
+               (prev == 'Pendiente de Gerencia General' &&
+                (next == 'Aprobada' || next == 'Rechazada'));
+      // Finanzas registra pagos
+      if (rol == 'finanzas' || rol == 'gerencia finanzas')
+        return prev == next ||
+               ((prev == 'Aprobada' || prev == 'Pago Parcial') &&
+                (next == 'Pagado' || next == 'Pago Parcial'));
+      return true;
+    }
+
     match /ordenesCompra/{ocId} {
       allow read: if signedIn();
       allow create: if hasAnyRole(['comprador','admin','soporte']);
       allow update: if
-        (myRole() == 'comprador' && request.resource.data.permiteEdicion == true) ||
-        hasAnyRole([
+        // Comprador: solo puede editar su propia OC cuando permiteEdicion=true
+        (myRole() == 'comprador' &&
+          resource.data.permiteEdicion == true &&
+          ocEsCreador() &&
+          ocTransicionValida()) ||
+        // Roles con acceso amplio (sujetos a validación de transición)
+        (hasAnyRole([
           'operaciones','gerencia','gerencia operaciones','gerencia general',
           'gerencia finanzas','finanzas','admin','soporte'
-        ]);
+        ]) && ocTransicionValida());
       allow delete: if false;
 
       match /facturas/{facturaId} {

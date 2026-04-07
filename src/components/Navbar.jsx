@@ -1,16 +1,13 @@
 // src/components/Navbar.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo-navbar.png";
 import permisosPorRol from "../utils/permisosPorRol";
+import { useUsuario } from "../context/UsuarioContext";
 
 const Navbar = () => {
-  const [userRole, setUserRole] = useState("");
-
-  useEffect(() => {
-    const storedRole = localStorage.getItem("userRole");
-    if (storedRole) setUserRole(storedRole.toLowerCase());
-  }, []);
+  const { usuario } = useUsuario();
+  const userRole = (usuario?.rol || "").toLowerCase();
 
   const puede = (ruta) => permisosPorRol[userRole]?.includes(ruta);
 

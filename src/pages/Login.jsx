@@ -30,11 +30,6 @@ const Login = () => {
         return;
       }
 
-      // Si existe, se guarda en localStorage como caché temporal
-      const userData = userDoc.data();
-      const { rol } = userData;
-
-      localStorage.setItem("userRole", rol); // ya no es crítico, pero sigue siendo útil
       localStorage.setItem("userEmail", normalizedEmail);
 
       // ✅ El UsuarioContext se actualizará automáticamente por `onAuthStateChanged`

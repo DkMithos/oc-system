@@ -7,30 +7,38 @@ import { solicitarPermisoYObtenerToken } from "../firebase/fcm";
 
 const UsuarioContext = createContext();
 
+const REVALIDAR_INTERVALO_MS = 5 * 60 * 1000; // 5 minutos
+
 export const UsuarioProvider = ({ children }) => {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const wasSignedOut = useRef(false);
 
+  const cargarPerfil = async () => {
+    try {
+      const data = await obtenerUsuarioActual();
+      if (data?.email && data?.rol) {
+        setUsuario(data);
+        localStorage.setItem("userEmail", data.email);
+        localStorage.setItem("userName", data.nombre || "");
+        return data;
+      } else {
+        setUsuario(null);
+        localStorage.clear();
+        return null;
+      }
+    } catch {
+      setUsuario(null);
+      localStorage.clear();
+      return null;
+    }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        try {
-          const data = await obtenerUsuarioActual();
-          if (data?.email && data?.rol) {
-            setUsuario(data);
-            localStorage.setItem("userEmail", data.email);
-            localStorage.setItem("userRole", data.rol);
-            localStorage.setItem("userName", data.nombre || "");
-          } else {
-            setUsuario(null);
-            localStorage.clear();
-          }
-        } catch {
-          setUsuario(null);
-          localStorage.clear();
-        }
+        await cargarPerfil();
         setCargando(false);
       } else {
         setUsuario(null);
@@ -47,6 +55,15 @@ export const UsuarioProvider = ({ children }) => {
     });
     return () => unsub();
   }, [cerrandoSesion]);
+
+  // Revalidar rol contra Firestore cada 5 min (detecta cambios de rol por admin)
+  useEffect(() => {
+    if (!usuario?.email) return;
+    const interval = setInterval(() => {
+      cargarPerfil();
+    }, REVALIDAR_INTERVALO_MS);
+    return () => clearInterval(interval);
+  }, [usuario?.email]);
 
   // 🔔 Registrar token FCM al iniciar sesión (silencioso, pide permiso si es necesario)
   useEffect(() => {

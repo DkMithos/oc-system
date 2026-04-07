@@ -88,7 +88,7 @@ const CrearOC = () => {
   const totals = useMemo(() => {
     const sub = form.items.reduce(
       (acc, it) =>
-        acc + (Number(it.cantidad || 0) * Number(it.pu || 0) - Number(it.dscto || 0)),
+        acc + (Number(it.cantidad || 0) * Number(it.pu || it.precioUnitario || 0) - Number(it.dscto || it.descuento || 0)),
       0
     );
     const tasa = exoneradoIGV ? 0 : igvTasa;
@@ -323,11 +323,11 @@ const CrearOC = () => {
     try {
       const items = form.items.map((it) => ({
         codigo: it.codigo || "",
-        nombre: it.descripcion || "",
+        nombre: it.nombre || it.descripcion || "",
         cantidad: Number(it.cantidad || 0),
-        unidad: it.um || "UND",
-        precioUnitario: Number(it.pu || 0),
-        descuento: Number(it.dscto || 0),
+        unidad: it.unidad || it.um || "UND",
+        precioUnitario: Number(it.precioUnitario || it.pu || 0),
+        descuento: Number(it.descuento || it.dscto || 0),
       }));
 
       const proveedorObj = proveedorOpt?.raw || null;
@@ -634,8 +634,8 @@ const CrearOC = () => {
                 {form.items.map((it, i) => {
                   const subtotal = Math.max(
                     0,
-                    Number(it.cantidad || 0) * Number(it.pu || 0) -
-                      Number(it.dscto || 0)
+                    Number(it.cantidad || 0) * Number(it.pu || it.precioUnitario || 0) -
+                      Number(it.dscto || it.descuento || 0)
                   );
                   return (
                     <tr key={i} className="border-t">
@@ -656,11 +656,11 @@ const CrearOC = () => {
                           onChange={(e) => actualizarItem(i, "um", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">
-                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.pu}
+                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.pu ?? it.precioUnitario ?? ""}
                           onChange={(e) => actualizarItem(i, "pu", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">
-                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.dscto}
+                        <input type="number" min="0" step="0.01" className="border rounded px-2 py-1 w-28 text-right" value={it.dscto ?? it.descuento ?? ""}
                           onChange={(e) => actualizarItem(i, "dscto", e.target.value)} />
                       </td>
                       <td className="p-2 text-right">{subtotal.toFixed(2)}</td>
