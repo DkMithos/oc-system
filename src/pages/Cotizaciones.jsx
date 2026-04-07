@@ -1,5 +1,6 @@
 // ✅ src/pages/Cotizaciones.jsx (editable)
 import React, { useEffect, useMemo, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import {
   obtenerCotizaciones,
   agregarCotizacion,
@@ -335,7 +336,7 @@ const Cotizaciones = () => {
   };
 
   // ======= render =======
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (loading) return <PageLoader />;
   if (!usuario || !["admin", "comprador", "operaciones"].includes(usuario?.rol))
     return <div className="p-6">Acceso no autorizado</div>;
 

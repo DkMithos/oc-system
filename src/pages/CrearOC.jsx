@@ -1,5 +1,6 @@
 // ✅ src/pages/CrearOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import { useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import Logo from "../assets/Logo_OC.png";
@@ -14,6 +15,7 @@ import {
   obtenerCentrosCosto,
   obtenerCondicionesPago,
   obtenerProveedores,
+  obtenerOCs,
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
@@ -58,6 +60,7 @@ const CrearOC = () => {
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [alertaDuplicado, setAlertaDuplicado] = useState(null); // { motivo, ocs[] }
 
   // Detracción / Retención
   const [tipoOperacion, setTipoOperacion] = useState("");
@@ -313,12 +316,47 @@ const CrearOC = () => {
     return null;
   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    const v = validar();
-    if (v) return setError(v);
+  const verificarDuplicados = async () => {
+    try {
+      const todas = await obtenerOCs();
+      const hace90Dias = new Date();
+      hace90Dias.setDate(hace90Dias.getDate() - 90);
+      const limite90 = hace90Dias.toISOString().slice(0, 10);
 
+      if (form.cotizacionId) {
+        const conMismaCot = todas.filter(
+          (oc) => oc.cotizacionId === form.cotizacionId && !["Rechazado", "Rechazada"].includes(oc.estado)
+        );
+        if (conMismaCot.length > 0) return { motivo: "cotizacion", ocs: conMismaCot };
+      }
+
+      if (form.proveedorId) {
+        const mismoProv = todas.filter(
+          (oc) =>
+            oc.proveedorId === form.proveedorId &&
+            !["Rechazado", "Rechazada"].includes(oc.estado) &&
+            (oc.fechaEmision || "") >= limite90
+        );
+        if (mismoProv.length > 0) {
+          const nuevosDesc = form.items.map((it) =>
+            (it.descripcion || it.nombre || "").toLowerCase().trim()
+          );
+          const sospechosas = mismoProv.filter((oc) => {
+            const existDesc = (oc.items || []).map((it) =>
+              (it.nombre || it.descripcion || "").toLowerCase().trim()
+            );
+            return nuevosDesc.some(
+              (d) => d.length > 3 && existDesc.some((e) => e.includes(d) || d.includes(e))
+            );
+          });
+          if (sospechosas.length > 0) return { motivo: "items_similares", ocs: sospechosas };
+        }
+      }
+    } catch {}
+    return null;
+  };
+
+  const ejecutarGuardado = async () => {
     setGuardando(true);
     try {
       const items = form.items.map((it) => ({
@@ -428,7 +466,17 @@ const CrearOC = () => {
     }
   };
 
-  if (loading) return <div className="p-4">Cargando...</div>;
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const v = validar();
+    if (v) return setError(v);
+    const duplicado = await verificarDuplicados();
+    if (duplicado) { setAlertaDuplicado(duplicado); return; }
+    await ejecutarGuardado();
+  };
+
+  if (loading) return <PageLoader />;
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
@@ -440,6 +488,53 @@ const CrearOC = () => {
       {error && (
         <div className="bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded mb-3">
           {error}
+        </div>
+      )}
+
+      {/* Alerta de posible duplicado */}
+      {alertaDuplicado && (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5">
+            <div className="flex items-start gap-3 mb-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <h3 className="font-bold text-lg text-orange-700">Posible orden duplicada</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {alertaDuplicado.motivo === "cotizacion"
+                    ? "Esta cotización ya fue usada en otra orden de compra activa."
+                    : "Se detectaron órdenes recientes del mismo proveedor con ítems similares."}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Esto podría indicar una orden duplicada. Verifique antes de continuar.
+                </p>
+              </div>
+            </div>
+            <div className="border rounded-lg divide-y max-h-48 overflow-y-auto mb-4">
+              {alertaDuplicado.ocs.map((oc) => (
+                <div key={oc.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-mono font-bold text-[#004990]">{oc.numeroOC || oc.id}</span>
+                    <span className="text-gray-500 ml-2 text-xs">{oc.proveedor?.razonSocial || "—"}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{oc.fechaEmision || "—"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAlertaDuplicado(null)}
+                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-50"
+              >
+                Revisar mi orden
+              </button>
+              <button
+                onClick={() => { setAlertaDuplicado(null); ejecutarGuardado(); }}
+                className="flex-1 bg-orange-600 text-white py-2 rounded-lg font-semibold hover:bg-orange-700"
+              >
+                Guardar de todas formas
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

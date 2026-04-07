@@ -88,7 +88,7 @@ const badgeClass = (estado) => BADGE[estado] || "bg-gray-100 text-gray-600";
 const Home = () => {
   const navigate              = useNavigate();
   const { usuario }           = useUsuario();
-  const { pendientes }        = usePendientes();
+  const { pendientes = [] }   = usePendientes();
 
   const [recentOCs, setRecentOCs]     = useState([]);
   const [kpis, setKpis]               = useState({ aprobadas: 0, rechazadas: 0, montoMes: 0 });
@@ -194,13 +194,13 @@ const Home = () => {
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
           {cargando ? (
-            <p className="p-4 text-sm text-gray-400">Cargando…</p>
+            <div className="p-6"><div className="animate-pulse space-y-2">{[1,2,3].map(i=><div key={i} className="h-8 bg-gray-100 rounded"/>)}</div></div>
           ) : recentOCs.length === 0 ? (
             <p className="p-4 text-sm text-gray-400">No hay órdenes registradas aún.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                 <tr>
                   <th className="px-4 py-2 text-left">N° OC</th>

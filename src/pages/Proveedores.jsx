@@ -1,5 +1,6 @@
 // ✅ src/pages/Proveedores.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import {
   obtenerProveedores,
   agregarProveedor,
@@ -204,7 +205,7 @@ const Proveedores = () => {
     telefono: "Teléfono", email: "Email", contacto: "Contacto", estado: "Estado",
   };
 
-  if (loading) return <div className="p-6">Cargando usuario.</div>;
+  if (loading) return <PageLoader />;
   if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
     return <div className="p-6">Acceso no autorizado</div>;
 

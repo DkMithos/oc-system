@@ -1,4 +1,4 @@
-// src/components/Topbar.jsx — Enterprise ERP Topbar
+// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
 import { Menu, Bell, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";

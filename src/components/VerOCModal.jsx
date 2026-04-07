@@ -25,8 +25,8 @@ const pickFirma = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
 const ITEMS_MAX = 15;
 
 const ModalShell = ({ children, onClose, title }) => (
-  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
-    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto">
+  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-1 sm:p-4">
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] overflow-auto modal-scroll">
       <div className="sticky top-0 z-10 bg-white flex items-center justify-between p-2 border-b">
         <h3 className="font-semibold text-lg">{title}</h3>
         <button onClick={onClose} className="px-2 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200">
@@ -166,7 +166,8 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         {/* Detalle (máx. 15) */}
         <div className="mb-2">
           <h3 className="font-semibold text-blue-900 mb-1">DETALLE</h3>
-          <table className="w-full border border-collapse" style={{ tableLayout: "fixed" }}>
+          <div className="overflow-x-auto -mx-1">
+          <table className="w-full border border-collapse" style={{ minWidth: "460px" }}>
             <thead className="bg-gray-200">
               <tr>
                 <th className="border px-1 py-1 w-6">#</th>
@@ -205,6 +206,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Resumen (box) */}

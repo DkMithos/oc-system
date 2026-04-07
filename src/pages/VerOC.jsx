@@ -1,5 +1,6 @@
 // ✅ src/pages/VerOC.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2pdf from "html2pdf.js";
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
@@ -135,9 +136,9 @@ const VerOC = () => {
       .save();
   };
 
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (loading) return <PageLoader />;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
-  if (oc === null) return <div className="p-6">Cargando orden…</div>;
+  if (oc === null) return <PageLoader mensaje="Cargando orden…" />;
   if (!oc) return <div className="p-6">No se encontró la orden.</div>;
 
   return (

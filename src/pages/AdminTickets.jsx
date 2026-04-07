@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { asignarTicket, cambiarEstadoTicket, escucharTicket, listarTicketsAdmin } from "../firebase/ticketsHelpers";
 import TicketChat from "../components/TicketChat";
 import { useUsuario } from "../context/UsuarioContext";
+import { PageLoader } from "../components/ui/Skeleton";
 
 const AdminTickets = () => {
   const { usuario, cargando: loading } = useUsuario();
@@ -52,7 +53,7 @@ const AdminTickets = () => {
     await cargar();
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) return <PageLoader />;
   if (!usuario || !["admin", "soporte"].includes(usuario.rol)) {
     return <div className="p-6">Acceso no autorizado</div>;
   }

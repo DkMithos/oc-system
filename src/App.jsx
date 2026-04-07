@@ -5,11 +5,12 @@ import "react-toastify/dist/ReactToastify.css";
 import AppRoutes from "./routes/AppRoutes";
 import Login from "./pages/Login";
 import { useUsuario } from "./context/UsuarioContext";
+import { AppLoader } from "./components/ui/Skeleton";
 
 function App() {
   const { usuario, cargando } = useUsuario();
 
-  if (cargando) return <div className="p-6">Cargando sesión...</div>;
+  if (cargando) return <AppLoader />;
 
   return (
     <>

@@ -16,7 +16,7 @@ const requerimientosRef = collection(db, "requerimientos");
 const CORRELATIVO_REQ = doc(db, "correlativos", "requerimientos");
 
 // Roles que pueden ver TODOS los requerimientos (no solo los propios)
-const ROLES_VER_TODOS = ["admin", "soporte", "operaciones", "finanzas", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "administracion", "legal"];
+const ROLES_VER_TODOS = ["admin", "comprador", "soporte", "operaciones", "finanzas", "gerencia", "gerencia operaciones", "gerencia general", "gerencia finanzas", "administracion", "legal"];
 
 /**
  * Agrega un nuevo requerimiento con correlativo atómico.

@@ -1,5 +1,6 @@
 // src/pages/RegistrarPago.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
 import {
@@ -175,7 +176,7 @@ const RegistrarPago = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) return <PageLoader />;
   if (!usuario || !["admin", "finanzas"].includes(usuario.rol)) {
     return <div className="p-6 text-red-600">Acceso no autorizado</div>;
   }

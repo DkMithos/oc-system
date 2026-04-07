@@ -20,8 +20,8 @@ const FIRMA_KEY = {
 };
 
 const ModalShell = ({ children, onClose, title }) => (
-  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2">
-    <div className="bg-white rounded-lg shadow-xl w-full max-w-xl">
+  <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-2 sm:p-4">
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[95vh] overflow-y-auto modal-scroll">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-lg">{title}</h3>
         <button

@@ -1,5 +1,6 @@
 // ✅ src/pages/MiFirma.jsx
 import React, { useEffect, useRef, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import { useUsuario } from "../context/UsuarioContext";
 import {
   obtenerFirmaGuardada,
@@ -99,7 +100,7 @@ const MiFirma = () => {
   };
 
   if (!email) return <div className="p-6">Debes iniciar sesión.</div>;
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="p-6">

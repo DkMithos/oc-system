@@ -5,7 +5,7 @@ import { db } from "../firebase/config";
 import { useUsuario } from "./UsuarioContext";
 import { ocPendingForRole, isApprovalRole, pendingStatesForRole } from "../utils/aprobaciones";
 
-const PendientesContext = createContext({ total: 0, ocs: 0, solicitudes: 0, loading: true });
+const PendientesContext = createContext({ total: 0, ocs: 0, solicitudes: 0, loading: true, pendientes: [] });
 
 export const PendientesProvider = ({ children }) => {
   const { usuario } = useUsuario();
@@ -69,9 +69,14 @@ export const PendientesProvider = ({ children }) => {
 
   const countSolicitudes = useMemo(() => (aprobador ? solicitudes.length : 0), [aprobador, solicitudes]);
 
+  const pendientes = useMemo(
+    () => (usuario ? ocs.filter((oc) => ocPendingForRole(oc, usuario.rol, usuario.email)) : []),
+    [ocs, usuario]
+  );
+
   const value = useMemo(
-    () => ({ total: countOCs + countSolicitudes, ocs: countOCs, solicitudes: countSolicitudes, loading }),
-    [countOCs, countSolicitudes, loading]
+    () => ({ total: countOCs + countSolicitudes, ocs: countOCs, solicitudes: countSolicitudes, loading, pendientes }),
+    [countOCs, countSolicitudes, loading, pendientes]
   );
 
   return <PendientesContext.Provider value={value}>{children}</PendientesContext.Provider>;

@@ -57,7 +57,7 @@ const Layout = () => {
           />
         )}
 
-        <div className="flex-1 p-4 z-10">
+        <div className="flex-1 min-w-0 overflow-x-hidden p-3 sm:p-4">
           <Outlet />
         </div>
       </div>

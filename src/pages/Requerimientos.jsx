@@ -1,5 +1,6 @@
 // ✅ src/pages/Requerimientos.jsx (tabla de ítems con encabezados)
 import React, { useState, useEffect, useMemo } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import {
   agregarRequerimiento,
   obtenerRequerimientosPorRol,
@@ -254,7 +255,7 @@ const Requerimientos = () => {
   };
 
   // Acceso controlado por RutaProtegida en AppRoutes; aquí solo protección mínima
-  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (loading) return <PageLoader />;
   if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   // Solo comprador puede crear nuevos requerimientos

@@ -1,5 +1,6 @@
 // ✅ src/pages/Tickets.jsx
 import React, { useEffect, useState } from "react";
+import { PageLoader } from "../components/ui/Skeleton";
 import {
   crearTicket,
   listarMisTickets,
@@ -125,7 +126,7 @@ const Tickets = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) return <PageLoader />;
 
   return (
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">

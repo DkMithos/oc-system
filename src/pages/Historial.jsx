@@ -6,6 +6,7 @@ import ExportMenu from "../components/ExportMenu";
 import { obtenerOCsPaginadas } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
+import FirmarLoteModal from "../components/FirmarLoteModal";
 import { ocPendingForRole, isGerenciaRole } from "../utils/aprobaciones";
 import { SkeletonTable } from "../components/ui/Skeleton";
 
@@ -42,44 +43,56 @@ const flattenOC = (oc) => ({
   cotizacion:    oc.cotizacion    || oc.numeroCotizacion    || "",
 });
 
+const ROLES_FIRMA = ["operaciones", "gerencia operaciones", "gerencia", "gerencia general", "admin"];
+
+// Abrevia estados largos para el badge en mobile
+const estadoCorto = (estado = "") =>
+  estado
+    .replace("Pendiente de Gerencia Operaciones", "Pend. Ger. Op.")
+    .replace("Pendiente de Gerencia General", "Pend. Ger. Gral.")
+    .replace("Pendiente de Operaciones", "Pend. Operaciones")
+    .replace("Pendiente de Comprador", "Pend. Comprador")
+    .replace("En proceso de pago", "En pago");
+
+const estadoBadgeClass = (estado = "") => {
+  if (estado === "Pagado") return "text-green-700 bg-green-100";
+  if (estado === "Aprobada" || estado === "Aprobado") return "text-blue-700 bg-blue-100";
+  if (estado === "Rechazada" || estado === "Rechazado") return "text-red-700 bg-red-100";
+  if (estado.startsWith("Pendiente")) return "text-amber-700 bg-amber-100";
+  return "text-gray-700 bg-gray-100";
+};
+
 // Mini card para móvil
-const CardOC = ({ oc, onVer }) => (
-  <div className="bg-white border rounded-lg p-3 shadow-sm">
-    <div className="flex items-center justify-between">
-      <div className="text-sm text-gray-500">N° OC</div>
-      <div className="text-sm font-semibold">{oc.numeroOC || oc.numero || "—"}</div>
-    </div>
-    <div className="mt-2">
-      <div className="text-xs text-gray-500">Proveedor</div>
-      <div className="text-sm">{oc.proveedor?.razonSocial || "—"}</div>
-    </div>
-    <div className="mt-2 grid grid-cols-2 gap-3">
-      <div>
-        <div className="text-xs text-gray-500">Fecha</div>
-        <div className="text-sm">{oc.fechaEmision || "—"}</div>
-      </div>
-      <div>
-        <div className="text-xs text-gray-500">Estado</div>
-        <span
-          className={`inline-block mt-0.5 text-xs font-medium px-2 py-1 rounded-full ${
-            oc.estado === "Pagado"
-              ? "text-green-700 bg-green-100"
-              : oc.estado === "Aprobada"
-              ? "text-blue-700 bg-blue-100"
-              : (oc.estado === "Rechazada" || oc.estado === "Rechazado")
-              ? "text-red-700 bg-red-100"
-              : oc.estado?.startsWith("Pendiente")
-              ? "text-amber-700 bg-amber-100"
-              : "text-gray-700 bg-gray-100"
-          }`}
-        >
-          {oc.estado || "—"}
+const CardOC = ({ oc, onVer, seleccionable, seleccionada, onToggle }) => (
+  <div className={`bg-white border rounded-xl p-4 shadow-sm ${seleccionada ? "border-[#004990] bg-blue-50" : "border-gray-200"}`}>
+    <div className="flex items-start gap-2 mb-2">
+      {seleccionable && (
+        <input
+          type="checkbox"
+          checked={seleccionada}
+          onChange={onToggle}
+          className="mt-0.5 h-4 w-4 accent-[#004990] flex-shrink-0"
+        />
+      )}
+      <div className="flex-1 flex items-start justify-between gap-2">
+        <span className="font-bold text-[#004990] text-base font-mono leading-tight">
+          {oc.numeroOC || oc.numero || "—"}
+        </span>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${estadoBadgeClass(oc.estado || "")}`}>
+          {estadoCorto(oc.estado || "—")}
         </span>
       </div>
     </div>
-    <div className="mt-3 flex justify-end">
-      <button className="text-[#004990] font-medium underline" onClick={onVer}>
-        Ver
+    <div className="text-sm text-gray-700 mb-2 leading-snug">
+      {oc.proveedor?.razonSocial || "—"}
+    </div>
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-gray-400">{oc.fechaEmision || "—"}</span>
+      <button
+        className="text-sm text-[#004990] font-semibold bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+        onClick={onVer}
+      >
+        Ver →
       </button>
     </div>
   </div>
@@ -118,6 +131,11 @@ const Historial = () => {
   // Modal
   const [modalAbierto, setModalAbierto] = useState(false);
   const [ocSeleccionada, setOcSeleccionada] = useState(null);
+
+  // Firma masiva
+  const [seleccionados, setSeleccionados] = useState(new Set());
+  const [loteAbierto, setLoteAbierto] = useState(false);
+  const puedeFireMasiva = usuario && ROLES_FIRMA.includes(String(usuario.rol || "").toLowerCase());
 
   // Carga inicial con paginación cursor
   useEffect(() => {
@@ -244,6 +262,37 @@ const Historial = () => {
     setOcSeleccionada(ocActualizada);
   };
 
+  // Firma masiva helpers
+  const toggleSeleccion = (id) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleTodos = () => {
+    const firmableIds = ordenesPaginadas
+      .filter((oc) => ocPendingForRole(oc, usuario?.rol, usuario?.email))
+      .map((oc) => oc.id);
+    const todosSeleccionados = firmableIds.every((id) => seleccionados.has(id));
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (todosSeleccionados) firmableIds.forEach((id) => next.delete(id));
+      else firmableIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+  const ocsSeleccionadas = ordenesProcesadas.filter((oc) => seleccionados.has(oc.id));
+  const handleLoteDone = (ocsActualizadas) => {
+    setOrdenes((prev) =>
+      prev.map((x) => {
+        const act = ocsActualizadas.find((o) => o.id === x.id);
+        return act ? act : x;
+      })
+    );
+    setSeleccionados(new Set());
+  };
+
   if (loading) return (
     <div className="p-6 space-y-4">
       <div className="h-8 w-48 animate-pulse bg-gray-200 rounded" />
@@ -281,57 +330,77 @@ const Historial = () => {
         </div>
       )}
 
+      {/* Barra flotante de firma masiva */}
+      {puedeFireMasiva && seleccionados.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#004990] text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+          <span className="font-semibold">{seleccionados.size} seleccionada{seleccionados.size !== 1 ? "s" : ""}</span>
+          <button
+            onClick={() => setLoteAbierto(true)}
+            className="bg-white text-[#004990] font-bold px-4 py-1.5 rounded-lg hover:bg-blue-50 text-sm"
+          >
+            Firmar seleccionadas
+          </button>
+          <button onClick={() => setSeleccionados(new Set())} className="text-white/70 hover:text-white text-lg leading-none">✕</button>
+        </div>
+      )}
+
       {/* Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div className="mb-4 space-y-2">
+        {/* Búsqueda: ancho completo */}
         <input
           type="text"
           placeholder="Buscar N° OC, proveedor, estado..."
           value={busqueda}
           onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(1); }}
-          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          className="w-full p-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
         />
 
-        <select
-          value={estadoFiltro}
-          onChange={(e) => { setEstadoFiltro(e.target.value); setPaginaActual(1); }}
-          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-        >
-          <option value="Todos">Todos los estados</option>
-          <option value="Pendiente de Comprador">Pendiente de Comprador</option>
-          <option value="Pendiente de Operaciones">Pendiente de Operaciones</option>
-          <option value="Pendiente de Gerencia General">Pendiente de Gerencia General</option>
-          <option value="Aprobada">Aprobada</option>
-          <option value="Rechazada">Rechazada</option>
-          <option value="Pagado">Pagado</option>
-          <option value="Pago Parcial">Pago Parcial</option>
-        </select>
+        {/* Estado + Centro de costo: 2 columnas */}
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={estadoFiltro}
+            onChange={(e) => { setEstadoFiltro(e.target.value); setPaginaActual(1); }}
+            className="p-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          >
+            <option value="Todos">Todos los estados</option>
+            <option value="Pendiente de Comprador">Pend. Comprador</option>
+            <option value="Pendiente de Operaciones">Pend. Operaciones</option>
+            <option value="Pendiente de Gerencia General">Pend. Ger. Gral.</option>
+            <option value="Aprobada">Aprobada</option>
+            <option value="Rechazada">Rechazada</option>
+            <option value="Pagado">Pagado</option>
+            <option value="Pago Parcial">Pago Parcial</option>
+          </select>
 
-        <input
-          type="text"
-          placeholder="Filtrar por centro de costo..."
-          value={filtroCentroCosto}
-          onChange={(e) => { setFiltroCentroCosto(e.target.value); setPaginaActual(1); }}
-          className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-        />
-
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-600 whitespace-nowrap">Desde:</label>
           <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => { setFechaDesde(e.target.value); setPaginaActual(1); }}
-            className="p-2 border rounded text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+            type="text"
+            placeholder="Centro de costo..."
+            value={filtroCentroCosto}
+            onChange={(e) => { setFiltroCentroCosto(e.target.value); setPaginaActual(1); }}
+            className="p-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-600 whitespace-nowrap">Hasta:</label>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => { setFechaHasta(e.target.value); setPaginaActual(1); }}
-            className="p-2 border rounded text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-          />
+        {/* Fechas: 2 columnas */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-500 whitespace-nowrap">Desde</label>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => { setFechaDesde(e.target.value); setPaginaActual(1); }}
+              className="p-1.5 border rounded text-xs w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-500 whitespace-nowrap">Hasta</label>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => { setFechaHasta(e.target.value); setPaginaActual(1); }}
+              className="p-1.5 border rounded text-xs w-full focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2">
@@ -365,6 +434,21 @@ const Historial = () => {
             <table className="w-full text-sm border border-gray-300">
               <thead className="bg-gray-100 text-center">
                 <tr>
+                  {puedeFireMasiva && (
+                    <th className="border px-2 py-2 w-8">
+                      <input
+                        type="checkbox"
+                        className="accent-[#004990]"
+                        onChange={toggleTodos}
+                        checked={
+                          ordenesPaginadas
+                            .filter((oc) => ocPendingForRole(oc, usuario?.rol, usuario?.email))
+                            .every((oc) => seleccionados.has(oc.id)) &&
+                          ordenesPaginadas.some((oc) => ocPendingForRole(oc, usuario?.rol, usuario?.email))
+                        }
+                      />
+                    </th>
+                  )}
                   <th
                     className="border px-3 py-2 cursor-pointer"
                     onClick={() => {
@@ -410,8 +494,22 @@ const Historial = () => {
                 </tr>
               </thead>
               <tbody>
-                {ordenesPaginadas.map((oc) => (
-                  <tr key={oc.id} className="text-center border-t">
+                {ordenesPaginadas.map((oc) => {
+                  const esFirmable = ocPendingForRole(oc, usuario?.rol, usuario?.email);
+                  return (
+                  <tr key={oc.id} className={`text-center border-t ${seleccionados.has(oc.id) ? "bg-blue-50" : ""}`}>
+                    {puedeFireMasiva && (
+                      <td className="border px-2 py-2">
+                        {esFirmable && (
+                          <input
+                            type="checkbox"
+                            className="accent-[#004990]"
+                            checked={seleccionados.has(oc.id)}
+                            onChange={() => toggleSeleccion(oc.id)}
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="border px-3 py-2 font-semibold">
                       {oc.numeroOC || oc.numero}
                     </td>
@@ -451,23 +549,30 @@ const Historial = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Cards (móvil) */}
           <div className="grid md:hidden gap-3">
-            {ordenesPaginadas.map((oc) => (
-              <CardOC
-                key={oc.id}
-                oc={oc}
-                onVer={() => {
-                  setOcSeleccionada(oc);
-                  setModalAbierto(true);
-                }}
-              />
-            ))}
+            {ordenesPaginadas.map((oc) => {
+              const esFirmable = puedeFireMasiva && ocPendingForRole(oc, usuario?.rol, usuario?.email);
+              return (
+                <CardOC
+                  key={oc.id}
+                  oc={oc}
+                  onVer={() => {
+                    setOcSeleccionada(oc);
+                    setModalAbierto(true);
+                  }}
+                  seleccionable={esFirmable}
+                  seleccionada={seleccionados.has(oc.id)}
+                  onToggle={() => toggleSeleccion(oc.id)}
+                />
+              );
+            })}
           </div>
 
           {/* Paginación de páginas */}
@@ -508,6 +613,15 @@ const Historial = () => {
           oc={ocSeleccionada}
           onClose={() => setModalAbierto(false)}
           onUpdated={handleOCActualizada}
+        />
+      )}
+
+      {/* Modal Firma Masiva */}
+      {loteAbierto && ocsSeleccionadas.length > 0 && (
+        <FirmarLoteModal
+          ocs={ocsSeleccionadas}
+          onClose={() => setLoteAbierto(false)}
+          onDone={handleLoteDone}
         />
       )}
     </div>
