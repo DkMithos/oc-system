@@ -116,9 +116,9 @@ export const puedeAprobarEnEstado = (estadoOC, rol) => {
 
 // ─── Roles de interfaz ───────────────────────────────────────────────────────
 
-const GERENCIA_ROLES  = [ROLES.GERENCIA_GEN, ROLES.GERENCIA];
-const BANDEJA_ROLES   = [ROLES.COMPRADOR, ROLES.OPERACIONES, ...GERENCIA_ROLES];
-const APPROVAL_ROLES  = [ROLES.COMPRADOR, ROLES.OPERACIONES, ...GERENCIA_ROLES];
+const GERENCIA_ROLES  = [ROLES.GERENCIA_GEN, ROLES.GERENCIA, ROLES.GERENCIA_OP];
+const BANDEJA_ROLES   = [ROLES.COMPRADOR, ROLES.OPERACIONES, ROLES.GERENCIA_OP, ...GERENCIA_ROLES];
+const APPROVAL_ROLES  = [ROLES.COMPRADOR, ROLES.OPERACIONES, ROLES.GERENCIA_OP, ...GERENCIA_ROLES];
 
 export const isGerenciaRole  = (r = "") => GERENCIA_ROLES.includes(String(r || "").toLowerCase());
 export const isBandejaRole   = (r = "") => BANDEJA_ROLES.includes(String(r || "").toLowerCase());
@@ -128,6 +128,7 @@ export const isApprovalRole  = (r = "") => APPROVAL_ROLES.includes(String(r || "
 const PENDING_BY_ROLE = {
   [ROLES.COMPRADOR]:    ["Pendiente de Comprador"],
   [ROLES.OPERACIONES]:  ["Pendiente de Operaciones"],
+  [ROLES.GERENCIA_OP]:  ["Pendiente de Operaciones", "Pendiente de Gerencia General"],
   [ROLES.GERENCIA_GEN]: ["Pendiente de Gerencia General"],
   [ROLES.GERENCIA]:     ["Pendiente de Gerencia General"],
 };

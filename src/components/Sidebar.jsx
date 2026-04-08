@@ -11,13 +11,15 @@ import { puedeAcceder } from "../utils/permisosPorRol";
 import { useUsuario } from "../context/UsuarioContext";
 import logo from "../assets/logo-navbar.png";
 
+// Inicio es un acceso directo global — no pertenece a ningún módulo
+const INICIO = { ruta: "/", texto: "Inicio", icon: Home };
+
 const MENU = [
   {
     id: "compras",
     label: "Compras",
     icon: ShoppingCart,
     items: [
-      { ruta: "/",              texto: "Inicio",           icon: Home },
       { ruta: "/historial",     texto: "Historial OC",     icon: ClipboardList },
       { ruta: "/crear",         texto: "Nueva Orden",      icon: FileText },
       { ruta: "/cotizaciones",  texto: "Cotizaciones",     icon: Package },
@@ -148,6 +150,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
         {/* ── Navegación ─────────────────────────── */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+
+          {/* Inicio — acceso directo fuera de cualquier módulo */}
+          <NavLink
+            to={INICIO.ruta}
+            end
+            onClick={onNav}
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold
+               transition-all duration-150 mb-1
+               ${isActive
+                 ? "bg-amber-400 text-[#012b5a] shadow-sm"
+                 : "text-white/80 hover:text-white hover:bg-white/8"
+               }`
+            }
+          >
+            <INICIO.icon size={15} className="flex-shrink-0" />
+            {INICIO.texto}
+          </NavLink>
+
           {MENU.map((grupo) => {
             const abierto   = grupoAbierto === grupo.id;
             const GrupoIcon = grupo.icon;

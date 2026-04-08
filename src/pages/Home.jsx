@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
 import { usePendientes } from "../context/PendientesContext";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 
 // ── Accesos rápidos por rol ──────────────────────────────────
 const ACCESOS_POR_ROL = {
@@ -99,26 +100,45 @@ const Home = () => {
   useEffect(() => {
     (async () => {
       try {
-        const data = await obtenerOCs(30);
-        setRecentOCs((data || []).slice(0, 5));
+        // Recientes para la tabla (últimas 5)
+        const recientes = await obtenerOCs(30).catch(() => []);
+        setRecentOCs((recientes || []).slice(0, 5));
+
+        // KPIs: usar TODAS las OCs para no perder aprobadas con número bajo
+        const todas = await obtenerTodasOC().catch(() => []);
 
         const hoy  = new Date();
         const mes  = hoy.getMonth();
         const anio = hoy.getFullYear();
 
-        const delMes = (data || []).filter((oc) => {
-          const f = new Date(oc.fechaEmision || oc.creadaEn?.seconds * 1000 || 0);
+        const delMes = (todas || []).filter((oc) => {
+          // Parseo timezone-safe: "2026-04-08" → local date (no UTC)
+          let f = null;
+          if (oc.fechaEmision) {
+            const parts = String(oc.fechaEmision).split("-");
+            if (parts.length === 3) {
+              f = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            }
+          }
+          if (!f && oc.creadaEn?.seconds) {
+            f = new Date(oc.creadaEn.seconds * 1000);
+          }
+          if (!f) return false;
           return f.getMonth() === mes && f.getFullYear() === anio;
         });
 
         setKpis({
-          aprobadas: delMes.filter((o) => o.estado === "Aprobada").length,
+          aprobadas:  delMes.filter((o) => o.estado === "Aprobada").length,
           rechazadas: delMes.filter((o) => o.estado === "Rechazada").length,
-          montoMes:  delMes.filter((o) => o.estado === "Aprobada")
-                           .reduce((s, o) => s + (o.resumen?.total || 0), 0),
+          montoMes:   delMes
+            .filter((o) => o.estado === "Aprobada")
+            .reduce((s, o) => s + (Number(o.resumen?.total) || 0), 0),
         });
-      } catch { /* no bloquear */ }
-      finally { setCargando(false); }
+      } catch (e) {
+        console.error("[Home] Error cargando KPIs:", e);
+      } finally {
+        setCargando(false);
+      }
     })();
   }, []);
 
