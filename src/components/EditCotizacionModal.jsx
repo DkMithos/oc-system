@@ -4,6 +4,7 @@ import { actualizarCotizacion } from "../firebase/cotizacionesHelpers";
 import { storage } from "../firebase/config";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { formatearMoneda } from "../utils/formatearMoneda";
+import { toast } from "react-toastify";
 
 const Backdrop = ({ children, onClose, title }) => (
   <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-2">
@@ -17,7 +18,9 @@ const Backdrop = ({ children, onClose, title }) => (
   </div>
 );
 
-const EditCotizacionModal = ({ cotizacion, open, onClose, onSaved }) => {
+// El componente padre (Cotizaciones.jsx) controla la visibilidad con {editOpen && cotEdit && ...}
+// No se necesita prop `open` — el modal siempre muestra si es renderizado
+const EditCotizacionModal = ({ cotizacion, onClose, onSaved }) => {
   const [detalle, setDetalle] = useState("");
   const [items, setItems] = useState([]);
   const [file, setFile] = useState(null);
@@ -36,7 +39,7 @@ const EditCotizacionModal = ({ cotizacion, open, onClose, onSaved }) => {
     setFile(null);
   }, [cotizacion]);
 
-  if (!open || !cotizacion) return null;
+  if (!cotizacion) return null;
 
   const addItem = () =>
     setItems((prev) => [

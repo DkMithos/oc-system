@@ -50,6 +50,7 @@ const Requerimientos = () => {
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [pagina, setPagina] = useState(1);
   const [cambiandoEstado, setCambiandoEstado] = useState(null); // id del RQ en proceso
+  const [guardando, setGuardando] = useState(false); // evita doble-click al crear
 
   const [centrosOptions, setCentrosOptions] = useState([]);
   const [centrosLoading, setCentrosLoading] = useState(true);
@@ -202,6 +203,8 @@ const Requerimientos = () => {
   };
 
   const guardar = async () => {
+    if (guardando) return; // Evita doble-click
+
     // asegurar código incluso si el fetch de correlativo falló
     let codigo = form.codigo;
     if (!codigo) {
@@ -216,6 +219,7 @@ const Requerimientos = () => {
     const v = validarForm();
     if (v) return toast.info(v);
 
+    setGuardando(true);
     const nuevo = {
       ...form,
       codigo,
@@ -251,6 +255,8 @@ const Requerimientos = () => {
     } catch (e) {
       console.error(e);
       toast.error("No se pudo guardar el requerimiento.");
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -462,9 +468,10 @@ const Requerimientos = () => {
           <div className="md:col-span-3 flex justify-end">
             <button
               onClick={guardar}
-              className="text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              disabled={guardando}
+              className="text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Guardar
+              {guardando ? "Guardando..." : "Guardar"}
             </button>
           </div>
         </div>

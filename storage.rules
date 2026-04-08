@@ -28,6 +28,14 @@ service firebase.storage {
                    && request.resource.contentType.matches('application/pdf|image/.*|application/vnd\\..*|application/msword|application/zip|application/x-zip-compressed');
     }
 
+    // Archivos adjuntos a Caja Chica (comprobantes de movimientos)
+    match /caja-chica/{cajaId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('application/pdf|image/.*');
+    }
+
     // Firmas digitales (imágenes base64 convertidas a blob)
     match /firmas/{userId}/{allPaths=**} {
       allow read:  if request.auth != null;

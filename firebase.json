@@ -40,7 +40,14 @@
     "source": "functions",
     "runtime": "nodejs20"
   },
-  "storage": {
-    "rules": "storage.rules"
-  }
+  "storage": [
+    {
+      "bucket": "oc-system-3910d.appspot.com",
+      "rules": "storage.rules"
+    },
+    {
+      "bucket": "oc-system-3910d.firebasestorage.app",
+      "rules": "storage.rules"
+    }
+  ]
 }
