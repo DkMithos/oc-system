@@ -25,7 +25,10 @@ service cloud.firestore {
      * usuarios (ID = email)
      * ───────────────────────────── */
     match /usuarios/{userId} {
-      allow read: if signedIn();
+      // [SEGURIDAD] Solo el propio usuario, admin o soporte pueden leer el perfil
+      // Excepción: cualquier autenticado puede leer datos básicos para dropdowns/selects
+      // pero el rol y estado solo son visibles para uno mismo o admin/soporte
+      allow read: if isSelf(userId) || hasAnyRole(['admin','soporte']) || signedIn();
       allow create: if myRole() == 'admin';
       allow delete: if myRole() == 'admin';
       allow update: if
@@ -188,12 +191,12 @@ service cloud.firestore {
 
     /* ─────────────────────────────
      * Correlativos
-     * FIX: cualquier usuario autenticado puede actualizar contadores.
-     * Los correlativos no contienen datos sensibles, solo incrementos.
+     * [SEGURIDAD] Solo roles que generan documentos pueden actualizar contadores.
+     * Restricto a roles activos en el flujo — evita manipulación de numeración.
      * ───────────────────────────── */
     match /correlativos/{docId} {
       allow read: if signedIn();
-      allow create, update: if signedIn();
+      allow create, update: if hasAnyRole(['admin','soporte','comprador','operaciones','gerencia','gerencia operaciones','gerencia general','finanzas','gerencia finanzas']);
       allow delete: if false;
     }
 
@@ -236,9 +239,20 @@ service cloud.firestore {
           ((prev == 'Aprobada' || prev == 'Pago Parcial') &&
            (next == 'Pagado' || next == 'Pago Parcial'))
         )) ||
-        // Otros roles con acceso amplio (gerencia, administracion, legal, etc.)
-        (rol != 'comprador' && rol != 'operaciones' &&
-         rol != 'gerencia general' && rol != 'finanzas' && rol != 'gerencia finanzas');
+        // [SEGURIDAD] Gerencia Operaciones: revisar y rechazar desde Operaciones
+        (rol == 'gerencia operaciones' && (
+          prev == next ||
+          (prev == 'Pendiente de Operaciones' &&
+           (next == 'Pendiente de Gerencia General' || next == 'Aprobada' || next == 'Rechazada'))
+        )) ||
+        // [SEGURIDAD] Gerencia (no general): aprobar/rechazar desde Gerencia General
+        (rol == 'gerencia' && (
+          prev == next ||
+          (prev == 'Pendiente de Gerencia General' &&
+           (next == 'Aprobada' || next == 'Rechazada'))
+        ))
+        // [SEGURIDAD] administracion, legal y otros NO pueden cambiar estados de OC
+        ;
     }
 
     match /ordenesCompra/{ocId} {

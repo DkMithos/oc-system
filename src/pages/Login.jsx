@@ -34,8 +34,9 @@ const Login = () => {
 
       // ✅ El UsuarioContext se actualizará automáticamente por `onAuthStateChanged`
       navigate("/");
-    } catch (error) {
-      alert("Error al iniciar sesión: " + error.message);
+    } catch {
+      // [SEGURIDAD] Mensaje genérico — evita enumeración de usuarios
+      alert("Credenciales incorrectas. Verifica tu correo y contraseña.");
     }
   };
 

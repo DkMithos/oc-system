@@ -302,6 +302,11 @@ export const onSolicitudEdicionUpdated = onDocumentUpdated(
 export const enviarNotificacionRol = onCall(
   { region: "us-central1", cors: ALLOWED_ORIGINS },
   async (request) => {
+    // [SEGURIDAD] Verificar autenticación
+    if (!request.auth) {
+      const { HttpsError } = await import("firebase-functions/v2/https");
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión para enviar notificaciones.");
+    }
     const { toRole, payload } = request.data || {};
     if (!toRole || !payload?.title) {
       throw new Error("Parámetros inválidos: { toRole, payload: { title, body?, ocId? } }");
@@ -320,6 +325,18 @@ export const enviarNotificacionRol = onCall(
 export const enviarNotificacionTest = onCall(
   { region: "us-central1", cors: ALLOWED_ORIGINS },
   async (request) => {
+    // [SEGURIDAD] Solo admin puede enviar notificaciones de prueba
+    if (!request.auth) {
+      const { HttpsError } = await import("firebase-functions/v2/https");
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+    const db = getFirestore();
+    const callerEmail = String(request.auth.token.email || "").toLowerCase();
+    const callerDoc = await db.doc(`usuarios/${callerEmail}`).get();
+    if (callerDoc.data()?.rol !== "admin") {
+      const { HttpsError } = await import("firebase-functions/v2/https");
+      throw new HttpsError("permission-denied", "Solo administradores pueden enviar notificaciones de prueba.");
+    }
     const { email, ocId, title = "Prueba", body = "Mensaje de prueba" } = request.data || {};
     if (!email) throw new Error("email requerido");
     const tokens = await getUserTokensByEmail(String(email).toLowerCase());

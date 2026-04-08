@@ -18,11 +18,18 @@ export const UsuarioProvider = ({ children }) => {
   const cargarPerfil = async () => {
     try {
       const data = await obtenerUsuarioActual();
-      if (data?.email && data?.rol) {
+      const estadoUsuario = data?.estado || "Activo";
+      if (data?.email && data?.rol && estadoUsuario === "Activo") {
         setUsuario(data);
         localStorage.setItem("userEmail", data.email);
         localStorage.setItem("userName", data.nombre || "");
         return data;
+      } else if (data?.email && estadoUsuario !== "Activo") {
+        // [SEGURIDAD] Usuario inactivo/suspendido — cerrar sesión automáticamente
+        await signOut(auth);
+        setUsuario(null);
+        localStorage.clear();
+        return null;
       } else {
         setUsuario(null);
         localStorage.clear();

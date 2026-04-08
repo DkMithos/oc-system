@@ -1,5 +1,6 @@
 // ✅ src/components/RutaProtegida.jsx
 import React from "react";
+import { Navigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
 
 const RutaProtegida = ({ rolesPermitidos = [], children }) => {
@@ -10,13 +11,9 @@ const RutaProtegida = ({ rolesPermitidos = [], children }) => {
   const rolUser = (usuario?.rol || "").toLowerCase();
   const permitido = rolesPermitidos.map((r) => r.toLowerCase()).includes(rolUser);
 
-  if (!usuario || !permitido) {
-    return (
-      <div className="p-6 text-red-600 font-medium">
-        ❌ Acceso denegado. No tienes permisos para ver esta sección.
-      </div>
-    );
-  }
+  // [SEGURIDAD] Redirigir en lugar de mostrar mensaje — evita exponer estructura interna
+  if (!usuario) return <Navigate to="/login" replace />;
+  if (!permitido) return <Navigate to="/" replace />;
 
   return children;
 };

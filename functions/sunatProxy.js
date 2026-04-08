@@ -15,8 +15,9 @@ const ALLOWED_ORIGINS = [
   "http://localhost:4173",
 ];
 
-const getDecolectaToken = () => process.env.DECOLECTA_TOKEN || "sk_14357.AUTv4TRQxoNOZ4n05LNS8kDeuKP9BQOm";
-const getApisNetToken  = () => process.env.APIS_NET_TOKEN   || "";
+// [SEGURIDAD] Nunca dejar tokens hardcodeados. Usar: firebase functions:secrets:set DECOLECTA_TOKEN
+const getDecolectaToken = () => process.env.DECOLECTA_TOKEN || null;
+const getApisNetToken  = () => process.env.APIS_NET_TOKEN   || null;
 
 /** Construye la lista de providers en orden de prioridad */
 const buildCandidates = (ruc) => {

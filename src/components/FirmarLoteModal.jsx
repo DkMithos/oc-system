@@ -6,15 +6,45 @@ import { actualizarOC, registrarLog } from "../firebase/firestoreHelpers";
 import { obtenerFirmaGuardada } from "../firebase/firmasHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { siguienteEstado } from "../utils/aprobaciones";
+
+// [SEGURIDAD-MEDIA-06] Usar los estados de aprobaciones.js como fuente única de verdad.
+// Elimina divergencia con "Pendiente de Gerencia Operaciones" que no existe en el flujo.
+const FIRMA_KEYS_BY_ROL = {
+  operaciones:          { firmaKey: "firmaOperaciones",         firmasKey: "operaciones" },
+  "gerencia operaciones": { firmaKey: "firmaGerenciaOperaciones", firmasKey: "gerenciaOperaciones" },
+  "gerencia general":   { firmaKey: "firmaGerenciaGeneral",    firmasKey: "gerenciaGeneral" },
+  gerencia:             { firmaKey: "firmaGerenciaGeneral",    firmasKey: "gerenciaGeneral" },
+};
+
+const ESTADO_PUEDO_FIRMAR = {
+  operaciones:          ["Pendiente de Operaciones"],
+  "gerencia operaciones": ["Pendiente de Operaciones", "Pendiente de Gerencia General"],
+  "gerencia general":   ["Pendiente de Gerencia General"],
+  gerencia:             ["Pendiente de Gerencia General"],
+};
+
+const NOTIF_POR_ESTADO = {
+  "Pendiente de Operaciones":      "operaciones",
+  "Pendiente de Gerencia General": "gerencia general",
+  "Aprobada":                       null,
+};
 
 const estadoSiguiente = (oc, rol) => {
-  if (rol === "operaciones" && oc.estado === "Pendiente de Operaciones")
-    return { siguiente: "Pendiente de Gerencia Operaciones", notifRol: "gerencia operaciones", firmaKey: "firmaOperaciones", firmasKey: "operaciones" };
-  if ((rol === "gerencia operaciones" || rol === "gerencia") && oc.estado === "Pendiente de Gerencia Operaciones")
-    return { siguiente: "Pendiente de Gerencia General", notifRol: "gerencia general", firmaKey: "firmaGerenciaOperaciones", firmasKey: "gerenciaOperaciones" };
-  if (rol === "gerencia general" && oc.estado === "Pendiente de Gerencia General")
-    return { siguiente: "Aprobado", notifRol: null, firmaKey: "firmaGerenciaGeneral", firmasKey: "gerenciaGeneral" };
-  return null;
+  const estadosFirmables = ESTADO_PUEDO_FIRMAR[rol] || [];
+  if (!estadosFirmables.includes(oc.estado)) return null;
+
+  const monto = oc.resumen?.total || 0;
+  const moneda = oc.monedaSeleccionada || "Soles";
+  const siguiente = siguienteEstado(oc.estado, monto, moneda, null);
+  const keys = FIRMA_KEYS_BY_ROL[rol] || null;
+  if (!keys) return null;
+
+  return {
+    siguiente,
+    notifRol: NOTIF_POR_ESTADO[siguiente] ?? null,
+    ...keys,
+  };
 };
 
 const notifyRole = async (toRole, title, body, ocId) => {
@@ -90,7 +120,7 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
           }
         } else {
           update = {
-            estado: "Rechazado",
+            estado: "Rechazada",
             motivoRechazo: motivoRechazo.trim(),
             historial: [
               ...(oc.historial || []),
