@@ -10,13 +10,15 @@ import {
   serverTimestamp,
   setDoc,
   query,
+  where,
   orderBy,
+  runTransaction,
   limit,
   startAfter,
-  runTransaction,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./config";
-import { determinarEstadoInicial } from "../utils/aprobaciones";
+import { etapasRequeridas, siguienteEstado } from "../utils/aprobaciones";
 
 /** =========================
  *  Constantes de colecciones
@@ -48,24 +50,32 @@ export const obtenerUsuarios = async () => {
 };
 
 
-// Crear usuario en Firestore (solo perfil — la contraseña la gestiona Firebase Auth)
-export const guardarUsuario = async ({ email, rol }) => {
+// Crear usuario con contraseña inicial (opcional)
+export const guardarUsuario = async ({ email, rol, password }) => {
   if (!email || !rol) throw new Error("El usuario debe tener correo y rol.");
   const userRef = doc(db, USUARIOS_COLLECTION, email);
   await setDoc(userRef, {
     email,
     rol,
     estado: "Activo",
+    password: password || null,
     creadoEn: new Date().toISOString(),
   });
 };
 
-// ELIMINADO: actualizarPasswordUsuario — las contraseñas se gestionan exclusivamente
-// desde Firebase Authentication (sendPasswordResetEmail / updatePassword).
-// Nunca almacenar contraseñas en Firestore.
+export const actualizarPasswordUsuario = async (email, nuevaPassword) => {
+  if (!email || !nuevaPassword) throw new Error("Datos incompletos.");
+  const ref = doc(db, USUARIOS_COLLECTION, email);
+  await updateDoc(ref, {
+    password: nuevaPassword,
+    actualizadoEn: new Date().toISOString(),
+  });
+};
 
+// [C-06] Elimina usuario tanto en Firestore como en Firebase Auth (vía Cloud Function admin)
 export const eliminarUsuario = async (email) => {
-  await deleteDoc(doc(db, USUARIOS_COLLECTION, email));
+  const fn = httpsCallable(getFunctions(), "borrarUsuarioAdmin");
+  await fn({ email });
 };
 
 export const actualizarRolUsuario = async (email, nuevoRol) => {
@@ -91,7 +101,7 @@ export const registrarLog = async (payload = {}) => {
 
 export const obtenerLogs = async () => {
   const logsRef = collection(db, LOGS_COLLECTION);
-  const qy = query(logsRef, orderBy("fecha", "desc"));
+  const qy = query(logsRef, orderBy("fecha", "desc"), limit(200));
   const snapshot = await getDocs(qy);
   return snapshot.docs.map((d) => ({
     id: d.id,
@@ -116,7 +126,7 @@ export const obtenerSiguienteNumeroOrden = async () => {
 // Guarda OC/OS/OI con correlativo único y reglas de enlace (SP->COT->OC/OS)
 // - tipoOrden: "OC" | "OS" | "OI"
 // - OC/OS deben estar ligadas a una cotización, y la cotización a un requerimiento
-// - Estado inicial: determinarEstadoInicial() → "Pendiente de Comprador" (configurable)
+// - Estado inicial: "Pendiente", firmas nulas (comprador NO firma), soft-delete=false
 export const guardarOrden = async (ordenData) => {
   const { tipoOrden, cotizacionId, requerimientoId } = ordenData || {};
   if (!["OC", "OS", "OI"].includes(tipoOrden)) {
@@ -136,18 +146,22 @@ export const guardarOrden = async (ordenData) => {
     const numero = `MM-${String(siguiente).padStart(6, "0")}`;
 
     const ref = doc(collection(db, OC_COLLECTION));
+    const montoTotal = Number(ordenData?.resumen?.total || ordenData?.total || 0);
+    const etapas = etapasRequeridas(montoTotal);
+    const estadoInicial = etapas[0] || "Pendiente de Operaciones";
+
     tx.set(ref, {
       ...ordenData,
       numero,
-      // El estado inicial lo define determinarEstadoInicial() — "Pendiente de Comprador"
-      // Si ordenData ya trae estado (ej. CrearOC lo setea vía determinarEstadoInicial), se respeta
-      estado: ordenData.estado || determinarEstadoInicial(),
+      estado: estadoInicial,
+      etapasAprobacion: etapas,
+      historialAprobaciones: [],
       firmas: {
-        // Preservar firmas que vengan del payload (ej. firma del comprador en creación)
         comprador: null,
         operaciones: null,
+        gerenciaOperaciones: null,
         gerenciaGeneral: null,
-        ...(ordenData.firmas || {}),
+        finanzas: null,
       },
       creadaEn: serverTimestamp(),
       eliminada: false,
@@ -167,44 +181,9 @@ export const guardarOrden = async (ordenData) => {
   return newId;
 };
 
-/**
- * Paginación cursor para OCs — usa startAfter para no recargar documentos ya vistos.
- * @param {number} limite - Registros por página
- * @param {import("firebase/firestore").QueryDocumentSnapshot|null} cursor - Último doc de la página anterior
- * @returns {{ items: object[], lastDoc: QueryDocumentSnapshot|null, hasMore: boolean }}
- */
-export const obtenerOCsPaginadas = async (limite = 20, cursor = null) => {
-  const constraints = [
-    orderBy("numero", "desc"),
-    limit(limite + 1), // pedimos uno extra para saber si hay más
-  ];
-  if (cursor) constraints.push(startAfter(cursor));
-
-  const q        = query(collection(db, OC_COLLECTION), ...constraints);
-  const snapshot = await getDocs(q);
-  const docs     = snapshot.docs;
-  const hasMore  = docs.length > limite;
-  const pageDocs = hasMore ? docs.slice(0, limite) : docs;
-
-  const items = pageDocs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((x) => x?.eliminada !== true);
-
-  return {
-    items,
-    lastDoc: pageDocs[pageDocs.length - 1] || null,
-    hasMore,
-  };
-};
-
 // Obtener todas las órdenes (excluye eliminadas) y ordena por correlativo (desc)
-export const obtenerOCs = async (limite = 50) => {
-  const q = query(
-    collection(db, OC_COLLECTION),
-    orderBy("numero", "desc"),
-    limit(limite)
-  );
-  const snapshot = await getDocs(q);
+export const obtenerOCs = async () => {
+  const snapshot = await getDocs(collection(db, OC_COLLECTION));
   const lista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) || [];
   const vivas = lista.filter((x) => x?.eliminada !== true);
 
@@ -215,6 +194,35 @@ export const obtenerOCs = async (limite = 50) => {
   };
   vivas.sort((a, b) => parseN(b.numero) - parseN(a.numero));
   return vivas;
+};
+
+// Paginación con cursor — devuelve { items, lastDoc, hasMore }
+export const obtenerOCsPaginadas = async (pageSize = 30, lastVisible = null) => {
+  let q = query(
+    collection(db, OC_COLLECTION),
+    orderBy("creadaEn", "desc"),
+    limit(pageSize)
+  );
+  if (lastVisible) q = query(q, startAfter(lastVisible));
+
+  const snapshot = await getDocs(q);
+  const items = snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((x) => x?.eliminada !== true);
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+  return { items, lastDoc, hasMore: snapshot.docs.length === pageSize };
+};
+
+// [F-03] Trae solo OCs con estado "Aprobada" — evita cargar todo para RegistrarPago
+export const obtenerOCsAprobadas = async () => {
+  const q = query(
+    collection(db, OC_COLLECTION),
+    where("estado", "==", "Aprobada")
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((x) => x?.eliminada !== true);
 };
 
 export const obtenerOCporId = async (id) => {
@@ -246,9 +254,27 @@ export const eliminarOrdenLogico = async (id, usuarioEmail = "") => {
 /** =========================
  *  COTIZACIONES
  * ========================= */
+// [C-05] Filtra cotizaciones con activo: false (soft-deleted)
 export const obtenerCotizaciones = async () => {
   const snapshot = await getDocs(collection(db, COTIZACIONES_COLLECTION));
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((c) => c.activo !== false);
+};
+
+// [C-05] Soft-delete: marca activo: false en lugar de borrar físicamente
+export const eliminarCotizacion = async (id, usuarioEmail = "") => {
+  const ref = doc(db, COTIZACIONES_COLLECTION, id);
+  await updateDoc(ref, {
+    activo: false,
+    eliminadaPor: usuarioEmail,
+    eliminadaEn: new Date().toISOString(),
+  });
+  await registrarLog({
+    accion: "cotizacion_eliminada",
+    cotizacionId: id,
+    usuario: usuarioEmail,
+  });
 };
 
 /** =========================
@@ -351,6 +377,92 @@ export const resolverSolicitudEdicion = async (
       : "orden_solicitud_edicion_rechazada",
     ocId: ordenId,
     usuario: aprobador,
+  });
+};
+
+/** =========================
+ *  FLUJO DE APROBACIÓN DE ÓRDENES
+ * ========================= */
+
+/**
+ * Aprueba una OC en su etapa actual y avanza al siguiente estado según el monto.
+ * Guarda historial de aprobaciones.
+ * @param {string} ordenId
+ * @param {string} aprobador - email del aprobador
+ * @param {string} rolAprobador
+ * @param {string} [comentario]
+ */
+export const aprobarOC = async (ordenId, aprobador, rolAprobador, comentario = "") => {
+  const ref = doc(db, OC_COLLECTION, ordenId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Orden no encontrada");
+
+  const orden = snap.data();
+  const estadoActual = orden.estado;
+  const montoTotal = Number(orden?.resumen?.total || orden?.total || 0);
+  const nuevoEstado = siguienteEstado(estadoActual, montoTotal);
+
+  const entrada = {
+    estado: estadoActual,
+    aprobadoPor: aprobador,
+    rol: rolAprobador,
+    comentario,
+    fecha: new Date().toISOString(),
+    accion: "aprobado",
+  };
+
+  await updateDoc(ref, {
+    estado: nuevoEstado,
+    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+    actualizadoEn: new Date().toISOString(),
+    [`firmas.${rolAprobador.replace(/ /g, "")}`]: aprobador,
+  });
+
+  await registrarLog({
+    accion: "orden_aprobada",
+    ocId: ordenId,
+    usuario: aprobador,
+    rol: rolAprobador,
+    estadoAnterior: estadoActual,
+    estadoNuevo: nuevoEstado,
+    comentario,
+  });
+
+  return nuevoEstado;
+};
+
+/**
+ * Rechaza una OC en su etapa actual.
+ */
+export const rechazarOC = async (ordenId, rechazadoPor, rolRechazador, motivo = "") => {
+  const ref = doc(db, OC_COLLECTION, ordenId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Orden no encontrada");
+
+  const orden = snap.data();
+  const estadoActual = orden.estado;
+  const entrada = {
+    estado: estadoActual,
+    aprobadoPor: rechazadoPor,
+    rol: rolRechazador,
+    comentario: motivo,
+    fecha: new Date().toISOString(),
+    accion: "rechazado",
+  };
+
+  await updateDoc(ref, {
+    estado: "Rechazado",
+    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+    actualizadoEn: new Date().toISOString(),
+  });
+
+  await registrarLog({
+    accion: "orden_rechazada",
+    ocId: ordenId,
+    usuario: rechazadoPor,
+    rol: rolRechazador,
+    estadoAnterior: estadoActual,
+    motivo,
   });
 };
 

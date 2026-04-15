@@ -1,5 +1,6 @@
 // ✅ src/pages/Proveedores.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import { PageLoader } from "../components/ui/Skeleton";
 import {
   obtenerProveedores,
@@ -39,6 +40,11 @@ const Proveedores = () => {
     bancos: [], // [{nombre, cuenta, cci, moneda}]
     estado: "Activo",
     motivoCambio: "",
+    // Campos provenientes de SUNAT
+    sunatEstado: "",
+    sunatCondicion: "",
+    sunatDepartamento: "",
+    exoneradoIGV: false,
   });
   const [editandoId, setEditandoId] = useState(null);
   const [cuenta, setCuenta] = useState({ nombre: "", cuenta: "", cci: "", moneda: "" });
@@ -72,24 +78,49 @@ const Proveedores = () => {
     setErrorSunat("");
   };
 
+  const DEPARTAMENTOS_AMAZONIA = [
+    "LORETO",
+    "UCAYALI",
+    "MADRE DE DIOS",
+    "AMAZONAS",
+    "SAN MARTIN",
+  ];
+
   const handleRucBlur = async () => {
     if (!form.ruc || form.ruc.length !== 11) return;
     if (!esRucValido(form.ruc)) {
       setErrorSunat("RUC inválido. Verifica los 11 dígitos.");
       return;
     }
-    // evita sobreescribir datos en edición si ya existe razón social
-    if (form.razonSocial?.trim()) return;
 
     try {
       setBuscandoRuc(true);
       setErrorSunat("");
       const data = await consultarSunat(form.ruc);
+
+      const sunatEstado = (data.estado || "").toUpperCase();
+      const sunatCondicion = (data.condicion || "").toUpperCase();
+      const sunatDepartamento = (data.departamento || "").toUpperCase();
+      const exoneradoIGV = DEPARTAMENTOS_AMAZONIA.includes(sunatDepartamento);
+
       setForm((prev) => ({
         ...prev,
-        razonSocial: data.razonSocial || prev.razonSocial,
-        direccion: data.direccion || prev.direccion,
+        // Solo rellenar razonSocial y direccion si aún no tienen valor
+        razonSocial: prev.razonSocial?.trim() ? prev.razonSocial : (data.razonSocial || prev.razonSocial),
+        direccion: prev.direccion?.trim() ? prev.direccion : (data.direccion || prev.direccion),
+        sunatEstado,
+        sunatCondicion,
+        sunatDepartamento,
+        exoneradoIGV,
       }));
+
+      // Avisos de estado SUNAT
+      if (sunatEstado && sunatEstado !== "ACTIVO") {
+        toast.warning("Proveedor con estado BAJA en SUNAT");
+      }
+      if (sunatCondicion && sunatCondicion !== "HABIDO") {
+        toast.warning("Proveedor NO HABIDO en SUNAT");
+      }
     } catch (error) {
       console.error("Fallo consulta SUNAT:", error);
       setErrorSunat("No se pudo validar con SUNAT. Completa los campos manualmente.");
@@ -140,6 +171,10 @@ const Proveedores = () => {
       bancos: [],
       estado: "Activo",
       motivoCambio: "",
+      sunatEstado: "",
+      sunatCondicion: "",
+      sunatDepartamento: "",
+      exoneradoIGV: false,
     });
     setCuenta({ nombre: "", cuenta: "", cci: "", moneda: "" });
     setEditandoId(null);
@@ -233,6 +268,35 @@ const Proveedores = () => {
               <span className="text-red-600">{errorSunat}</span>
             )}
           </div>
+
+          {/* Badge de validación SUNAT */}
+          {!buscandoRuc && form.sunatEstado && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {form.sunatEstado === "ACTIVO" && form.sunatCondicion === "HABIDO" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-300">
+                  ✓ Activo | Habido
+                </span>
+              ) : (
+                <>
+                  {form.sunatEstado !== "ACTIVO" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                      ✗ BAJA
+                    </span>
+                  )}
+                  {form.sunatCondicion && form.sunatCondicion !== "HABIDO" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                      ✗ No Habido
+                    </span>
+                  )}
+                </>
+              )}
+              {form.exoneradoIGV && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-300">
+                  Exonerado IGV (zona Amazónica)
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <input

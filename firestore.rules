@@ -25,10 +25,10 @@ service cloud.firestore {
      * usuarios (ID = email)
      * ───────────────────────────── */
     match /usuarios/{userId} {
-      // [SEGURIDAD] Solo el propio usuario, admin o soporte pueden leer el perfil
-      // Excepción: cualquier autenticado puede leer datos básicos para dropdowns/selects
-      // pero el rol y estado solo son visibles para uno mismo o admin/soporte
-      allow read: if isSelf(userId) || hasAnyRole(['admin','soporte']) || signedIn();
+      // get individual: cualquier autenticado puede leer un perfil específico (lookups de dropdown)
+      // list (colección completa): solo admin/soporte
+      allow get: if signedIn();
+      allow list: if hasAnyRole(['admin','soporte']);
       allow create: if myRole() == 'admin';
       allow delete: if myRole() == 'admin';
       allow update: if
@@ -135,10 +135,15 @@ service cloud.firestore {
      * ───────────────────────────── */
     match /requerimientos/{rqId} {
       allow read: if signedIn();
-      allow create: if signedIn();
+      // [C-02] Solo roles operativos crean requerimientos; legal y administracion excluidos
+      allow create: if hasAnyRole([
+        'admin','comprador','operaciones','soporte',
+        'gerencia','gerencia operaciones','gerencia general','gerencia finanzas','finanzas'
+      ]);
+      // [C-07] legal y administracion no pueden modificar requerimientos
       allow update: if hasAnyRole([
-        'admin','comprador','operaciones','gerencia','gerencia operaciones',
-        'gerencia general','gerencia finanzas','finanzas','soporte','administracion','legal'
+        'admin','comprador','operaciones','soporte',
+        'gerencia','gerencia operaciones','gerencia general','gerencia finanzas','finanzas'
       ]);
       allow delete: if false;
     }
@@ -216,10 +221,12 @@ service cloud.firestore {
       return
         // Admin/soporte: cualquier transición
         (rol == 'admin' || rol == 'soporte') ||
-        // Comprador: re-enviar rechazada o sin cambio de estado
+        // Comprador: firma inicial, re-enviar rechazada, sin cambio
         (rol == 'comprador' && (
           prev == next ||
-          (prev == 'Rechazada' && next == 'Pendiente de Comprador')
+          (prev == 'Rechazada' && next == 'Pendiente de Comprador') ||
+          (prev == 'Pendiente de Comprador' &&
+           (next == 'Pendiente de Operaciones' || next == 'Aprobada'))
         )) ||
         // Operaciones: aprobar/rechazar desde su etapa o sin cambio
         (rol == 'operaciones' && (
@@ -239,7 +246,7 @@ service cloud.firestore {
           ((prev == 'Aprobada' || prev == 'Pago Parcial') &&
            (next == 'Pagado' || next == 'Pago Parcial'))
         )) ||
-        // [SEGURIDAD] Gerencia Operaciones: revisar y rechazar desde Operaciones
+        // Gerencia Operaciones: revisar desde Operaciones
         (rol == 'gerencia operaciones' && (
           prev == next ||
           (prev == 'Pendiente de Operaciones' &&
@@ -259,11 +266,17 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if hasAnyRole(['comprador','admin','soporte']);
       allow update: if
-        // Comprador: solo puede editar su propia OC cuando permiteEdicion=true
+        // Comprador: firma inicial desde "Pendiente de Comprador" (no requiere permiteEdicion)
+        (myRole() == 'comprador' &&
+          ocEsCreador() &&
+          resource.data.estado == 'Pendiente de Comprador' &&
+          ocTransicionValida()) ||
+        // Comprador: editar/reenviar su propia OC cuando permiteEdicion=true
+        // (puede reset a "Pendiente de Comprador" desde cualquier estado, sin validación de transición)
         (myRole() == 'comprador' &&
           resource.data.permiteEdicion == true &&
           ocEsCreador() &&
-          ocTransicionValida()) ||
+          request.resource.data.estado == 'Pendiente de Comprador') ||
         // Roles con acceso amplio (sujetos a validación de transición)
         (hasAnyRole([
           'operaciones','gerencia','gerencia operaciones','gerencia general',
@@ -337,8 +350,8 @@ service cloud.firestore {
         ('asignadoA' in resource.data && resource.data.asignadoA.email == userEmail())
       );
 
-      // Para list queries (getDocs) se evalúa la regla de cada doc
-      allow list: if signedIn();
+      // [C-03] list restringido: usuarios normales deben filtrar por su email en la query
+      allow list: if hasAnyRole(['admin','soporte']);
 
       allow create: if signedIn();
 

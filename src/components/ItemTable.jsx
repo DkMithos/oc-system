@@ -1,5 +1,6 @@
 import React from "react";
 import { formatearMoneda } from "../utils/formatearMoneda";
+import CatalogoItemSearch from "./CatalogoItemSearch";
 
 /**
  * ItemTable
@@ -22,6 +23,18 @@ const ItemTable = ({ items, setItems, moneda = "Soles" }) => {
     } else {
       updated[index][field] = value;
     }
+    setItems(updated);
+  };
+
+  // Aplica una selección del catálogo a una fila: rellena código, nombre y unidad
+  const handleSelectCatalogo = (index, catalogoItem) => {
+    const updated = [...items];
+    updated[index] = {
+      ...updated[index],
+      codigo: catalogoItem.codigo,
+      nombre: catalogoItem.nombre,
+      unidad: catalogoItem.unidad,
+    };
     setItems(updated);
   };
 
@@ -87,12 +100,12 @@ const ItemTable = ({ items, setItems, moneda = "Soles" }) => {
                   </td>
 
                   <td className="p-2 border">
-                    <input
-                      type="text"
+                    <CatalogoItemSearch
                       value={item.nombre || ""}
-                      onChange={(e) => handleChange(i, "nombre", e.target.value)}
-                      className="w-full border rounded px-2 py-1"
+                      onChange={(text) => handleChange(i, "nombre", text)}
+                      onSelect={(catalogoItem) => handleSelectCatalogo(i, catalogoItem)}
                       placeholder="Descripción del ítem"
+                      className="w-full px-2 py-1"
                     />
                   </td>
 

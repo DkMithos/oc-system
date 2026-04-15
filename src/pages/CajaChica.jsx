@@ -79,6 +79,9 @@ const CajaChica = () => {
   const puedeCambiarCaja = useMemo(() => puedeCambiarCajaRol(rol), [rol]);
   const permitidas = useMemo(() => cajasPermitidasRol(rol), [rol]);
 
+  // Ref para resetear el input file
+  const fileInputRef = useRef(null);
+
   // Caja seleccionada
   const [cajaId, setCajaId] = useState(cajaPorDefectoRol(rol));
 
@@ -93,6 +96,10 @@ const CajaChica = () => {
   // Movimientos
   const [movs, setMovs] = useState([]);
   const [cargandoMovs, setCargandoMovs] = useState(true);
+
+  // Paginación
+  const [pagina, setPagina] = useState(1);
+  const POR_PAGINA = 20;
 
   // Búsqueda/filtrado
   const [q, setQ] = useState("");
@@ -123,6 +130,7 @@ const CajaChica = () => {
     comprobante: "",
     descripcion: "",
     archivoFile: null,
+    moneda: "Soles",
   });
 
   // Sincronizar caja por rol/permitidas
@@ -220,6 +228,8 @@ const CajaChica = () => {
       });
 
       toast.success("Movimiento registrado ✅");
+      // Limpiar input file del DOM
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setForm((prev) => ({
         ...prev,
         tipo: "Ingreso",
@@ -233,6 +243,7 @@ const CajaChica = () => {
         comprobante: "",
         descripcion: "",
         archivoFile: null,
+        moneda: prev.moneda,
       }));
       // No hace falta recargar: onSnapshot ya refresca
     } catch (e) {
@@ -275,6 +286,12 @@ const CajaChica = () => {
     return base;
   }, [movsPeriodo, q, filtros]);
 
+  // Reset pagina al cambiar filtros o búsqueda
+  useEffect(() => { setPagina(1); }, [q, filtros, cajaId]);
+
+  const totalPaginas = Math.max(1, Math.ceil(movsFiltrados.length / POR_PAGINA));
+  const movsPagina = movsFiltrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
+
   // KPIs
   const kpis = useMemo(() => {
     const ingresos = movsPeriodo.filter((m) => m.tipo === "Ingreso").reduce((acc, m) => acc + Number(m.monto || 0), 0);
@@ -284,75 +301,101 @@ const CajaChica = () => {
     return { ingresos, egresos, saldoInicial, saldoActual };
   }, [movsPeriodo, estadoCaja]);
 
-  // Toolbar exportar — formato contable: columnas Ingresos/Egresos separadas
+  // Toolbar exportar — formato libro contable con código de descarga
   const exportarExcel = () => {
     if (!movsFiltrados.length) { toast.warning("No hay datos para exportar."); return; }
 
     const cajaLabel  = CAJAS.find((c) => c.id === cajaId)?.label || cajaId;
-    const fechaGen   = new Date().toLocaleString("es-PE");
+    const ahora      = new Date();
+    const fechaGen   = ahora.toLocaleString("es-PE");
+    // Código único por descarga: CC-YYYYMMDD-HHMMSS
+    const codigoPad  = (n) => String(n).padStart(2, "0");
+    const codigoDesc = `CC-${ahora.getFullYear()}${codigoPad(ahora.getMonth()+1)}${codigoPad(ahora.getDate())}-${codigoPad(ahora.getHours())}${codigoPad(ahora.getMinutes())}${codigoPad(ahora.getSeconds())}`;
+
+    const periodoDesde = estadoCaja?.aperturaFecha || movsFiltrados.at(-1)?.fechaISO || "";
+    const periodoHasta = estadoCaja?.abierta === false && estadoCaja?.cierreFecha
+      ? estadoCaja.cierreFecha
+      : movsFiltrados[0]?.fechaISO || ahora.toISOString().slice(0, 10);
+
+    // Detectar moneda predominante del período
+    const monedas = movsFiltrados.map((m) => m.moneda || "Soles");
+    const monedaPred = monedas.filter((x) => x === "Dólares").length > monedas.length / 2 ? "Dólares" : "Soles";
+    const simbolo    = monedaPred === "Dólares" ? "$" : "S/";
+
+    const saldoInicial = Number(estadoCaja?.aperturaSaldoInicial || 0);
     const totalIng   = movsFiltrados.filter((m) => m.tipo === "Ingreso").reduce((s, m) => s + Number(m.monto || 0), 0);
     const totalEgr   = movsFiltrados.filter((m) => m.tipo === "Egreso").reduce((s, m) => s + Number(m.monto || 0), 0);
-    const saldo      = totalIng - totalEgr;
+    const saldoFinal = saldoInicial + totalIng - totalEgr;
 
-    // Filas de datos con columnas Ingresos / Egresos separadas (estilo libro contable)
-    const rows = movsFiltrados.map((m, i) => ({
-      "#":               i + 1,
-      "Fecha":           m.fechaISO || "",
-      "Tipo Doc.":       m.tipoDocumentoNombre || "",
-      "N° Comprobante":  m.comprobante || "",
-      "Razón Social":    m.razonSocial || "",
-      "Centro de Costo": m.centroCostoNombre || "",
-      "Descripción":     m.descripcion || "",
-      "Ingresos (S/)":   m.tipo === "Ingreso" ? Number(m.monto || 0).toFixed(2) : "",
-      "Egresos (S/)":    m.tipo === "Egreso"  ? Number(m.monto || 0).toFixed(2) : "",
-      "Registrado Por":  m.creadoPorEmail || "",
-      "Archivo":         m.archivoUrl ? m.archivoNombre || "Ver" : "",
-    }));
+    // ── Hoja principal ──────────────────────────────────────────
+    // Encabezado AOA
+    const encabezado = [
+      ["MEMPHIS MAQUINARIAS SAC"],
+      ["REPORTE DE CAJA CHICA"],
+      [],
+      ["CAJA:", cajaLabel.toUpperCase(), "", "CÓDIGO:", codigoDesc],
+      ["PERÍODO:", `${periodoDesde} al ${periodoHasta}`, "", "MONEDA:", monedaPred.toUpperCase()],
+      ["SALDO INICIAL:", saldoInicial.toFixed(2), "", "GENERADO:", fechaGen],
+      ["GENERADO POR:", usuario?.email || "", "", "N° REGISTROS:", movsFiltrados.length],
+      [],
+      // Headers de tabla
+      ["N°", "FECHA", "TIPO DOCUMENTO", "N° COMPROBANTE", "RAZÓN SOCIAL / PROVEEDOR",
+       "CENTRO DE COSTO", "DESCRIPCIÓN", `INGRESOS (${simbolo})`, `EGRESOS (${simbolo})`,
+       `SALDO (${simbolo})`, "MONEDA", "REGISTRADO POR"],
+    ];
 
-    // Fila de totales al final
-    rows.push({
-      "#": "",
-      "Fecha": "",
-      "Tipo Doc.": "",
-      "N° Comprobante": "",
-      "Razón Social": "",
-      "Centro de Costo": "",
-      "Descripción": "TOTALES",
-      "Ingresos (S/)": totalIng.toFixed(2),
-      "Egresos (S/)":  totalEgr.toFixed(2),
-      "Registrado Por": `Saldo: ${saldo >= 0 ? "+" : ""}${saldo.toFixed(2)}`,
-      "Archivo": "",
+    // Filas de datos con saldo acumulado
+    let saldoAcum = saldoInicial;
+    const filasDatos = movsFiltrados.map((m, i) => {
+      const monto = Number(m.monto || 0);
+      saldoAcum += m.tipo === "Ingreso" ? monto : -monto;
+      return [
+        i + 1,
+        m.fechaISO || "",
+        m.tipoDocumentoNombre || "",
+        m.comprobante || "",
+        m.razonSocial || "",
+        m.centroCostoNombre || "",
+        m.descripcion || "",
+        m.tipo === "Ingreso" ? monto.toFixed(2) : "",
+        m.tipo === "Egreso"  ? monto.toFixed(2) : "",
+        saldoAcum.toFixed(2),
+        m.moneda || "Soles",
+        m.creadoPorEmail || "",
+      ];
     });
 
-    const ws = XLSX.utils.json_to_sheet(rows);
+    // Fila de totales
+    const filaTotales = [
+      "", "", "", "", "", "", "TOTALES",
+      totalIng.toFixed(2),
+      totalEgr.toFixed(2),
+      saldoFinal.toFixed(2),
+      "", "",
+    ];
+
+    const todasFilas = [...encabezado, ...filasDatos, filaTotales];
+    const ws = XLSX.utils.aoa_to_sheet(todasFilas);
 
     // Ancho de columnas
     ws["!cols"] = [
-      { wch: 4 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 30 },
-      { wch: 20 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 20 },
+      { wch: 4 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 35 },
+      { wch: 20 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 28 },
+    ];
+
+    // Merge celdas del encabezado
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }, // MEMPHIS MAQUINARIAS
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } }, // REPORTE DE CAJA CHICA
     ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Caja Chica");
 
-    // Hoja de resumen
-    const resumen = [
-      ["REPORTE CAJA CHICA — MEMPHIS MAQUINARIAS"],
-      ["Caja:", cajaLabel],
-      ["Generado:", fechaGen],
-      ["Registros:", movsFiltrados.length],
-      [],
-      ["Total Ingresos:", totalIng.toFixed(2)],
-      ["Total Egresos:", totalEgr.toFixed(2)],
-      ["Saldo:", saldo.toFixed(2)],
-    ];
-    const wsRes = XLSX.utils.aoa_to_sheet(resumen);
-    XLSX.utils.book_append_sheet(wb, wsRes, "Resumen");
-
     const buf  = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    saveAs(blob, `CajaChica_${cajaLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success(`Exportado: ${movsFiltrados.length} movimientos`);
+    saveAs(blob, `CajaChica_${cajaLabel}_${codigoDesc}.xlsx`);
+    toast.success(`Exportado: ${movsFiltrados.length} movimientos — Código: ${codigoDesc}`);
   };
 
   // Apertura / Cierre
@@ -540,10 +583,48 @@ const CajaChica = () => {
             <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
               className="border p-2 rounded w-full" rows={2} placeholder="Detalle del gasto/ingreso" />
           </div>
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-3">
             <label className="block text-sm font-medium mb-1">Adjuntar archivo (opcional)</label>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setForm({ ...form, archivoFile: e.target.files?.[0] || null })} className="block w-full" />
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer border rounded px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 whitespace-nowrap">
+                Seleccionar archivo
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(e) => setForm({ ...form, archivoFile: e.target.files?.[0] || null })}
+                />
+              </label>
+              {form.archivoFile ? (
+                <div className="flex items-center gap-1 text-sm text-gray-700 min-w-0">
+                  <span className="truncate max-w-xs" title={form.archivoFile.name}>{form.archivoFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm({ ...form, archivoFile: null });
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="flex-shrink-0 text-red-500 hover:text-red-700 font-bold text-base leading-none"
+                    title="Quitar archivo"
+                  >×</button>
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400">Ningún archivo seleccionado</span>
+              )}
+            </div>
             <p className="text-xs text-gray-500 mt-1">Acepta PDF/JPG/PNG. Máx 10MB.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Moneda</label>
+            <select
+              value={form.moneda}
+              onChange={(e) => setForm({ ...form, moneda: e.target.value })}
+              className="border p-2 rounded w-full"
+            >
+              <option value="Soles">Soles (S/)</option>
+              <option value="Dólares">Dólares ($)</option>
+            </select>
           </div>
           <div className="lg:col-span-4 flex justify-end">
             <button onClick={onGuardar} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Guardar</button>
@@ -632,6 +713,7 @@ const CajaChica = () => {
               <th className="p-2 border">Fecha</th>
               <th className="p-2 border">Tipo</th>
               <th className="p-2 border text-right">Monto</th>
+              <th className="p-2 border">Moneda</th>
               <th className="p-2 border">Centro de Costo</th>
               <th className="p-2 border">Razón Social</th>
               <th className="p-2 border">Tipo Doc.</th>
@@ -643,32 +725,70 @@ const CajaChica = () => {
           </thead>
           <tbody>
             {cargandoMovs && (
-              <tr><td className="p-3 text-center text-gray-500" colSpan={10}>Cargando movimientos…</td></tr>
+              <tr><td className="p-3 text-center text-gray-500" colSpan={11}>Cargando movimientos…</td></tr>
             )}
             {!cargandoMovs && movsFiltrados.length === 0 && (
-              <tr><td className="p-3 text-center text-gray-500" colSpan={10}>Sin resultados.</td></tr>
+              <tr><td className="p-3 text-center text-gray-500" colSpan={11}>Sin resultados.</td></tr>
             )}
-            {!cargandoMovs && movsFiltrados.map((m) => (
-              <tr key={m.id} className="border-t">
-                <td className="p-2 border whitespace-nowrap">{m.fechaISO || "—"}</td>
-                <td className="p-2 border">{m.tipo}</td>
-                <td className="p-2 border text-right">{Number(m.monto || 0).toFixed(2)}</td>
-                <td className="p-2 border">{m.centroCostoNombre}</td>
-                <td className="p-2 border">{m.razonSocial}</td>
-                <td className="p-2 border">{m.tipoDocumentoNombre}</td>
-                <td className="p-2 border">{m.comprobante}</td>
-                <td className="p-2 border">{m.descripcion}</td>
-                <td className="p-2 border">
-                  {m.archivoUrl ? (
-                    <a href={m.archivoUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline" title={m.archivoNombre || "Ver archivo"}>Ver</a>
-                  ) : <span className="text-gray-400">—</span>}
-                </td>
-                <td className="p-2 border">{m.creadoPorEmail}</td>
-              </tr>
-            ))}
+            {!cargandoMovs && movsPagina.map((m) => {
+              const simbolo = m.moneda === "Dólares" ? "$" : "S/";
+              return (
+                <tr key={m.id} className="border-t">
+                  <td className="p-2 border whitespace-nowrap">{m.fechaISO || "—"}</td>
+                  <td className="p-2 border">
+                    <span className={`font-medium ${m.tipo === "Ingreso" ? "text-green-700" : "text-red-700"}`}>{m.tipo}</span>
+                  </td>
+                  <td className="p-2 border text-right font-mono">{simbolo} {Number(m.monto || 0).toFixed(2)}</td>
+                  <td className="p-2 border text-center text-xs">{m.moneda || "Soles"}</td>
+                  <td className="p-2 border">{m.centroCostoNombre}</td>
+                  <td className="p-2 border">{m.razonSocial}</td>
+                  <td className="p-2 border">{m.tipoDocumentoNombre}</td>
+                  <td className="p-2 border">{m.comprobante}</td>
+                  <td className="p-2 border">{m.descripcion}</td>
+                  <td className="p-2 border">
+                    {m.archivoUrl ? (
+                      <a href={m.archivoUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline" title={m.archivoNombre || "Ver archivo"}>Ver</a>
+                    ) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="p-2 border text-xs">{m.creadoPorEmail}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {!cargandoMovs && movsFiltrados.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>
+            Mostrando {((pagina - 1) * POR_PAGINA) + 1}–{Math.min(pagina * POR_PAGINA, movsFiltrados.length)} de {movsFiltrados.length} registros
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPagina(1)}
+              disabled={pagina === 1}
+              className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            >«</button>
+            <button
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={pagina === 1}
+              className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            >‹</button>
+            <span className="px-3 py-1 rounded border bg-blue-600 text-white">{pagina}</span>
+            <button
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={pagina === totalPaginas}
+              className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            >›</button>
+            <button
+              onClick={() => setPagina(totalPaginas)}
+              disabled={pagina === totalPaginas}
+              className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100"
+            >»</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

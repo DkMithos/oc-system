@@ -5,7 +5,8 @@ import {
   Home, ClipboardList, ShoppingCart, FileText, Users, Package,
   DollarSign, BarChart2, CreditCard, ArrowDownCircle, TrendingUp,
   PieChart, Download, Activity, LifeBuoy, MessageSquare, PenTool,
-  Settings, FolderOpen, BookOpen, ChevronDown, LogOut, X
+  Settings, FolderOpen, BookOpen, ChevronDown, LogOut, X,
+  Boxes, ClipboardCheck
 } from "lucide-react";
 import { puedeAcceder } from "../utils/permisosPorRol";
 import { useUsuario } from "../context/UsuarioContext";
@@ -25,6 +26,8 @@ const MENU = [
       { ruta: "/cotizaciones",  texto: "Cotizaciones",     icon: Package },
       { ruta: "/proveedores",   texto: "Proveedores",      icon: Users },
       { ruta: "/requerimientos",texto: "Requerimientos",   icon: ClipboardList },
+      { ruta: "/inventario",    texto: "Inventario",        icon: Boxes },
+      { ruta: "/recepcion",     texto: "Recepción",         icon: ClipboardCheck },
     ],
   },
   {

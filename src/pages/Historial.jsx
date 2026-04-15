@@ -162,6 +162,7 @@ const Historial = () => {
   useEffect(() => {
     if (!loading && usuario) {
       (async () => {
+        // [F-02] Carga inicial de 30 — no 500; "Cargar más" trae el resto
         const { items, lastDoc: ld, hasMore: hm } = await obtenerOCsPaginadas(30, null);
         setOrdenes(items);
         setLastDoc(ld);
@@ -428,7 +429,6 @@ const Historial = () => {
           <button
             onClick={async () => {
               setBusqueda(""); setEstadoFiltro("Todos"); setFechaDesde(""); setFechaHasta(""); setFiltroCentroCosto(""); setPaginaActual(1);
-              // Resetea cursor y recarga desde el inicio
               const { items, lastDoc: ld, hasMore: hm } = await obtenerOCsPaginadas(30, null);
               setOrdenes(items); setLastDoc(ld); setHasMore(hm);
             }}
@@ -610,22 +610,41 @@ const Historial = () => {
             })}
           </div>
 
-          {/* Paginación de páginas */}
-          <div className="flex justify-center mt-4 gap-2 flex-wrap">
-            {Array.from({ length: totalPaginas }, (_, i) => (
+          {/* Paginación: ventana deslizante de máx. 5 botones + anterior/siguiente */}
+          {totalPaginas > 1 && (
+            <div className="flex justify-center items-center mt-4 gap-1 flex-wrap">
               <button
-                key={i}
-                className={`px-3 py-1 border rounded ${
-                  i + 1 === paginaActual
-                    ? "bg-[#004990] text-white"
-                    : "bg-white text-[#004990] border-[#004990]"
-                }`}
-                onClick={() => setPaginaActual(i + 1)}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
+                onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                disabled={paginaActual === 1}
+                className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100"
+              >‹</button>
+              {(() => {
+                const win = 5;
+                let start = Math.max(1, paginaActual - Math.floor(win / 2));
+                let end = Math.min(totalPaginas, start + win - 1);
+                if (end - start < win - 1) start = Math.max(1, end - win + 1);
+                return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPaginaActual(p)}
+                    className={`px-3 py-1 border rounded text-sm ${
+                      p === paginaActual
+                        ? "bg-[#004990] text-white border-[#004990]"
+                        : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ));
+              })()}
+              <button
+                onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                disabled={paginaActual === totalPaginas}
+                className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100"
+              >›</button>
+              <span className="text-xs text-gray-400 ml-1">{paginaActual}/{totalPaginas}</span>
+            </div>
+          )}
 
           {/* Cargar más desde Firestore */}
           {hasMore && (

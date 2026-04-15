@@ -141,10 +141,11 @@ export async function obtenerProyectosActivos() {
 }
 
 /**
- * Catálogo combinado para uso en FlujosFinancieros.jsx
+ * Catálogo combinado para uso en FlujosFinancieros.jsx.
+ * Cada lista tiene valores de respaldo cuando la colección de Firestore está vacía.
  */
 export async function obtenerCatalogosFinanzas() {
-  const [igv, categorias, subcategorias, formasPago, estados] =
+  const [igvRaw, categoriasRaw, subcategorias, formasPagoRaw, estadosRaw] =
     await Promise.all([
       obtenerIgvCodigos(),
       obtenerCategoriasFinanzas(),
@@ -153,10 +154,72 @@ export async function obtenerCatalogosFinanzas() {
       obtenerEstadosFinanzas(),
     ]);
 
-  const [tiposDocumento, proyectos] = await Promise.all([
+  const [tiposDocumentoRaw, proyectos] = await Promise.all([
     obtenerTiposDocumentoFinanzasActivos(),
     obtenerProyectosActivos(),
   ]);
+
+  // --- Fallbacks cuando las colecciones están vacías en Firestore ---
+
+  const estados =
+    estadosRaw.length > 0
+      ? estadosRaw
+      : [
+          { id: "pendiente", nombre: "Pendiente" },
+          { id: "aprobado", nombre: "Aprobado" },
+          { id: "pagado", nombre: "Pagado" },
+          { id: "vencido", nombre: "Vencido" },
+          { id: "anulado", nombre: "Anulado" },
+        ];
+
+  const formasPago =
+    formasPagoRaw.length > 0
+      ? formasPagoRaw
+      : [
+          { id: "efectivo", nombre: "Efectivo" },
+          { id: "transferencia", nombre: "Transferencia" },
+          { id: "cheque", nombre: "Cheque" },
+          { id: "tarjeta", nombre: "Tarjeta" },
+          { id: "deposito", nombre: "Depósito" },
+          { id: "otro", nombre: "Otro" },
+        ];
+
+  const categorias =
+    categoriasRaw.length > 0
+      ? categoriasRaw
+      : [
+          { id: "gastosoperativos", nombre: "Gastos Operativos" },
+          { id: "gastosadministrativos", nombre: "Gastos Administrativos" },
+          { id: "gastosdeventas", nombre: "Gastos de Ventas" },
+          { id: "inversion", nombre: "Inversión" },
+          { id: "servicios", nombre: "Servicios" },
+          { id: "materiales", nombre: "Materiales" },
+          { id: "honorarios", nombre: "Honorarios" },
+          { id: "otros", nombre: "Otros" },
+        ];
+
+  const tiposDocumento =
+    tiposDocumentoRaw.length > 0
+      ? tiposDocumentoRaw
+      : [
+          { id: "factura", nombre: "Factura" },
+          { id: "boleta", nombre: "Boleta" },
+          { id: "recibo", nombre: "Recibo" },
+          { id: "notacredito", nombre: "Nota de Crédito" },
+          { id: "notadebito", nombre: "Nota de Débito" },
+          { id: "planilla", nombre: "Planilla" },
+          { id: "liquidacion", nombre: "Liquidación" },
+        ];
+
+  const igv =
+    igvRaw.length > 0
+      ? igvRaw
+      : [
+          { id: "10", nombre: "IGV 18%", tasa: 0.18 },
+          { id: "20", nombre: "Exonerado", tasa: 0 },
+          { id: "30", nombre: "Inafecto", tasa: 0 },
+          { id: "40", nombre: "Exportación", tasa: 0 },
+        ];
 
   return {
     igv,

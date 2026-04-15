@@ -19,7 +19,7 @@ import {
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
-import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
+import { obtenerRequerimientosPorRol } from "../firebase/requerimientosHelpers";
 
 const selectStyles = {
   control: (base) => ({
@@ -123,7 +123,7 @@ const CrearOC = () => {
           obtenerCondicionesPago(),
           obtenerSiguienteNumeroOrden(),
           obtenerCotizaciones(),
-          obtenerRequerimientosPorUsuario(usuario?.email || ""),
+          obtenerRequerimientosPorRol(usuario?.email || "", usuario?.rol || ""),
         ]);
 
         setProveedores(
@@ -160,14 +160,27 @@ const CrearOC = () => {
               (rqs || []).find((r) => r.id === (cot.requerimientoId || "")) ||
               null;
 
+            // Resolver centroCostoId: el RQ puede guardar el nombre ("centroCosto")
+            // o el id ("centroCostoId"). Buscamos en cc (raw) por ambos.
+            const ccMatch = rqObj
+              ? (cc || []).find(
+                  (c) =>
+                    c.id === rqObj.centroCostoId ||
+                    c.nombre === rqObj.centroCosto
+                )
+              : null;
+
             setForm((f) => ({
               ...f,
               cotizacionId: cot.id,
               cotizacionCodigo: cot.codigo || "",
               requerimientoId: rqObj?.id || f.requerimientoId,
               requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo,
+              proveedorId: cot.proveedorId || f.proveedorId,
+              centroCostoId: ccMatch?.id || rqObj?.centroCostoId || f.centroCostoId,
               items: mappedItems.length ? mappedItems : f.items,
             }));
+            if (cot.moneda) setMonedaSeleccionada(cot.moneda);
           }
         }
       } catch (e) {
@@ -269,14 +282,26 @@ const CrearOC = () => {
       (r) => r.id === (c.requerimientoId || "")
     );
 
+    // centrosCosto state ya está cargado como [{ value, label }]
+    const ccMatch2 = rqObj
+      ? (centrosCosto || []).find(
+          (cs) =>
+            cs.value === rqObj.centroCostoId ||
+            cs.label === rqObj.centroCosto
+        )
+      : null;
+
     setForm((f) => ({
       ...f,
       cotizacionId: c.id,
       cotizacionCodigo: c.codigo || "",
       requerimientoId: rqObj?.id || f.requerimientoId,
       requerimientoCodigo: rqObj?.codigo || f.requerimientoCodigo,
+      proveedorId: c.proveedorId || f.proveedorId,
+      centroCostoId: ccMatch2?.value || rqObj?.centroCostoId || f.centroCostoId,
       items: mappedItems.length ? mappedItems : f.items,
     }));
+    if (c.moneda) setMonedaSeleccionada(c.moneda);
   };
 
   const rqOptions = useMemo(() => {

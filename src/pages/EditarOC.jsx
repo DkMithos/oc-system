@@ -1,5 +1,5 @@
 // ✅ src/pages/EditarOC.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
 import {
@@ -14,6 +14,22 @@ import Logo from "../assets/logo-navbar.png";
 import Select from "react-select";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
+import { calcularDetraccion, calcularRetencion, TASAS_DETRACCION } from "../utils/detracciones";
+
+const TIPOS_OPERACION = [
+  "MANTENIMIENTO REPARACION",
+  "SERVICIOS EMPRESARIALES",
+  "DEMAS SERVICIOS",
+  "TRANSPORTE BIENES",
+  "TRANSPORTE PERSONAS",
+  "ARRENDAMIENTO DE BIENES",
+  "CONTRATOS CONSTRUCCION",
+  "INTERMEDIACION LABORAL",
+  "FABRICACION DE BIENES POR ENCARGO",
+  "ARENA Y PIEDRA",
+  "MADERA",
+  "OTROS BIENES",
+];
 
 const selectStyles = {
   control: (base) => ({
@@ -42,6 +58,9 @@ const EditarOC = () => {
   const [centrosCosto, setCentrosCosto] = useState([]);
   const [condicionesPago, setCondicionesPago] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [exoneradoIGV, setExoneradoIGV] = useState(false);
+  const [tipoOperacion, setTipoOperacion] = useState("");
+  const [esAgenteRetencion, setEsAgenteRetencion] = useState(false);
 
   useEffect(() => {
     const cargar = async () => {
@@ -68,10 +87,13 @@ const EditarOC = () => {
 
       setFormData({
         ...oc,
-        notas: oc.notas || oc.observaciones || "", // 👈 compat
+        notas: oc.notas || oc.observaciones || "",
       });
       setItems(oc.items || []);
       setOtros(Number(oc.resumen?.otros || 0));
+      setExoneradoIGV(oc.resumen?.exoneradoIGV || oc.exoneradoIGV || false);
+      setTipoOperacion(oc.tipoOperacion || "");
+      setEsAgenteRetencion(oc.esAgenteRetencion || false);
 
       const [centros, condiciones, listaProveedores] = await Promise.all([
         obtenerCentrosCosto(),
@@ -87,6 +109,26 @@ const EditarOC = () => {
     if (!loading) cargar();
   }, [ocId, navigate, usuario, loading]);
 
+  // ── Derived values (must be computed before early return for hooks rules) ──
+  const subtotal = items.reduce(
+    (acc, item) =>
+      acc +
+      (Number(item.precioUnitario) - Number(item.descuento || 0)) *
+        Number(item.cantidad || 0),
+    0
+  );
+  const igv = exoneradoIGV ? 0 : subtotal * 0.18;
+  const totalFinal = subtotal + igv + Number(otros || 0);
+
+  const obligaciones = useMemo(() => {
+    if (!formData || !totalFinal || formData?.tipoOrden === "OI") return null;
+    const moneda = formData?.monedaSeleccionada || "Soles";
+    return {
+      detraccion: calcularDetraccion(totalFinal, moneda, tipoOperacion),
+      retencion:  calcularRetencion(totalFinal, moneda, esAgenteRetencion),
+    };
+  }, [totalFinal, formData, tipoOperacion, esAgenteRetencion]);
+
   if (!formData || loading) return <div className="p-6">Cargando orden...</div>;
 
   const bancosDisponibles = formData.proveedor?.bancos || [];
@@ -99,16 +141,6 @@ const EditarOC = () => {
       b.nombre === formData.bancoSeleccionado &&
       b.moneda === formData.monedaSeleccionada
   );
-
-  const subtotal = items.reduce(
-    (acc, item) =>
-      acc +
-      (Number(item.precioUnitario) - Number(item.descuento || 0)) *
-        Number(item.cantidad || 0),
-    0
-  );
-  const igv = formData.exoneradoIGV ? 0 : subtotal * 0.18;
-  const totalFinal = subtotal + igv + Number(otros || 0);
 
   const validarFormulario = () => {
     if (!formData.proveedor?.ruc) {
@@ -132,20 +164,25 @@ const EditarOC = () => {
       ...formData,
       cuenta: cuentaSeleccionada || null,
       items,
+      exoneradoIGV,
+      tipoOperacion,
+      esAgenteRetencion,
       resumen: {
         subtotal,
         igv,
+        exoneradoIGV,
         valorVenta: subtotal,
         otros: parseFloat(otros) || 0,
         total: totalFinal,
       },
+      detraccion: obligaciones?.detraccion || { aplica: false, tasa: 0, monto: 0 },
+      retencion:  obligaciones?.retencion  || { aplica: false, tasa: 0, monto: 0 },
       // Reencola al inicio del flujo (comprador debe re-firmar)
       estado: "Pendiente de Comprador",
-      // notas ya viene en formData.notas
       historial: [
         ...(formData.historial || []),
         {
-          accion: "Edición tras rechazo — pendiente de firma del comprador",
+          accion: "Edición — pendiente de firma del comprador",
           por: usuario.email,
           estadoNuevo: "Pendiente de Comprador",
           fecha: new Date().toLocaleString("es-PE"),
@@ -322,6 +359,69 @@ const EditarOC = () => {
         />
       </div>
 
+      {/* Opciones tributarias */}
+      <div className="bg-[#f4f4f4] p-6 rounded shadow mt-6 space-y-4">
+        <h3 className="font-semibold text-[#004990]">Opciones Tributarias</h3>
+
+        {/* IGV */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={exoneradoIGV}
+            onChange={(e) => setExoneradoIGV(e.target.checked)}
+            className="w-4 h-4 rounded"
+          />
+          <span className="text-sm">Zona exonerada de IGV (Amazonía u otro)</span>
+        </label>
+
+        {/* Tipo de operación → detracción */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Tipo de operación (para detracción SPOT)
+          </label>
+          <select
+            value={tipoOperacion}
+            onChange={(e) => setTipoOperacion(e.target.value)}
+            className="border rounded px-3 py-2 w-full max-w-sm text-sm"
+          >
+            <option value="">— Sin detracción / No aplica —</option>
+            {TIPOS_OPERACION.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Retención */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={esAgenteRetencion}
+            onChange={(e) => setEsAgenteRetencion(e.target.checked)}
+            className="w-4 h-4 rounded"
+          />
+          <span className="text-sm">Memphis es agente de retención IGV (3%)</span>
+        </label>
+
+        {/* Preview obligaciones */}
+        {obligaciones && (obligaciones.detraccion.aplica || obligaciones.retencion.aplica) && (
+          <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm space-y-1">
+            <p className="font-semibold text-amber-800">Obligaciones SUNAT calculadas:</p>
+            {obligaciones.detraccion.aplica && (
+              <p className="text-orange-700">
+                Detracción SPOT: {Math.round(obligaciones.detraccion.tasa * 100)}% ={" "}
+                <strong>{formatearMoneda(obligaciones.detraccion.monto, formData.monedaSeleccionada)}</strong>
+              </p>
+            )}
+            {obligaciones.retencion.aplica && (
+              <p className="text-purple-700">
+                Retención IGV: 3% ={" "}
+                <strong>{formatearMoneda(obligaciones.retencion.monto, formData.monedaSeleccionada)}</strong>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Totales */}
       <div className="bg-white border shadow rounded p-6 w-full max-w-md mt-6">
         <p className="flex justify-between text-sm">
@@ -329,7 +429,7 @@ const EditarOC = () => {
           <span>{formatearMoneda(subtotal, formData.monedaSeleccionada)}</span>
         </p>
         <p className="flex justify-between text-sm">
-          <span>IGV (18%):</span>
+          <span>IGV (18%):{exoneradoIGV && <span className="ml-1 text-xs text-amber-600">(exonerado)</span>}</span>
           <span>{formatearMoneda(igv, formData.monedaSeleccionada)}</span>
         </p>
         <p className="flex justify-between text-sm items-center">

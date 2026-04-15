@@ -80,6 +80,27 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
     }
   };
 
+  // [F-08] Stepper visual basado en la solicitud más reciente
+  const ultimaSol = solicitudes[0] || null;
+  const stepEstado = ultimaSol
+    ? ultimaSol.estado === "pendiente" ? 1 : (ultimaSol.estado === "aprobada" ? 2 : 2)
+    : -1; // -1 = sin solicitudes
+
+  const pasos = [
+    { label: "Solicitud enviada", icon: "📝" },
+    { label: ultimaSol?.estado === "aprobada" ? "✓ Aprobada" : ultimaSol?.estado === "rechazada" ? "✗ Rechazada" : "En revisión", icon: ultimaSol?.estado === "aprobada" ? "✅" : ultimaSol?.estado === "rechazada" ? "❌" : "⏳" },
+    { label: oc.permiteEdicion ? "Edición activa" : "Edición habilitada", icon: oc.permiteEdicion ? "✏️" : "🔓" },
+  ];
+  const colorPaso = (idx) => {
+    if (stepEstado < 0) return "bg-gray-200 text-gray-400";
+    if (idx < stepEstado) return "bg-green-500 text-white";
+    if (idx === stepEstado) {
+      if (ultimaSol?.estado === "rechazada") return "bg-red-500 text-white";
+      return "bg-[#004990] text-white";
+    }
+    return oc.permiteEdicion && idx === 2 ? "bg-green-500 text-white" : "bg-gray-200 text-gray-400";
+  };
+
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex items-center justify-between">
@@ -103,6 +124,27 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
           </button>
         )}
       </div>
+
+      {/* [F-08] Stepper visual — solo visible cuando hay al menos una solicitud */}
+      {(solicitudes.length > 0 || oc.permiteEdicion) && (
+        <div className="mt-3 mb-1">
+          <div className="flex items-center gap-0">
+            {pasos.map((paso, idx) => (
+              <React.Fragment key={idx}>
+                <div className="flex flex-col items-center gap-1 min-w-0" style={{ flex: 1 }}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${colorPaso(idx)}`}>
+                    {paso.icon}
+                  </div>
+                  <span className="text-[10px] text-center leading-tight text-gray-600 px-1">{paso.label}</span>
+                </div>
+                {idx < pasos.length - 1 && (
+                  <div className={`h-0.5 flex-1 mb-5 ${idx < stepEstado || (oc.permiteEdicion && idx < 2) ? "bg-green-400" : "bg-gray-200"}`} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Listado breve */}
       <div className="mt-3 space-y-2">

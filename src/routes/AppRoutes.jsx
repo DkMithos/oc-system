@@ -35,6 +35,8 @@ const Tickets           = lazy(() => import("../pages/Tickets"));
 const AdminTickets      = lazy(() => import("../pages/AdminTickets"));
 const Reporteria        = lazy(() => import("../pages/reportes/Reporteria"));
 const CentroExportaciones = lazy(() => import("../pages/reportes/CentroExportaciones"));
+const Inventario          = lazy(() => import("../pages/Inventario"));
+const RecepcionBienes     = lazy(() => import("../pages/RecepcionBienes"));
 
 // ── Todos los roles del sistema ──────────────────────────────
 const TODOS = [
@@ -87,7 +89,7 @@ const AppRoutes = () => (
 
       {/* FIRMAR OC */}
       <Route path="firmar" element={
-        <RutaProtegida rolesPermitidos={["operaciones","gerencia","finanzas","gerencia operaciones","gerencia general","gerencia finanzas","admin"]}>
+        <RutaProtegida rolesPermitidos={["comprador","operaciones","gerencia","finanzas","gerencia operaciones","gerencia general","gerencia finanzas","admin"]}>
           <Suspense fallback={<Cargando />}><FirmarOC /></Suspense>
         </RutaProtegida>
       } />
@@ -103,6 +105,20 @@ const AppRoutes = () => (
       <Route path="proveedores" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","soporte"]}>
           <Suspense fallback={<Cargando />}><Proveedores /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* INVENTARIO */}
+      <Route path="inventario" element={
+        <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","gerencia operaciones","soporte"]}>
+          <Suspense fallback={<Cargando />}><Inventario /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* RECEPCIÓN DE BIENES */}
+      <Route path="recepcion" element={
+        <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","gerencia operaciones","soporte"]}>
+          <Suspense fallback={<Cargando />}><RecepcionBienes /></Suspense>
         </RutaProtegida>
       } />
 

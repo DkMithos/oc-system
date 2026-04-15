@@ -131,6 +131,8 @@ const PENDING_BY_ROLE = {
   [ROLES.GERENCIA_OP]:  ["Pendiente de Operaciones", "Pendiente de Gerencia General"],
   [ROLES.GERENCIA_GEN]: ["Pendiente de Gerencia General"],
   [ROLES.GERENCIA]:     ["Pendiente de Gerencia General"],
+  // Admin puede aprobar en cualquier etapa pendiente
+  [ROLES.ADMIN]:        ["Pendiente de Comprador", "Pendiente de Operaciones", "Pendiente de Gerencia General"],
 };
 
 export const pendingStatesForRole = (role = "") => {

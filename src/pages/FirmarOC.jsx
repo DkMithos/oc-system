@@ -25,16 +25,26 @@ import {
 
 // ─── Mapa: estado → roles que pueden aprobar ────────────────────
 const ROL_POR_ESTADO = {
-  "Pendiente de Comprador":     ["comprador", "admin"],
-  "Pendiente de Operaciones":   ["operaciones", "admin"],
-  "Pendiente de Gerencia General": ["gerencia general", "gerencia", "admin"],
+  "Pendiente de Comprador":          ["comprador", "admin"],
+  "Pendiente de Operaciones":        ["operaciones", "admin"],
+  "Pendiente de Gerencia General":   ["gerencia general", "gerencia", "admin"],
+  // Estado residual (creado por versión anterior del sistema): el comprador
+  // firma primero para reintegrar la OC al flujo normal → Pendiente de Operaciones.
+  "Pendiente de Gerencia Operaciones": ["comprador", "operaciones", "gerencia operaciones", "gerencia general", "gerencia", "admin"],
 };
 
 // Estado → clave de firma en Firestore
 const FIRMA_KEY = {
-  "Pendiente de Comprador":        "comprador",
-  "Pendiente de Operaciones":      "operaciones",
-  "Pendiente de Gerencia General": "gerenciaGeneral",
+  "Pendiente de Comprador":            "comprador",
+  "Pendiente de Operaciones":          "operaciones",
+  "Pendiente de Gerencia General":     "gerenciaGeneral",
+  "Pendiente de Gerencia Operaciones": "comprador",   // el comprador es quien falta firmar
+};
+
+// Estado residual → estado al que se mueve al aprobarse
+// (reintegra la OC al flujo normal sin usar siguienteEstado())
+const ESTADO_OVERRIDE_NEXT = {
+  "Pendiente de Gerencia Operaciones": "Pendiente de Operaciones",
 };
 
 // Destinatario de notificación para el siguiente estado
@@ -154,8 +164,11 @@ const FirmarOC = () => {
       const stamp        = { por: usuario.email, firma: firmaFinal, fecha: new Date().toISOString(), rol: usuario.rol };
       const nuevasFirmas = { ...(orden.firmas || {}), [firmaKey]: stamp };
 
-      // Calcular siguiente estado usando aprobaciones.js (fuente de verdad única)
-      const nuevoEstado = siguienteEstado(estadoActual, monto, moneda, configAprobaciones);
+      // Calcular siguiente estado:
+      // - Si la OC está en un estado residual, usar el override predefinido
+      // - Si no, usar aprobaciones.js como fuente de verdad única
+      const nuevoEstado = ESTADO_OVERRIDE_NEXT[estadoActual]
+        ?? siguienteEstado(estadoActual, monto, moneda, configAprobaciones);
 
       const historial = [
         ...(orden.historial || []),

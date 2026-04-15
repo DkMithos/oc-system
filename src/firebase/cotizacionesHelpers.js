@@ -5,16 +5,18 @@ import {
   addDoc,
   doc,
   updateDoc,
-  deleteDoc,
   getDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 const COT_COLLECTION = "cotizaciones";
 
-// Obtener todas las cotizaciones
+// Obtener cotizaciones activas (excluye soft-deleted)
 export const obtenerCotizaciones = async () => {
   const snap = await getDocs(collection(db, COT_COLLECTION));
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((c) => c.activo !== false);
 };
 
 // Obtener una cotización por ID
@@ -26,7 +28,11 @@ export const obtenerCotizacionPorId = async (id) => {
 
 // Agregar cotización
 export const agregarCotizacion = async (data) => {
-  const docRef = await addDoc(collection(db, COT_COLLECTION), data);
+  const docRef = await addDoc(collection(db, COT_COLLECTION), {
+    ...data,
+    activo: true,
+    creadoEn: serverTimestamp(),
+  });
   return docRef.id;
 };
 
@@ -36,8 +42,12 @@ export const actualizarCotizacion = async (id, data) => {
   await updateDoc(ref, data);
 };
 
-// Eliminar cotización
-export const eliminarCotizacion = async (id) => {
+// [C-05] Soft-delete: marca activo: false en lugar de borrar físicamente
+export const eliminarCotizacion = async (id, usuarioEmail = "") => {
   const ref = doc(db, COT_COLLECTION, id);
-  await deleteDoc(ref);
+  await updateDoc(ref, {
+    activo: false,
+    eliminadaPor: usuarioEmail,
+    eliminadaEn: new Date().toISOString(),
+  });
 };

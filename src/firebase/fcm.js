@@ -2,7 +2,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
 import { db, firebaseConfig } from "./config";
-import { doc, setDoc, collection, serverTimestamp, getDoc, arrayUnion } from "firebase/firestore";
+import { doc, setDoc, collection, serverTimestamp, getDoc, arrayUnion, getDocs, query, where } from "firebase/firestore";
 
 // Una sola app
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -64,14 +64,17 @@ export const solicitarPermisoYObtenerToken = async (email) => {
       return null;
     }
 
-    // 1) Guarda en usuarios/{email}/tokens/*
+    // 1) Guarda en usuarios/{email}/tokens/* — deduplicar: no crear doc si el token ya existe
     const tokensCol = collection(db, "usuarios", email, "tokens");
-    await setDoc(doc(tokensCol), {
-      token,
-      plataforma: "web",
-      creado: serverTimestamp(),
-      activo: true,
-    });
+    const existing = await getDocs(query(tokensCol, where("token", "==", token)));
+    if (existing.empty) {
+      await setDoc(doc(tokensCol), {
+        token,
+        plataforma: "web",
+        creadoEn: serverTimestamp(),
+        activo: true,
+      });
+    }
 
     // 2) Guarda en tokensFCM/{email} (token + array tokens)
     const fcmRef = doc(db, "tokensFCM", email);

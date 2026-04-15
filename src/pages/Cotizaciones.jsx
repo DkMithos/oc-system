@@ -1,6 +1,5 @@
 // ✅ src/pages/Cotizaciones.jsx (editable)
 import React, { useEffect, useMemo, useState } from "react";
-import { PageLoader } from "../components/ui/Skeleton";
 import {
   obtenerCotizaciones,
   agregarCotizacion,
@@ -35,7 +34,7 @@ const num = (v) => {
 
 const Cotizaciones = () => {
   const navigate = useNavigate();
-  const { usuario, cargando: loading } = useUsuario();
+  const { usuario, loading } = useUsuario();
 
   const [cotizaciones, setCotizaciones] = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -128,7 +127,7 @@ const Cotizaciones = () => {
     if (!rq) return;
     const mapped = mapRqItemsToCot(rq);
     if (!mapped.length) {
-      toast.warning("El requerimiento seleccionado no tiene ítems.");
+      alert("El requerimiento seleccionado no tiene ítems.");
       return;
     }
     setForm((prev) => ({ ...prev, items: mapped }));
@@ -150,7 +149,7 @@ const Cotizaciones = () => {
   // ======= ítems (alta rápida + edición en línea) =======
   const agregarItem = () => {
     if (!itemActual.nombre) {
-      toast.warning("Ingresa al menos la descripción del ítem.");
+      alert("Ingresa al menos la descripción del ítem.");
       return;
     }
     setForm((prev) => ({
@@ -214,7 +213,7 @@ const Cotizaciones = () => {
   }, [cotizaciones, busqueda, filtroProveedor]);
 
   const exportarExcel = () => {
-    if (!cotizacionesFiltradas.length) return toast.info("No hay datos para exportar");
+    if (!cotizacionesFiltradas.length) return alert("No hay datos para exportar");
     const data = cotizacionesFiltradas.map((cot) => {
       const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
       return {
@@ -241,14 +240,14 @@ const Cotizaciones = () => {
   // ======= guardar =======
   const guardar = async () => {
     if (!form.codigo || !form.proveedorId || !form.requerimientoId || form.items.length === 0) {
-      toast.warning("Completa código, proveedor, requerimiento y agrega ítems.");
+      alert("Completa código, proveedor, requerimiento y agrega ítems.");
       return;
     }
     const yaExiste = cotizaciones.some(
       (c) => String(c.codigo || "").trim().toLowerCase() === form.codigo.trim().toLowerCase()
     );
     if (yaExiste) {
-      toast.warning("Ya existe una cotización con ese código.");
+      alert("Ya existe una cotización con ese código.");
       return;
     }
 
@@ -286,7 +285,7 @@ const Cotizaciones = () => {
         await actualizarCotizacion(newId, { archivoUrl: url });
       }
 
-      toast.success("Cotización guardada ✅");
+      alert("Cotización guardada ✅");
       // reset
       setForm({
         codigo: "",
@@ -303,7 +302,7 @@ const Cotizaciones = () => {
       setCotizaciones(lista || []);
     } catch (e) {
       console.error("Error guardando cotización:", e);
-      toast.error("Ocurrió un error al guardar la cotización.");
+      alert("Ocurrió un error al guardar la cotización.");
     } finally {
       setGuardando(false);
     }
@@ -317,11 +316,11 @@ const Cotizaciones = () => {
   const borrar = async (cot) => {
     if (!confirm(`¿Eliminar la cotización ${cot.codigo}?`)) return;
     try {
-      await eliminarCotizacion(cot.id);
+      await eliminarCotizacion(cot.id, usuario?.email || "");
       setCotizaciones((prev) => prev.filter((x) => x.id !== cot.id));
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo eliminar.");
+      alert("No se pudo eliminar.");
     }
   };
 
@@ -336,23 +335,16 @@ const Cotizaciones = () => {
   };
 
   // ======= render =======
-  if (loading) return <PageLoader />;
-  if (!usuario || !["admin", "comprador", "operaciones"].includes(usuario?.rol))
+  if (loading) return <div className="p-6">Cargando usuario…</div>;
+  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
     return <div className="p-6">Acceso no autorizado</div>;
-
-  const soloLectura = !["admin", "comprador"].includes(usuario?.rol);
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Registro de Cotizaciones</h2>
 
-      {/* Formulario — oculto para roles de solo lectura */}
-      {soloLectura && (
-        <div className="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-          Vista de solo lectura. Solo compradores pueden crear o editar cotizaciones.
-        </div>
-      )}
-      <div className={`bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 ${soloLectura ? "hidden" : ""}`}>
+      {/* Formulario */}
+      <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <input
           type="text"
           placeholder="Código (ej: COT-001)"
@@ -708,31 +700,24 @@ const Cotizaciones = () => {
                     </td>
                     <td className="p-2">
                       <div className="flex items-center justify-center gap-2">
-                        {!soloLectura && (
-                          <button
-                            onClick={() => editar(cot)}
-                            className="px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
-                          >
-                            Editar
-                          </button>
-                        )}
-                        {!soloLectura && (
-                          <button
-                            onClick={() => generarOrden(cot)}
-                            className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                          >
-                            Generar orden
-                          </button>
-                        )}
-                        {!soloLectura && (
-                          <button
-                            onClick={() => borrar(cot)}
-                            className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                          >
-                            <Trash2 size={16}/>
-                          </button>
-                        )}
-                        {soloLectura && <span className="text-gray-400 text-xs">Solo lectura</span>}
+                        <button
+                          onClick={() => editar(cot)}
+                          className="px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => generarOrden(cot)}
+                          className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                        >
+                          Generar orden
+                        </button>
+                        <button
+                          onClick={() => borrar(cot)}
+                          className="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                        >
+                          <Trash2 size={16}/>
+                        </button>
                       </div>
                     </td>
                   </tr>

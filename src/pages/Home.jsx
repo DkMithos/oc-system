@@ -5,6 +5,10 @@ import { useUsuario } from "../context/UsuarioContext";
 import { usePendientes } from "../context/PendientesContext";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
+import {
+  listarSolicitudesPendientesGlobal,
+  listarSolicitudesPorEmail,
+} from "../firebase/solicitudesHelpers";
 
 // ── Accesos rápidos por rol ──────────────────────────────────
 const ACCESOS_POR_ROL = {
@@ -74,6 +78,9 @@ const ACCESOS_POR_ROL = {
   ],
 };
 
+// Roles que pueden aprobar solicitudes de edición
+const ROLES_APROBADORES_SOL = ["operaciones", "gerencia", "gerencia operaciones", "gerencia general", "admin"];
+
 // ── Colores para estados ─────────────────────────────────────
 const BADGE = {
   "Pendiente de Operaciones":          "bg-amber-100 text-amber-800",
@@ -91,9 +98,11 @@ const Home = () => {
   const { usuario }           = useUsuario();
   const { pendientes = [] }   = usePendientes();
 
-  const [recentOCs, setRecentOCs]     = useState([]);
-  const [kpis, setKpis]               = useState({ aprobadas: 0, rechazadas: 0, montoMes: 0 });
-  const [cargando, setCargando]       = useState(true);
+  const [recentOCs, setRecentOCs]                 = useState([]);
+  const [kpis, setKpis]                           = useState({ aprobadas: 0, rechazadas: 0, montoSoles: 0, montoDolares: 0 });
+  const [cargando, setCargando]                   = useState(true);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState([]); // para operaciones
+  const [solicitudesAprobadas, setSolicitudesAprobadas]   = useState([]); // para comprador
 
   const rol = (usuario?.rol || "").toLowerCase();
 
@@ -112,7 +121,6 @@ const Home = () => {
         const anio = hoy.getFullYear();
 
         const delMes = (todas || []).filter((oc) => {
-          // Parseo timezone-safe: "2026-04-08" → local date (no UTC)
           let f = null;
           if (oc.fechaEmision) {
             const parts = String(oc.fechaEmision).split("-");
@@ -127,20 +135,34 @@ const Home = () => {
           return f.getMonth() === mes && f.getFullYear() === anio;
         });
 
+        const aprobadas = delMes.filter((o) => o.estado === "Aprobada");
         setKpis({
-          aprobadas:  delMes.filter((o) => o.estado === "Aprobada").length,
-          rechazadas: delMes.filter((o) => o.estado === "Rechazada").length,
-          montoMes:   delMes
-            .filter((o) => o.estado === "Aprobada")
+          aprobadas:    aprobadas.length,
+          rechazadas:   delMes.filter((o) => o.estado === "Rechazada").length,
+          montoSoles:   aprobadas
+            .filter((o) => o.monedaSeleccionada !== "Dólares")
+            .reduce((s, o) => s + (Number(o.resumen?.total) || 0), 0),
+          montoDolares: aprobadas
+            .filter((o) => o.monedaSeleccionada === "Dólares")
             .reduce((s, o) => s + (Number(o.resumen?.total) || 0), 0),
         });
+
+        // Solicitudes de edición: según rol
+        if (ROLES_APROBADORES_SOL.includes(rol)) {
+          const pendientes = await listarSolicitudesPendientesGlobal().catch(() => []);
+          setSolicitudesPendientes(pendientes);
+        }
+        if (rol === "comprador" && usuario?.email) {
+          const todas = await listarSolicitudesPorEmail(usuario.email).catch(() => []);
+          setSolicitudesAprobadas(todas.filter((s) => s.estado === "aprobada"));
+        }
       } catch (e) {
-        console.error("[Home] Error cargando KPIs:", e);
+        console.error("[Home] Error cargando datos:", e);
       } finally {
         setCargando(false);
       }
     })();
-  }, []);
+  }, [rol, usuario?.email]);
 
   const accesos = ACCESOS_POR_ROL[rol] || ACCESOS_POR_ROL["comprador"];
   const nombreMes = new Date().toLocaleString("es-PE", { month: "long" });
@@ -174,10 +196,18 @@ const Home = () => {
           <p className="text-3xl font-bold text-red-700">{kpis.rechazadas}</p>
           <p className="text-xs text-red-600 mt-1">Rechazadas este mes</p>
         </div>
+        {/* KPI monto: S/ y USD separados */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-blue-700">
-            S/ {kpis.montoMes.toLocaleString("es-PE", { maximumFractionDigits: 0 })}
-          </p>
+          {kpis.montoSoles > 0 || kpis.montoDolares === 0 ? (
+            <p className="text-xl font-bold text-blue-700 leading-tight">
+              S/ {kpis.montoSoles.toLocaleString("es-PE", { maximumFractionDigits: 0 })}
+            </p>
+          ) : null}
+          {kpis.montoDolares > 0 ? (
+            <p className="text-xl font-bold text-blue-700 leading-tight">
+              $ {kpis.montoDolares.toLocaleString("es-PE", { maximumFractionDigits: 0 })}
+            </p>
+          ) : null}
           <p className="text-xs text-blue-600 mt-1">Monto aprobado ({nombreMes})</p>
         </div>
       </div>
@@ -199,6 +229,83 @@ const Home = () => {
           ))}
         </div>
       </div>
+
+      {/* Solicitudes de edición aprobadas → comprador puede editar */}
+      {solicitudesAprobadas.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-indigo-600 uppercase tracking-wide">
+              Edición habilitada — puedes modificar tus OCs ({solicitudesAprobadas.length})
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {solicitudesAprobadas.map((sol) => (
+              <div
+                key={sol.id}
+                className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 flex items-center justify-between"
+              >
+                <div>
+                  <span className="font-mono font-semibold text-sm text-indigo-800">
+                    {sol.numeroOC || sol.ocId}
+                  </span>
+                  <span className="text-gray-500 text-sm ml-2 truncate max-w-xs hidden sm:inline">
+                    {sol.motivo}
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate(`/editar?id=${sol.ocId}`)}
+                  className="bg-indigo-600 text-white text-xs px-3 py-1 rounded hover:bg-indigo-700 flex-shrink-0"
+                >
+                  Editar OC
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Solicitudes de edición pendientes → operaciones/gerencia las aprueba */}
+      {solicitudesPendientes.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+              Solicitudes de edición pendientes ({solicitudesPendientes.length})
+            </h2>
+            <button
+              onClick={() => navigate("/historial")}
+              className="text-xs text-orange-700 underline"
+            >
+              Ver en historial
+            </button>
+          </div>
+          <div className="space-y-2">
+            {solicitudesPendientes.slice(0, 5).map((sol) => (
+              <div
+                key={sol.id}
+                className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2 flex items-center justify-between"
+              >
+                <div className="min-w-0">
+                  <span className="font-mono font-semibold text-sm text-orange-800">
+                    {sol.numeroOC || sol.ocId}
+                  </span>
+                  <span className="text-gray-500 text-xs ml-2">
+                    por {sol.creadoPorNombre || sol.creadoPorEmail}
+                  </span>
+                  {sol.motivo && (
+                    <p className="text-xs text-gray-600 mt-0.5 truncate">{sol.motivo}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => navigate(`/ver?id=${sol.ocId}`)}
+                  className="bg-orange-600 text-white text-xs px-3 py-1 rounded hover:bg-orange-700 flex-shrink-0 ml-2"
+                >
+                  Revisar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Últimas OCs */}
       <div>
@@ -245,7 +352,7 @@ const Home = () => {
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell text-right">
                       {oc.resumen?.total != null
-                        ? `S/ ${Number(oc.resumen.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`
+                        ? `${oc.monedaSeleccionada === "Dólares" ? "$ " : "S/ "}${Number(oc.resumen.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`
                         : "—"}
                     </td>
                     <td className="px-4 py-2">
@@ -269,7 +376,7 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Pendientes de acción (si aplica el rol) */}
+      {/* Pendientes de acción */}
       {pendientes.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -300,7 +407,8 @@ const Home = () => {
                 <div className="flex items-center gap-3">
                   {oc.resumen?.total != null && (
                     <span className="text-sm font-semibold">
-                      S/ {Number(oc.resumen.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                      {oc.monedaSeleccionada === "Dólares" ? "$ " : "S/ "}
+                      {Number(oc.resumen.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                     </span>
                   )}
                   <button

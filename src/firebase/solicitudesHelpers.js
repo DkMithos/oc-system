@@ -60,12 +60,41 @@ export const resolverSolicitudEdicion = async (ocId, solId, estado, { resueltoPo
 
 /**
  * 🔸 Contador global de solicitudes de edición pendientes (para roles aprobadores)
- *  - Si el usuario es aprobador: cuenta todas las pendientes
- *  - Si no: 0
  */
 export const contarSolicitudesPendientesGlobal = async (esAprobador) => {
   if (!esAprobador) return 0;
   const q = query(collectionGroup(db, "solicitudesEdicion"), where("estado", "==", "pendiente"));
   const snap = await getDocs(q);
   return snap.size || 0;
+};
+
+/**
+ * Lista todas las solicitudes pendientes con el id del OC padre.
+ * Para roles aprobadores (operaciones/gerencia).
+ */
+export const listarSolicitudesPendientesGlobal = async () => {
+  const q = query(collectionGroup(db, "solicitudesEdicion"), where("estado", "==", "pendiente"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ocId: d.ref.parent.parent.id,
+    ...d.data(),
+  }));
+};
+
+/**
+ * Lista solicitudes creadas por un email específico (para comprador).
+ * Devuelve las aprobadas para que el comprador sepa que puede editar.
+ */
+export const listarSolicitudesPorEmail = async (email) => {
+  const q = query(
+    collectionGroup(db, "solicitudesEdicion"),
+    where("creadoPorEmail", "==", email)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ocId: d.ref.parent.parent.id,
+    ...d.data(),
+  }));
 };

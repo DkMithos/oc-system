@@ -1,6 +1,8 @@
 // ✅ src/components/VerOCModal.jsx (mismos criterios: 1 hoja, máx. 15 ítems, sin box de detracción)
 import React, { useEffect, useMemo, useState } from "react";
 import html2pdf from "html2pdf.js";
+import { getDoc, doc } from "firebase/firestore";
+import { db } from "../firebase/config";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import FirmarOCModal from "./FirmarOCModal";
 import OCAccionesEdicion from "./OCAccionesEdicion";
@@ -20,7 +22,16 @@ const findDetraccion = (bancos = []) => {
     ) || null
   );
 };
-const pickFirma = (oc, plano, obj) => oc?.[plano] || oc?.firmas?.[obj] || null;
+const isImgSrc = (v) => typeof v === "string" && v.length > 10;
+const pickFirma = (oc, plano, obj) => {
+  const flat = oc?.[plano];
+  if (isImgSrc(flat)) return flat;
+  const nested = oc?.firmas?.[obj];
+  if (isImgSrc(nested)) return nested;
+  // Legacy: firmas stored as { por, rol, fecha, firma: "..." }
+  if (nested && typeof nested === "object" && isImgSrc(nested.firma)) return nested.firma;
+  return null;
+};
 
 const ITEMS_MAX = 15;
 
@@ -43,6 +54,26 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
   const [firmarAbierto, setFirmarAbierto] = useState(false);
   const [ocLocal, setOcLocal] = useState(oc);
   useEffect(() => setOcLocal(oc), [oc]);
+
+  // [F-07] Panel cotización de referencia — lazy fetch al expandir
+  const [cotPanelAbierto, setCotPanelAbierto] = useState(false);
+  const [cotizacion, setCotizacion] = useState(null);
+  const [cotCargando, setCotCargando] = useState(false);
+
+  const toggleCotPanel = async () => {
+    if (cotPanelAbierto) { setCotPanelAbierto(false); return; }
+    setCotPanelAbierto(true);
+    if (cotizacion || !ocLocal?.cotizacionId) return;
+    setCotCargando(true);
+    try {
+      const snap = await getDoc(doc(db, "cotizaciones", ocLocal.cotizacionId));
+      setCotizacion(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    } catch (e) {
+      console.error("[VerOCModal] Error cargando cotización:", e);
+    } finally {
+      setCotCargando(false);
+    }
+  };
 
   const items = useMemo(() => (Array.isArray(ocLocal?.items) ? ocLocal.items : []), [ocLocal?.items]);
   const itemsToShow = useMemo(() => items.slice(0, ITEMS_MAX), [items]);
@@ -71,12 +102,14 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
     return Math.round((subtotal + igv) * 100) / 100;
   }, [ocLocal?.resumen?.total, subtotal, igv]);
 
-  const detraccionCuenta = useMemo(
-    () => ocLocal?.detraccion?.cuenta || findDetraccion(ocLocal?.proveedor?.bancos),
-    [ocLocal?.detraccion?.cuenta, ocLocal?.proveedor?.bancos]
-  );
+  // Solo mostrar cuenta de detracción si fue explícitamente marcada en la OC
+  const detraccionCuenta = useMemo(() => {
+    if (!ocLocal?.detraccion?.aplica) return null;
+    return ocLocal?.detraccion?.cuenta || findDetraccion(ocLocal?.proveedor?.bancos) || null;
+  }, [ocLocal?.detraccion, ocLocal?.proveedor?.bancos]);
 
-  const puedeExportar = ocLocal?.estado === "Aprobada";
+  // Permitir exportar PDF para cualquier OC (no solo "Aprobada")
+  const puedeExportar = !!ocLocal;
   const puedeFirmar = !!usuario && ocPendingForRole(ocLocal, usuario.rol, usuario.email);
 
   const exportarPDF = () => {
@@ -137,6 +170,43 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           </div>
         </div>
 
+        {/* [F-07] Panel cotización de referencia */}
+        {ocLocal.cotizacionId && (
+          <div className="mb-2">
+            <button
+              onClick={toggleCotPanel}
+              className="w-full flex items-center justify-between px-3 py-2 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-semibold transition-colors border border-blue-200"
+            >
+              <span>Cotización de referencia {ocLocal.cotizacion ? `— ${ocLocal.cotizacion}` : ""}</span>
+              <span>{cotPanelAbierto ? "▲" : "▼"}</span>
+            </button>
+            {cotPanelAbierto && (
+              <div className="border border-blue-200 border-t-0 rounded-b p-3 bg-white text-sm">
+                {cotCargando && <p className="text-gray-400 text-center py-2">Cargando cotización…</p>}
+                {!cotCargando && cotizacion === null && ocLocal.cotizacionId && (
+                  <p className="text-gray-400 italic">No se encontró la cotización (ID: {ocLocal.cotizacionId}).</p>
+                )}
+                {!cotCargando && cotizacion && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><b>N° Cotización:</b> {cotizacion.numero || cotizacion.numeroCotizacion || cotizacion.id}</div>
+                    <div><b>Proveedor:</b> {cotizacion.proveedor?.razonSocial || cotizacion.proveedorNombre || "—"}</div>
+                    <div><b>Fecha:</b> {cotizacion.fechaEmision || cotizacion.fecha || "—"}</div>
+                    <div><b>Validez:</b> {cotizacion.validez || cotizacion.diasValidez ? `${cotizacion.validez || cotizacion.diasValidez} días` : "—"}</div>
+                    <div><b>Condición pago:</b> {cotizacion.condicionPago || "—"}</div>
+                    <div><b>Moneda:</b> {cotizacion.moneda || cotizacion.monedaSeleccionada || "—"}</div>
+                    {cotizacion.total != null && (
+                      <div className="col-span-2"><b>Total cotizado:</b> {formatearMoneda(Number(cotizacion.total), cotizacion.moneda || cotizacion.monedaSeleccionada || "Soles")}</div>
+                    )}
+                    {cotizacion.notas && (
+                      <div className="col-span-2 text-gray-600 italic"><b>Notas:</b> {cotizacion.notas}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Proveedor */}
         {ocLocal.tipoOrden !== "OI" && (
           <div className="mb-2">
@@ -153,10 +223,21 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
               <div><b>Cuenta:</b> {ocLocal.cuenta?.cuenta || "—"}</div>
               <div><b>CCI:</b> {ocLocal.cuenta?.cci || "—"}</div>
 
-              {detraccionCuenta && (
+              {ocLocal?.detraccion?.aplica && (
                 <div className="col-span-2 mt-1 pt-1 border-t">
-                  <span className="text-red-700 font-semibold">Cuenta de Detracciones (BN): </span>
-                  <span><b>Cuenta:</b> {detraccionCuenta.cuenta || "—"} &nbsp;&nbsp; <b>CCI:</b> {detraccionCuenta.cci || "—"}</span>
+                  <span className="text-red-700 font-semibold">Detracción ({Math.round((ocLocal.detraccion.tasa || 0) * 100)}%): </span>
+                  <span className="text-red-700 font-semibold">{formatearMoneda(ocLocal.detraccion.monto || 0, simbolo)}</span>
+                  {detraccionCuenta && (
+                    <span className="ml-3 text-gray-700">
+                      — <b>Cta. BN:</b> {detraccionCuenta.cuenta || "—"} &nbsp; <b>CCI:</b> {detraccionCuenta.cci || "—"}
+                    </span>
+                  )}
+                </div>
+              )}
+              {ocLocal?.retencion?.aplica && (
+                <div className="col-span-2 mt-1 pt-1 border-t">
+                  <span className="text-orange-700 font-semibold">Retención (3%): </span>
+                  <span className="text-orange-700 font-semibold">{formatearMoneda(ocLocal.retencion.monto || 0, simbolo)}</span>
                 </div>
               )}
             </div>
