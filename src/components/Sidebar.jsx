@@ -6,7 +6,7 @@ import {
   DollarSign, BarChart2, CreditCard, ArrowDownCircle, TrendingUp,
   PieChart, Download, Activity, LifeBuoy, MessageSquare, PenTool,
   Settings, FolderOpen, BookOpen, ChevronDown, LogOut, X,
-  Boxes, ClipboardCheck
+  Boxes, ClipboardCheck, Edit3
 } from "lucide-react";
 import { puedeAcceder } from "../utils/permisosPorRol";
 import { useUsuario } from "../context/UsuarioContext";
@@ -26,8 +26,9 @@ const MENU = [
       { ruta: "/cotizaciones",  texto: "Cotizaciones",     icon: Package },
       { ruta: "/proveedores",   texto: "Proveedores",      icon: Users },
       { ruta: "/requerimientos",texto: "Requerimientos",   icon: ClipboardList },
-      { ruta: "/inventario",    texto: "Inventario",        icon: Boxes },
-      { ruta: "/recepcion",     texto: "Recepción",         icon: ClipboardCheck },
+      { ruta: "/inventario",         texto: "Inventario",           icon: Boxes },
+      { ruta: "/recepcion",          texto: "Recepción",            icon: ClipboardCheck },
+      { ruta: "/solicitudes-edicion",texto: "Solicitudes de Edición",icon: Edit3 },
     ],
   },
   {
@@ -35,11 +36,12 @@ const MENU = [
     label: "Finanzas",
     icon: DollarSign,
     items: [
-      { ruta: "/caja",              texto: "Caja Chica",       icon: CreditCard },
-      { ruta: "/dashboard",         texto: "Dashboard",         icon: BarChart2 },
-      { ruta: "/pagos",             texto: "Historial de Pagos",icon: CreditCard },
-      { ruta: "/pago",              texto: "Registrar Pago",    icon: ArrowDownCircle },
-      { ruta: "/flujos-financieros",texto: "Flujos Financieros",icon: TrendingUp },
+      { ruta: "/caja",              texto: "Caja Chica",          icon: CreditCard },
+      { ruta: "/dashboard",         texto: "Dashboard",            icon: BarChart2 },
+      { ruta: "/pagos",             texto: "Historial de Pagos",   icon: CreditCard },
+      { ruta: "/pagos-cc",          texto: "Pagos por Centro de Costo", icon: PieChart },
+      { ruta: "/pago",              texto: "Registrar Pago",       icon: ArrowDownCircle },
+      { ruta: "/flujos-financieros",texto: "Flujos Financieros",   icon: TrendingUp },
     ],
   },
   {

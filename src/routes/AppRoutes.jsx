@@ -37,6 +37,8 @@ const Reporteria        = lazy(() => import("../pages/reportes/Reporteria"));
 const CentroExportaciones = lazy(() => import("../pages/reportes/CentroExportaciones"));
 const Inventario          = lazy(() => import("../pages/Inventario"));
 const RecepcionBienes     = lazy(() => import("../pages/RecepcionBienes"));
+const PagosPorCentroCosto = lazy(() => import("../pages/PagosPorCentroCosto"));
+const SolicitudesEdicion  = lazy(() => import("../pages/SolicitudesEdicion"));
 
 // ── Todos los roles del sistema ──────────────────────────────
 const TODOS = [
@@ -138,7 +140,7 @@ const AppRoutes = () => (
 
       {/* REGISTRAR PAGO */}
       <Route path="pago" element={
-        <RutaProtegida rolesPermitidos={["admin","finanzas"]}>
+        <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas"]}>
           <Suspense fallback={<Cargando />}><RegistrarPago /></Suspense>
         </RutaProtegida>
       } />
@@ -147,6 +149,20 @@ const AppRoutes = () => (
       <Route path="pagos" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general"]}>
           <Suspense fallback={<Cargando />}><HistorialPagos /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* SOLICITUDES DE EDICIÓN */}
+      <Route path="solicitudes-edicion" element={
+        <RutaProtegida rolesPermitidos={["admin","operaciones","gerencia","gerencia operaciones","gerencia general","gerencia finanzas","finanzas"]}>
+          <Suspense fallback={<Cargando />}><SolicitudesEdicion /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* PAGOS POR CENTRO DE COSTO */}
+      <Route path="pagos-cc" element={
+        <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general","gerencia","gerencia operaciones","operaciones"]}>
+          <Suspense fallback={<Cargando />}><PagosPorCentroCosto /></Suspense>
         </RutaProtegida>
       } />
 

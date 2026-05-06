@@ -95,6 +95,19 @@ export const sunatProxy = onRequest(
   async (req, res) => {
     if (req.method === "OPTIONS") return res.status(204).send("");
 
+    // [C-02] Verificar token de Firebase Auth antes de procesar la consulta
+    const authHeader = req.headers.authorization || "";
+    const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return res.status(401).json({ error: "No autorizado. Se requiere sesión activa." });
+    }
+    try {
+      const { getAuth } = await import("firebase-admin/auth");
+      await getAuth().verifyIdToken(idToken);
+    } catch {
+      return res.status(401).json({ error: "Token inválido o expirado." });
+    }
+
     const ruc = String(req.query.ruc || "").replace(/\D/g, "");
     if (ruc.length !== 11) {
       return res.status(400).json({ error: "RUC inválido: debe tener 11 dígitos" });

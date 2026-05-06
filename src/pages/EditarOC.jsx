@@ -179,6 +179,9 @@ const EditarOC = () => {
       retencion:  obligaciones?.retencion  || { aplica: false, tasa: 0, monto: 0 },
       // Reencola al inicio del flujo (comprador debe re-firmar)
       estado: "Pendiente de Comprador",
+      // Cerrar el permiso de edición una vez que el comprador guardó los cambios
+      permiteEdicion: false,
+      tieneSolicitudEdicion: false,
       historial: [
         ...(formData.historial || []),
         {

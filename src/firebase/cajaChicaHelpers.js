@@ -6,23 +6,65 @@ import {
   getDocs,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
-  onSnapshot,              // ⬅️ realtime
+  onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./config";
 
 /* ─────────────────────────────────────────────────────────────
- * Colecciones base y helpers
+ * Configuración de cajas: área × moneda
  * ───────────────────────────────────────────────────────────── */
-const TIPOS_DOC_COL = collection(db, "tiposDocumento"); // { nombre, activo?:bool, orden?:number }
+export const AREAS_CAJA = [
+  { id: "operaciones",   label: "Operaciones",    prefix: "OPER" },
+  { id: "administracion", label: "Administración", prefix: "ADMI" },
+  { id: "proyectos",     label: "Proyectos",       prefix: "PROY" },
+];
+
+export const MONEDAS_CAJA = [
+  { id: "soles",   label: "Soles",    simbolo: "S/",  formValue: "Soles",    sufijo: "SOLES"   },
+  { id: "dolares", label: "Dólares",  simbolo: "$",   formValue: "Dólares",  sufijo: "DOLARES" },
+];
+
+// Compound IDs: "administracion-soles", "administracion-dolares", etc.
+export const CAJAS_IDS = AREAS_CAJA.flatMap((a) => MONEDAS_CAJA.map((m) => `${a.id}-${m.id}`));
+
+// Helpers de lookup
+export const getAreaConfig  = (cajaId = "") => AREAS_CAJA.find((a) => cajaId.startsWith(a.id)) || AREAS_CAJA[2];
+export const getMonedaConfig = (cajaId = "") => MONEDAS_CAJA.find((m) => cajaId.endsWith(m.id)) || MONEDAS_CAJA[0];
+
+/* ─────────────────────────────────────────────────────────────
+ * Código de caja secuencial — Firestore transaccional
+ * ───────────────────────────────────────────────────────────── */
+const CONTADORES_REF = doc(db, "cajasChicas", "_contadores");
+
+function generarCodigoCaja(cajaId, numero) {
+  const area   = getAreaConfig(cajaId);
+  const moneda = getMonedaConfig(cajaId);
+  return `${area.prefix}${String(numero).padStart(3, "0")}-${moneda.sufijo}`;
+}
+
+async function getNextNumeroCaja(cajaId) {
+  let numero;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(CONTADORES_REF);
+    const current = snap.exists() ? (snap.data()?.[cajaId] || 0) : 0;
+    numero = current + 1;
+    tx.set(CONTADORES_REF, { [cajaId]: numero }, { merge: true });
+  });
+  return numero;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Colecciones base
+ * ───────────────────────────────────────────────────────────── */
+const TIPOS_DOC_COL = collection(db, "tiposDocumento");
 
 const cajaDocRef = (cajaId) => doc(db, "cajasChicas", cajaId);
 const movsColRef = (cajaId) => collection(db, "cajasChicas", cajaId, "movimientos");
-
-export const CAJAS_IDS = ["operaciones", "administracion", "proyectos"];
 
 /* ─────────────────────────────────────────────────────────────
  * Tipos de Documento
@@ -168,32 +210,35 @@ export async function obtenerEstadoCajaActual(cajaId = "proyectos") {
 }
 
 export async function abrirCaja({ cajaId = "proyectos", saldoInicial = 0, fecha, email }) {
-  const ref = cajaDocRef(cajaId);
-  const snap = await getDoc(ref);
+  const docRef = cajaDocRef(cajaId);
+  const snap = await getDoc(docRef);
   if (snap.exists() && snap.data()?.abierta) {
     throw new Error("Ya existe una apertura de caja activa.");
   }
-  await setDoc(
-    ref,
-    {
-      abierta: true,
-      aperturaFecha: (fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
-      aperturaSaldoInicial: Number(saldoInicial || 0),
-      aperturaPorEmail: email || "",
-      cierreFecha: null,
-      cierreSaldoFinal: null,
-      cierrePorEmail: null,
-    },
-    { merge: true }
-  );
+  // Generate sequential code for compound cajaIds (area-moneda)
+  let codigoCaja = null;
+  if (cajaId.includes("-")) {
+    const numero = await getNextNumeroCaja(cajaId);
+    codigoCaja = generarCodigoCaja(cajaId, numero);
+  }
+  await setDoc(docRef, {
+    abierta: true,
+    codigoCaja,
+    aperturaFecha: (fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    aperturaSaldoInicial: Number(saldoInicial || 0),
+    aperturaPorEmail: email || "",
+    cierreFecha: null,
+    cierreSaldoFinal: null,
+    cierrePorEmail: null,
+  });
 }
 
 export async function cerrarCaja({ cajaId = "proyectos", saldoFinal = 0, fecha, email }) {
-  const ref = cajaDocRef(cajaId);
-  const snap = await getDoc(ref);
+  const docRef = cajaDocRef(cajaId);
+  const snap = await getDoc(docRef);
   const data = snap.data();
   if (!data?.abierta) throw new Error("No hay una caja abierta para cerrar.");
-  await updateDoc(ref, {
+  await updateDoc(docRef, {
     abierta: false,
     cierreFecha: (fecha || new Date().toISOString().slice(0, 10)).slice(0, 10),
     cierreSaldoFinal: Number(saldoFinal || 0),

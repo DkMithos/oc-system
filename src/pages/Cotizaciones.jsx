@@ -45,6 +45,8 @@ const Cotizaciones = () => {
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroProveedor, setFiltroProveedor] = useState("");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const COT_POR_PAGINA = 20;
 
   const [form, setForm] = useState({
     codigo: "",
@@ -203,6 +205,7 @@ const Cotizaciones = () => {
     );
 
   const cotizacionesFiltradas = useMemo(() => {
+    setPaginaActual(1);
     const query = busqueda.trim().toLowerCase();
     return (cotizaciones || []).filter((cot) => {
       const texto = `${cot.codigo || ""} ${cot.detalle || ""}`.toLowerCase();
@@ -211,6 +214,12 @@ const Cotizaciones = () => {
       return matchBusqueda && matchProveedor;
     });
   }, [cotizaciones, busqueda, filtroProveedor]);
+
+  const cotTotalPaginas = Math.ceil(cotizacionesFiltradas.length / COT_POR_PAGINA);
+  const cotPaginadas = cotizacionesFiltradas.slice(
+    (paginaActual - 1) * COT_POR_PAGINA,
+    paginaActual * COT_POR_PAGINA
+  );
 
   const exportarExcel = () => {
     if (!cotizacionesFiltradas.length) return alert("No hay datos para exportar");
@@ -672,7 +681,7 @@ const Cotizaciones = () => {
                 </td>
               </tr>
             ) : (
-              cotizacionesFiltradas.map((cot) => {
+              cotPaginadas.map((cot) => {
                 const proveedor = proveedores.find((p) => p.id === cot.proveedorId);
                 const rq = requerimientos.find((r) => r.id === cot.requerimientoId);
                 const total = formatearMoneda(totalCot(cot), cot.moneda || "Soles");
@@ -727,6 +736,29 @@ const Cotizaciones = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {cotTotalPaginas > 1 && (
+        <div className="flex justify-center items-center mt-4 gap-1 flex-wrap">
+          <button onClick={() => setPaginaActual((p) => Math.max(1, p - 1))} disabled={paginaActual === 1}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100">‹</button>
+          {(() => {
+            const win = 5;
+            let start = Math.max(1, paginaActual - Math.floor(win / 2));
+            let end = Math.min(cotTotalPaginas, start + win - 1);
+            if (end - start < win - 1) start = Math.max(1, end - win + 1);
+            return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
+              <button key={p} onClick={() => setPaginaActual(p)}
+                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"}`}>
+                {p}
+              </button>
+            ));
+          })()}
+          <button onClick={() => setPaginaActual((p) => Math.min(cotTotalPaginas, p + 1))} disabled={paginaActual === cotTotalPaginas}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100">›</button>
+          <span className="text-xs text-gray-400 ml-1">{paginaActual}/{cotTotalPaginas}</span>
+        </div>
+      )}
 
       {/* Modal edición rápida */}
       {editOpen && cotEdit && (

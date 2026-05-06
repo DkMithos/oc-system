@@ -1,9 +1,12 @@
 // ✅ src/components/admin/GestorUsuarios.jsx
+// [C-01] La creación de usuarios usa la Cloud Function crearUsuarioAdmin.
+// Las contraseñas nunca se almacenan en Firestore.
 import React, { useMemo, useState } from "react";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { toast } from "react-toastify";
 import {
   UserRoundPlus,
   ShieldCheck,
-  LockKeyhole,
   ToggleLeft,
   ToggleRight,
   Trash2,
@@ -13,23 +16,22 @@ import {
 /**
  * Props esperadas:
  * - usuarios: [{ email, rol, estado }]
- * - roles: string[]   (p.e. ["admin","comprador","finanzas","gerencia","operaciones","administracion","legal"])
- * - agregarUsuario({ email, rol, password })
+ * - roles: string[]
  * - cambiarRol(email, nuevoRol)
  * - cambiarEstadoUsuario(email, nuevoEstado, motivo)
- * - actualizarPassword(email, nuevaPassword)
- * - eliminarUsuario (opcional) (email)
+ * - eliminarUsuario(email)  (opcional)
+ * - onUsuarioCreado()       (callback para recargar lista)
  */
 const GestorUsuarios = ({
   usuarios = [],
   roles = [],
-  agregarUsuario,
   cambiarRol,
   cambiarEstadoUsuario,
-  actualizarPassword,
-  eliminarUsuario, // opcional
+  eliminarUsuario,
+  onUsuarioCreado,
 }) => {
   const [nuevo, setNuevo] = useState({ email: "", rol: "", password: "" });
+  const [creando, setCreando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   const porPagina = 10;
@@ -53,19 +55,30 @@ const GestorUsuarios = ({
   const handleCrear = async (e) => {
     e.preventDefault();
     if (!nuevo.email || !nuevo.rol || !nuevo.password) {
-      toast.warning("Completa email, rol y contraseña.");
+      toast.warning("Completa email, rol y contraseña temporal.");
       return;
     }
+    if (nuevo.password.length < 6) {
+      toast.warning("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    setCreando(true);
     try {
-      await agregarUsuario({
-        email: nuevo.email.trim(),
+      const fn = httpsCallable(getFunctions(), "crearUsuarioAdmin");
+      await fn({
+        email: nuevo.email.trim().toLowerCase(),
         rol: nuevo.rol,
         password: nuevo.password,
       });
+      toast.success(`Usuario ${nuevo.email} creado ✅`);
       resetForm();
+      onUsuarioCreado && onUsuarioCreado();
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo crear el usuario.");
+      const msg = err?.message || "No se pudo crear el usuario.";
+      toast.error(msg.includes("already-exists") ? "Ya existe un usuario con ese correo." : msg);
+    } finally {
+      setCreando(false);
     }
   };
 
@@ -93,23 +106,12 @@ const GestorUsuarios = ({
     }
   };
 
-  const handleCambiarPassword = async (u) => {
-    const nueva = prompt(`Nueva contraseña para ${u.email}:`);
-    if (!nueva) return;
-    try {
-      await actualizarPassword(u.email, nueva);
-      toast.success("Contraseña actualizada ✅");
-    } catch (err) {
-      console.error(err);
-      toast.error("No se pudo actualizar la contraseña.");
-    }
-  };
-
   const handleEliminar = async (u) => {
     if (!eliminarUsuario) return;
-    if (!window.confirm(`¿Eliminar al usuario ${u.email}?`)) return;
+    if (!window.confirm(`¿Eliminar al usuario ${u.email}? Esta acción no se puede deshacer.`)) return;
     try {
       await eliminarUsuario(u.email);
+      toast.success(`Usuario ${u.email} eliminado.`);
     } catch (err) {
       console.error(err);
       toast.error("No se pudo eliminar.");
@@ -124,7 +126,7 @@ const GestorUsuarios = ({
       </h3>
 
       {/* Crear nuevo usuario */}
-      <form onSubmit={handleCrear} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
+      <form onSubmit={handleCrear} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-2">
         <input
           type="email"
           placeholder="Correo (ej: usuario@empresa.com)"
@@ -141,27 +143,31 @@ const GestorUsuarios = ({
         >
           <option value="">Selecciona rol</option>
           {roles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
         <input
           type="password"
-          placeholder="Contraseña inicial"
+          placeholder="Contraseña temporal (mín. 6 car.)"
           value={nuevo.password}
           onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })}
           className="border p-2 rounded"
           required
+          autoComplete="new-password"
         />
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2"
+          disabled={creando}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded flex items-center justify-center gap-2"
         >
           <UserRoundPlus size={18} />
-          Agregar
+          {creando ? "Creando…" : "Agregar"}
         </button>
       </form>
+      <p className="text-xs text-gray-500 mb-5">
+        La contraseña temporal se envía a Firebase Auth de forma segura y <strong>no se almacena</strong> en la base de datos.
+        El usuario debe cambiarla al iniciar sesión.
+      </p>
 
       {/* Buscador */}
       <div className="flex items-center gap-2 mb-3">
@@ -170,10 +176,7 @@ const GestorUsuarios = ({
           type="text"
           placeholder="Buscar por email, rol o estado…"
           value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setPagina(1);
-          }}
+          onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
           className="border px-3 py-2 rounded w-full md:w-1/2"
         />
       </div>
@@ -192,9 +195,7 @@ const GestorUsuarios = ({
           <tbody>
             {visibles.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-4 text-center text-gray-500">
-                  No hay usuarios.
-                </td>
+                <td colSpan={4} className="p-4 text-center text-gray-500">No hay usuarios.</td>
               </tr>
             ) : (
               visibles.map((u) => (
@@ -207,34 +208,21 @@ const GestorUsuarios = ({
                       className="border p-1 rounded"
                     >
                       {roles.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
+                        <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
                   </td>
                   <td className="p-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs ${
-                        u.estado === "Activo"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
+                    <span className={`px-2 py-0.5 rounded text-xs ${
+                      u.estado === "Activo"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}>
                       {u.estado || "Activo"}
                     </span>
                   </td>
                   <td className="p-2">
                     <div className="flex flex-wrap gap-3">
-                      <button
-                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                        title="Cambiar contraseña"
-                        onClick={() => handleCambiarPassword(u)}
-                      >
-                        <LockKeyhole size={16} />
-                        <span className="text-xs">Contraseña</span>
-                      </button>
-
                       <button
                         className="flex items-center gap-1 text-gray-700 hover:text-gray-900"
                         title="Cambiar estado"
@@ -252,6 +240,16 @@ const GestorUsuarios = ({
                           </>
                         )}
                       </button>
+                      {eliminarUsuario && (
+                        <button
+                          className="flex items-center gap-1 text-red-500 hover:text-red-700"
+                          title="Eliminar usuario"
+                          onClick={() => handleEliminar(u)}
+                        >
+                          <Trash2 size={15} />
+                          <span className="text-xs">Eliminar</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -260,7 +258,6 @@ const GestorUsuarios = ({
           </tbody>
         </table>
 
-        {/* Paginación */}
         {totalPaginas > 1 && (
           <div className="flex justify-center items-center gap-2 mt-4">
             <button
@@ -270,9 +267,7 @@ const GestorUsuarios = ({
             >
               Anterior
             </button>
-            <span className="text-sm">
-              Página {pagina} de {totalPaginas}
-            </span>
+            <span className="text-sm">Página {pagina} de {totalPaginas}</span>
             <button
               onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
               className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"

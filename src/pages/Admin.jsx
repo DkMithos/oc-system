@@ -4,7 +4,6 @@ import { ROLES } from "../utils/aprobaciones";
 
 import {
   obtenerUsuarios,
-  guardarUsuario,
   eliminarUsuario,
   actualizarRolUsuario,
   obtenerOCs,
@@ -112,10 +111,9 @@ const Admin = () => {
   };
 
   // ----------------------------- USUARIOS
-  const agregarUsuarioHandler = async (usuarioNuevo) => {
-    await guardarUsuario(usuarioNuevo);
+  // [C-01] La creación se delega a la Cloud Function crearUsuarioAdmin (en GestorUsuarios).
+  const recargarUsuarios = async () => {
     setUsuariosList(await obtenerUsuarios());
-    await registrarLog({ accion: "Agregar Usuario", descripcion: `Usuario agregado: ${usuarioNuevo.email}, rol: ${usuarioNuevo.rol}`, hechoPor: currentUserEmail });
   };
 
   const eliminarUsuarioLocal = async (email) => {
@@ -155,7 +153,7 @@ const Admin = () => {
 
       <GestorUsuarios
         usuarios={usuariosList}
-        agregarUsuario={agregarUsuarioHandler}
+        onUsuarioCreado={recargarUsuarios}
         eliminarUsuario={eliminarUsuarioLocal}
         cambiarRol={actualizarRol}
         cambiarEstadoUsuario={cambiarEstadoUsuario}

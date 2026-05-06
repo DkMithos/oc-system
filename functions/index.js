@@ -301,6 +301,51 @@ export const enviarNotificacionTest = onCall(
   }
 );
 
+// [C-01] Crea usuario en Firebase Auth + Firestore. Solo admin.
+// Nunca almacena la contraseña en Firestore — Auth la gestiona hasheada.
+export const crearUsuarioAdmin = onCall(
+  { region: "us-central1", cors: ALLOWED_ORIGINS },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    const db = getFirestore();
+    const callerEmail = String(request.auth.token.email || "").toLowerCase();
+    const callerDoc = await db.doc(`usuarios/${callerEmail}`).get();
+    if (callerDoc.data()?.rol !== "admin") {
+      throw new HttpsError("permission-denied", "Solo administradores pueden crear usuarios.");
+    }
+    const { email, rol, password } = request.data || {};
+    if (!email || !rol || !password) throw new HttpsError("invalid-argument", "email, rol y password son requeridos.");
+    if (password.length < 6) throw new HttpsError("invalid-argument", "La contraseña debe tener al menos 6 caracteres.");
+
+    const targetEmail = String(email).toLowerCase().trim();
+
+    // Crear en Firebase Auth
+    let uid;
+    try {
+      const userRecord = await getAuth().createUser({ email: targetEmail, password });
+      uid = userRecord.uid;
+    } catch (authErr) {
+      if (authErr.code === "auth/email-already-exists") {
+        throw new HttpsError("already-exists", "Ya existe un usuario con ese correo en Firebase Auth.");
+      }
+      throw authErr;
+    }
+
+    // Crear documento en Firestore SIN guardar la contraseña
+    await db.doc(`usuarios/${targetEmail}`).set({
+      email: targetEmail,
+      rol,
+      estado: "Activo",
+      creadoEn: new Date().toISOString(),
+      creadoPor: callerEmail,
+      uid,
+    });
+
+    console.log(`[crearUsuarioAdmin] ${targetEmail} (${rol}) creado por ${callerEmail}`);
+    return { ok: true, uid };
+  }
+);
+
 // [C-06] Elimina usuario de Firebase Auth + Firestore. Solo admin.
 export const borrarUsuarioAdmin = onCall(
   { region: "us-central1", cors: ALLOWED_ORIGINS },

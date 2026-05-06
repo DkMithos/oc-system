@@ -1,6 +1,8 @@
 // src/utils/consultaSunat.js
 // Consulta datos de RUC a través del proxy Cloud Function (/api/sunat).
-// El proxy (sunatProxy.js) maneja la autenticación con apis.net.pe y el CORS.
+// [C-02] Envía el token de Firebase Auth en el header Authorization.
+
+import { auth } from "../firebase/config";
 
 const tryJson = async (url, init = {}) => {
   const controller = new AbortController();
@@ -24,6 +26,16 @@ export const consultarSunat = async (ruc) => {
   const trimmed = String(ruc || "").replace(/\D/g, "");
   if (trimmed.length !== 11) throw new Error("RUC inválido: debe tener 11 dígitos.");
 
+  // Obtener token del usuario autenticado
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Debes iniciar sesión para consultar SUNAT.");
+  const idToken = await currentUser.getIdToken();
+
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${idToken}`,
+  };
+
   // 1) Proxy same-origin via Firebase Hosting rewrite → Cloud Function sunatProxy
   const url1 = `/api/sunat?ruc=${encodeURIComponent(trimmed)}`;
 
@@ -36,17 +48,17 @@ export const consultarSunat = async (ruc) => {
 
   for (const url of candidates) {
     try {
-      const data = await tryJson(url);
+      const data = await tryJson(url, { headers });
       if (!data.razonSocial && !data.nombre) {
         errors.push(`${url}: respuesta vacía`);
         continue;
       }
       return {
-        ruc:         data.ruc         || data.numeroDocumento || data.numero || trimmed,
-        razonSocial: data.razonSocial || data.nombre || "",
-        direccion:   data.direccion   || data.direccionFiscal || "",
-        estado:      data.estado      || "",
-        condicion:   data.condicion   || "",
+        ruc:          data.ruc          || data.numeroDocumento || data.numero || trimmed,
+        razonSocial:  data.razonSocial  || data.nombre || "",
+        direccion:    data.direccion    || data.direccionFiscal || "",
+        estado:       data.estado       || "",
+        condicion:    data.condicion    || "",
         departamento: data.departamento || "",
       };
     } catch (e) {

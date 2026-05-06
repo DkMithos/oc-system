@@ -5,6 +5,7 @@
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { obtenerTipoCambio } from "./tipoCambio";
 
 /** Catálogo central de roles */
 export const ROLES = {
@@ -29,14 +30,22 @@ export const UMBRALES_DEFAULT = {
   tipoCambioDef:     3.8,    // usado para convertir USD → SOL si monto en USD
 };
 
-/** Lee la configuración de aprobaciones desde Firestore */
+/** Lee la configuración de aprobaciones desde Firestore, enriquecida con el TC vigente de SUNAT */
 export const obtenerConfigAprobaciones = async () => {
-  try {
-    const snap = await getDoc(doc(db, "configuracion", "aprobaciones"));
-    return snap.exists() ? snap.data() : UMBRALES_DEFAULT;
-  } catch {
-    return UMBRALES_DEFAULT;
-  }
+  const [snap, tcVivo] = await Promise.allSettled([
+    getDoc(doc(db, "configuracion", "aprobaciones")),
+    obtenerTipoCambio(),
+  ]);
+
+  const base = snap.status === "fulfilled" && snap.value.exists()
+    ? snap.value.data()
+    : UMBRALES_DEFAULT;
+
+  const tipoCambioDef = tcVivo.status === "fulfilled" && tcVivo.value > 0
+    ? tcVivo.value
+    : base.tipoCambioDef ?? UMBRALES_DEFAULT.tipoCambioDef;
+
+  return { ...base, tipoCambioDef };
 };
 
 /** Guarda la configuración de aprobaciones (solo admin) */

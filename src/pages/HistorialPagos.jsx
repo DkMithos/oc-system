@@ -1,7 +1,7 @@
 // src/pages/HistorialPagos.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
-import { obtenerOCs, obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
+import { obtenerOCsPagadas, obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import ExportMenu from "../components/ExportMenu";
 
@@ -39,13 +39,15 @@ const HistorialPagos = () => {
   const [busqueda, setBusqueda]     = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const POR_PAGINA = 20;
 
   useEffect(() => {
     if (loading) return;
     (async () => {
       try {
-        const data = await obtenerOCs(500);
-        setPagadas((data || []).filter((o) => o.estado === "Pagado" || o.estado === "Pago Parcial"));
+        const data = await obtenerOCsPagadas();
+        setPagadas(data || []);
       } finally {
         setCargando(false);
       }
@@ -72,6 +74,12 @@ const HistorialPagos = () => {
         (!fechaHasta || fecha <= fechaHasta);
     });
   }, [pagadas, busqueda, fechaDesde, fechaHasta]);
+
+  // Reset page when filters change
+  useEffect(() => { setPaginaActual(1); }, [busqueda, fechaDesde, fechaHasta]);
+
+  const totalPaginas = Math.ceil(filtradas.length / POR_PAGINA);
+  const filtradas_pag = filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
 
   const totalPagado = useMemo(
     () => filtradas.reduce((acc, o) => acc + Number(o.montoPagado || 0), 0),
@@ -151,7 +159,7 @@ const HistorialPagos = () => {
                   No hay pagos registrados con los filtros actuales.
                 </td>
               </tr>
-            ) : filtradas.map((o) => {
+            ) : filtradas_pag.map((o) => {
               const moneda = o.monedaSeleccionada === "Dólares" ? "Dólares" : "Soles";
               return (
                 <tr key={o.id} className="border-t hover:bg-gray-50">
@@ -198,6 +206,40 @@ const HistorialPagos = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {totalPaginas > 1 && (
+        <div className="flex justify-center items-center mt-4 gap-1 flex-wrap">
+          <button
+            onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+            disabled={paginaActual === 1}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100"
+          >‹</button>
+          {(() => {
+            const win = 5;
+            let start = Math.max(1, paginaActual - Math.floor(win / 2));
+            let end = Math.min(totalPaginas, start + win - 1);
+            if (end - start < win - 1) start = Math.max(1, end - win + 1);
+            return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPaginaActual(p)}
+                className={`px-3 py-1 border rounded text-sm ${
+                  p === paginaActual
+                    ? "bg-[#004990] text-white border-[#004990]"
+                    : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"
+                }`}
+              >{p}</button>
+            ));
+          })()}
+          <button
+            onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+            disabled={paginaActual === totalPaginas}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100"
+          >›</button>
+          <span className="text-xs text-gray-400 ml-1">{paginaActual}/{totalPaginas}</span>
+        </div>
+      )}
 
       {/* Panel de adjuntos */}
       {abierta && (

@@ -50,25 +50,16 @@ export const obtenerUsuarios = async () => {
 };
 
 
-// Crear usuario con contraseña inicial (opcional)
-export const guardarUsuario = async ({ email, rol, password }) => {
+// [C-01] La creación de usuarios se hace vía Cloud Function crearUsuarioAdmin.
+// Esta función solo se usa como fallback para crear el doc en Firestore si el uid ya existe en Auth.
+export const guardarUsuario = async ({ email, rol }) => {
   if (!email || !rol) throw new Error("El usuario debe tener correo y rol.");
   const userRef = doc(db, USUARIOS_COLLECTION, email);
   await setDoc(userRef, {
     email,
     rol,
     estado: "Activo",
-    password: password || null,
     creadoEn: new Date().toISOString(),
-  });
-};
-
-export const actualizarPasswordUsuario = async (email, nuevaPassword) => {
-  if (!email || !nuevaPassword) throw new Error("Datos incompletos.");
-  const ref = doc(db, USUARIOS_COLLECTION, email);
-  await updateDoc(ref, {
-    password: nuevaPassword,
-    actualizadoEn: new Date().toISOString(),
   });
 };
 
@@ -213,7 +204,7 @@ export const obtenerOCsPaginadas = async (pageSize = 30, lastVisible = null) => 
   return { items, lastDoc, hasMore: snapshot.docs.length === pageSize };
 };
 
-// [F-03] Trae solo OCs con estado "Aprobada" — evita cargar todo para RegistrarPago
+// Trae OCs con estado "Aprobada" — para RegistrarPago (legacy, usar obtenerOCsPendientesPago)
 export const obtenerOCsAprobadas = async () => {
   const q = query(
     collection(db, OC_COLLECTION),
@@ -223,6 +214,75 @@ export const obtenerOCsAprobadas = async () => {
   return snapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((x) => x?.eliminada !== true);
+};
+
+// Trae OCs pendientes de pago: "Aprobada" + "Pago Parcial" — para RegistrarPago mejorado
+export const obtenerOCsPendientesPago = async () => {
+  const snaps = await Promise.allSettled(
+    ["Aprobada", "Pago Parcial"].map((e) =>
+      getDocs(query(collection(db, OC_COLLECTION), where("estado", "==", e)))
+    )
+  );
+  return snaps
+    .filter((r) => r.status === "fulfilled")
+    .flatMap((r) => r.value.docs.map((d) => ({ id: d.id, ...d.data() })))
+    .filter((x) => x?.eliminada !== true)
+    .sort((a, b) => {
+      const ta = a.creadaEn?.toMillis?.() ?? 0;
+      const tb = b.creadaEn?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+};
+
+// [M-01] Trae solo OCs en estado Pagado o Pago Parcial para HistorialPagos.
+export const obtenerOCsPagadas = async () => {
+  const snaps = await Promise.all(
+    ["Pagado", "Pago Parcial"].map((e) =>
+      getDocs(query(collection(db, OC_COLLECTION), where("estado", "==", e)))
+    )
+  );
+  return snaps
+    .flatMap((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    .filter((x) => x?.eliminada !== true)
+    .sort((a, b) => (b.fechaPago || "").localeCompare(a.fechaPago || ""));
+};
+
+// [F-01] Trae TODAS las OCs (excepto eliminadas y rechazadas) para el módulo de pagos por CC.
+export const obtenerOCsPorEstadoPago = async () => {
+  const snap = await getDocs(collection(db, OC_COLLECTION));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((x) => x?.eliminada !== true && x?.estado !== "Rechazada")
+    .sort((a, b) => {
+      const ta = a.creadaEn?.toMillis?.() ?? 0;
+      const tb = b.creadaEn?.toMillis?.() ?? 0;
+      return tb - ta;
+    });
+};
+
+// [F-05] Query con filtros completos para export (sin límite de cursor).
+// Devuelve todos los documentos que coincidan con los filtros dados.
+export const obtenerOCsConFiltros = async ({ estadoFiltro, fechaDesde, fechaHasta, centroCosto, moneda } = {}) => {
+  const condiciones = [where("eliminada", "!=", true), orderBy("eliminada"), orderBy("creadaEn", "desc")];
+
+  const snapshot = await getDocs(query(collection(db, OC_COLLECTION), ...condiciones));
+  let items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  // Filtros en memoria (Firestore no soporta múltiples where con desigualdad en campos distintos)
+  if (estadoFiltro && estadoFiltro !== "Todos") {
+    items = items.filter((x) => x.estado === estadoFiltro);
+  }
+  if (fechaDesde) items = items.filter((x) => (x.fechaEmision || "") >= fechaDesde);
+  if (fechaHasta) items = items.filter((x) => (x.fechaEmision || "") <= fechaHasta);
+  if (centroCosto) {
+    const cc = String(centroCosto).toLowerCase();
+    items = items.filter((x) => String(x.centroCosto || "").toLowerCase().includes(cc));
+  }
+  if (moneda) {
+    items = items.filter((x) => x.monedaSeleccionada === moneda);
+  }
+
+  return items;
 };
 
 export const obtenerOCporId = async (id) => {
@@ -394,28 +454,34 @@ export const resolverSolicitudEdicion = async (
  */
 export const aprobarOC = async (ordenId, aprobador, rolAprobador, comentario = "") => {
   const ref = doc(db, OC_COLLECTION, ordenId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Orden no encontrada");
 
-  const orden = snap.data();
-  const estadoActual = orden.estado;
-  const montoTotal = Number(orden?.resumen?.total || orden?.total || 0);
-  const nuevoEstado = siguienteEstado(estadoActual, montoTotal);
+  // [C-03] Transacción atómica para prevenir race conditions entre aprobadores simultáneos.
+  const nuevoEstado = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Orden no encontrada");
 
-  const entrada = {
-    estado: estadoActual,
-    aprobadoPor: aprobador,
-    rol: rolAprobador,
-    comentario,
-    fecha: new Date().toISOString(),
-    accion: "aprobado",
-  };
+    const orden = snap.data();
+    const estadoActual = orden.estado;
+    const montoTotal = Number(orden?.resumen?.total || orden?.total || 0);
+    const calculado = siguienteEstado(estadoActual, montoTotal);
 
-  await updateDoc(ref, {
-    estado: nuevoEstado,
-    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
-    actualizadoEn: new Date().toISOString(),
-    [`firmas.${rolAprobador.replace(/ /g, "")}`]: aprobador,
+    const entrada = {
+      estado: estadoActual,
+      aprobadoPor: aprobador,
+      rol: rolAprobador,
+      comentario,
+      fecha: new Date().toISOString(),
+      accion: "aprobado",
+    };
+
+    tx.update(ref, {
+      estado: calculado,
+      historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+      actualizadoEn: new Date().toISOString(),
+      [`firmas.${rolAprobador.replace(/ /g, "")}`]: aprobador,
+    });
+
+    return calculado;
   });
 
   await registrarLog({
@@ -423,7 +489,6 @@ export const aprobarOC = async (ordenId, aprobador, rolAprobador, comentario = "
     ocId: ordenId,
     usuario: aprobador,
     rol: rolAprobador,
-    estadoAnterior: estadoActual,
     estadoNuevo: nuevoEstado,
     comentario,
   });
@@ -432,28 +497,35 @@ export const aprobarOC = async (ordenId, aprobador, rolAprobador, comentario = "
 };
 
 /**
- * Rechaza una OC en su etapa actual.
+ * Rechaza una OC en su etapa actual (también en transacción para consistencia).
  */
 export const rechazarOC = async (ordenId, rechazadoPor, rolRechazador, motivo = "") => {
   const ref = doc(db, OC_COLLECTION, ordenId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Orden no encontrada");
 
-  const orden = snap.data();
-  const estadoActual = orden.estado;
-  const entrada = {
-    estado: estadoActual,
-    aprobadoPor: rechazadoPor,
-    rol: rolRechazador,
-    comentario: motivo,
-    fecha: new Date().toISOString(),
-    accion: "rechazado",
-  };
+  // [C-03] Transacción atómica
+  const estadoAnterior = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Orden no encontrada");
 
-  await updateDoc(ref, {
-    estado: "Rechazado",
-    historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
-    actualizadoEn: new Date().toISOString(),
+    const orden = snap.data();
+    const estadoActual = orden.estado;
+
+    const entrada = {
+      estado: estadoActual,
+      aprobadoPor: rechazadoPor,
+      rol: rolRechazador,
+      comentario: motivo,
+      fecha: new Date().toISOString(),
+      accion: "rechazado",
+    };
+
+    tx.update(ref, {
+      estado: "Rechazado",
+      historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
+      actualizadoEn: new Date().toISOString(),
+    });
+
+    return estadoActual;
   });
 
   await registrarLog({
@@ -461,7 +533,7 @@ export const rechazarOC = async (ordenId, rechazadoPor, rolRechazador, motivo = 
     ocId: ordenId,
     usuario: rechazadoPor,
     rol: rolRechazador,
-    estadoAnterior: estadoActual,
+    estadoAnterior,
     motivo,
   });
 };

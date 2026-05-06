@@ -1,6 +1,13 @@
 // src/pages/FirmarOC.jsx
-// Flujo de aprobación: Comprador firma al crear → Operaciones → (si >5k SOL) Gerencia General → Aprobada
-// Umbrales configurables desde Admin (Firestore: configuracion/aprobaciones)
+// Flujo de aprobación vigente:
+//   Comprador → Operaciones → (si monto >umbral en SOL) Gerencia General → Aprobada
+//
+// NOTA [F-06]: El puesto "Gerencia de Operaciones" está inactivo en la empresa.
+//   El estado "Pendiente de Gerencia Operaciones" es LEGADO de una versión anterior.
+//   Las OCs que aún se encuentren en ese estado son reintegradas al flujo normal
+//   (→ Pendiente de Operaciones) mediante ESTADO_OVERRIDE_NEXT más abajo.
+//   El nuevo flujo NO genera este estado; está gestionado solo por etapasRequeridas()
+//   en aprobaciones.js, que no lo incluye.
 
 import React, { useEffect, useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
@@ -13,7 +20,7 @@ import {
   guardarFirmaUsuario,
   registrarLog,
 } from "../firebase/firestoreHelpers";
-import { notificarUsuario } from "../firebase/notifs";
+import { notificarUsuario, notificarRol } from "../firebase/notifs";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
@@ -49,8 +56,8 @@ const ESTADO_OVERRIDE_NEXT = {
 
 // Destinatario de notificación para el siguiente estado
 const NOTIF_ROL_SIGUIENTE = {
-  "Pendiente de Operaciones":      "__rol:operaciones",
-  "Pendiente de Gerencia General": "__rol:gerencia general",
+  "Pendiente de Operaciones":      "operaciones",
+  "Pendiente de Gerencia General": "gerencia general",
 };
 
 // Pasos del flujo (para el timeline visual)
@@ -201,10 +208,10 @@ const FirmarOC = () => {
           ocId: orden.id,
         }).catch(() => {});
       } else {
-        const dest = NOTIF_ROL_SIGUIENTE[nuevoEstado];
-        if (dest) {
-          notificarUsuario({
-            email: dest,
+        const rolDest = NOTIF_ROL_SIGUIENTE[nuevoEstado];
+        if (rolDest) {
+          notificarRol({
+            rol: rolDest,
             title: "OC pendiente de tu aprobación",
             body: `La OC ${orden.numeroOC || orden.numero} requiere tu revisión — ${nuevoEstado}.`,
             ocId: orden.id,

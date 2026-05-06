@@ -1,27 +1,27 @@
+// src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
 import React, { useEffect, useMemo, useState } from "react";
 import { obtenerOCs } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from "chart.js";
-import { Pie, Bar } from "react-chartjs-2";
 import { useNavigate } from "react-router-dom";
+import {
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+} from "recharts";
 
-ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
-
-// Etiqueta/color por estado
 const ESTADO_COLOR = {
-  "Aprobada":                  "#32cd32",
-  "Pagado":                    "#004990",
-  "Pago Parcial":              "#f59e0b",
-  "Pendiente de Comprador":    "#fbc102",
-  "Pendiente de Operaciones":  "#fb923c",
+  "Aprobada":                      "#32cd32",
+  "Pagado":                        "#004990",
+  "Pago Parcial":                  "#f59e0b",
+  "Pendiente de Comprador":        "#fbc102",
+  "Pendiente de Operaciones":      "#fb923c",
   "Pendiente de Gerencia General": "#a78bfa",
-  "Rechazada":                 "#ff6347",
+  "Rechazada":                     "#ff6347",
 };
 const colorOf = (estado) => ESTADO_COLOR[estado] || "#aaa";
 
 const ResumenGeneral = () => {
   const navigate = useNavigate();
-  const [ocs, setOcs]       = useState([]);
+  const [ocs, setOcs]           = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
@@ -35,67 +35,55 @@ const ResumenGeneral = () => {
     })();
   }, []);
 
-  // ── OCs por estado ──────────────────────────────────────────
   const estadosCount = useMemo(() => ocs.reduce((acc, oc) => {
     const e = oc.estado || "Sin estado";
     acc[e] = (acc[e] || 0) + 1;
     return acc;
   }, {}), [ocs]);
 
-  // ── Total por moneda ────────────────────────────────────────
   const totalPorMoneda = useMemo(() => ocs.reduce((acc, oc) => {
     const moneda = oc.monedaSeleccionada || "Soles";
-    const monto  = Number(oc.resumen?.total || 0);
-    acc[moneda]  = (acc[moneda] || 0) + monto;
+    acc[moneda] = (acc[moneda] || 0) + Number(oc.resumen?.total || 0);
     return acc;
   }, {}), [ocs]);
 
-  // ── Top 5 proveedores por monto ─────────────────────────────
   const topProveedores = useMemo(() => {
     const mapa = ocs.reduce((acc, oc) => {
       const nombre = oc.proveedor?.razonSocial || "Sin proveedor";
       acc[nombre] = (acc[nombre] || 0) + Number(oc.resumen?.total || 0);
       return acc;
     }, {});
-    return Object.entries(mapa).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return Object.entries(mapa)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([nombre, monto]) => ({ nombre: nombre.length > 22 ? nombre.slice(0, 22) + "…" : nombre, monto: Math.round(monto) }));
   }, [ocs]);
 
-  // ── Firmas pendientes (estados intermedios sin firma de esa etapa) ──
   const pendientesFirma = useMemo(() => ocs.filter((oc) => {
-    if (oc.estado === "Pendiente de Comprador"        && !oc.firmas?.comprador)        return true;
-    if (oc.estado === "Pendiente de Operaciones"      && !oc.firmas?.operaciones)      return true;
-    if (oc.estado === "Pendiente de Gerencia General" && !oc.firmas?.gerenciaGeneral)  return true;
+    if (oc.estado === "Pendiente de Comprador"        && !oc.firmas?.comprador)       return true;
+    if (oc.estado === "Pendiente de Operaciones"      && !oc.firmas?.operaciones)     return true;
+    if (oc.estado === "Pendiente de Gerencia General" && !oc.firmas?.gerenciaGeneral) return true;
     return false;
   }), [ocs]);
 
-  // ── KPIs rápidos ────────────────────────────────────────────
-  const totalMonto = useMemo(
-    () => ocs.reduce((a, o) => a + Number(o.resumen?.total || 0), 0),
-    [ocs]
-  );
-  const aprobadas = useMemo(() => ocs.filter((o) => o.estado === "Aprobada").length, [ocs]);
-  const pagadas   = useMemo(() => ocs.filter((o) => o.estado === "Pagado" || o.estado === "Pago Parcial").length, [ocs]);
+  const totalMonto = useMemo(() => ocs.reduce((a, o) => a + Number(o.resumen?.total || 0), 0), [ocs]);
+  const aprobadas  = useMemo(() => ocs.filter((o) => o.estado === "Aprobada").length, [ocs]);
+  const pagadas    = useMemo(() => ocs.filter((o) => o.estado === "Pagado" || o.estado === "Pago Parcial").length, [ocs]);
 
   if (cargando) return <div className="p-6">Cargando…</div>;
 
-  const pieLabels  = Object.keys(estadosCount);
-  const pieData    = Object.values(estadosCount);
-  const pieColors  = pieLabels.map(colorOf);
+  const pieData = Object.entries(estadosCount).map(([estado, count]) => ({ name: estado, value: count }));
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4 text-[#004990]">Resumen General</h2>
 
-      {/* KPI rápidos */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <KPICard label="Total OCs" value={ocs.length} />
-        <KPICard label="Aprobadas" value={aprobadas} color="text-green-700" />
-        <KPICard label="Con pago" value={pagadas} color="text-blue-700" />
-        <KPICard
-          label="Monto total"
-          value={formatearMoneda(totalMonto, "Soles")}
-          color="text-[#004990]"
-        />
+        <KPICard label="Total OCs"  value={ocs.length} />
+        <KPICard label="Aprobadas"  value={aprobadas}  color="text-green-700" />
+        <KPICard label="Con pago"   value={pagadas}    color="text-blue-700" />
+        <KPICard label="Monto total" value={formatearMoneda(totalMonto, "Soles")} color="text-[#004990]" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -103,12 +91,17 @@ const ResumenGeneral = () => {
         <div className="bg-white p-4 rounded shadow">
           <h3 className="font-bold text-lg mb-2">OCs por Estado</h3>
           {pieData.length > 0 ? (
-            <Pie
-              data={{
-                labels: pieLabels,
-                datasets: [{ label: "# OCs", data: pieData, backgroundColor: pieColors }],
-              }}
-            />
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, value }) => `${value}`}>
+                  {pieData.map(({ name }) => (
+                    <Cell key={name} fill={colorOf(name)} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v, n) => [v, n]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           ) : <p className="text-gray-400 text-sm">Sin datos</p>}
         </div>
 
@@ -122,27 +115,23 @@ const ResumenGeneral = () => {
                 <strong>{formatearMoneda(total, moneda === "Dólares" ? "Dólares" : "Soles")}</strong>
               </li>
             ))}
-            {Object.keys(totalPorMoneda).length === 0 && (
-              <p className="text-gray-400 text-sm">Sin datos</p>
-            )}
+            {Object.keys(totalPorMoneda).length === 0 && <p className="text-gray-400 text-sm">Sin datos</p>}
           </ul>
         </div>
 
-        {/* Top 5 Proveedores */}
+        {/* Top 5 proveedores */}
         <div className="bg-white p-4 rounded shadow col-span-1 md:col-span-2">
           <h3 className="font-bold text-lg mb-2">Top 5 Proveedores (por monto)</h3>
           {topProveedores.length > 0 ? (
-            <Bar
-              data={{
-                labels: topProveedores.map(([nombre]) => nombre),
-                datasets: [{
-                  label: "Monto Total (S/)",
-                  data: topProveedores.map(([, monto]) => monto),
-                  backgroundColor: "#004990",
-                }],
-              }}
-              options={{ indexAxis: "y", plugins: { legend: { display: false } } }}
-            />
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={topProveedores} layout="vertical" margin={{ left: 20, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `S/${(v/1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="nombre" width={150} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => [`S/ ${v.toLocaleString("es-PE")}`, "Monto"]} />
+                <Bar dataKey="monto" fill="#004990" radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           ) : <p className="text-gray-400 text-sm">Sin datos</p>}
         </div>
       </div>

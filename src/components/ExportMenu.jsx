@@ -4,20 +4,22 @@
 //   <ExportMenu data={filas} nombre="historial-oc" columnas={[...]} headers={{...}} titulo="Historial OC" />
 
 import { useState, useRef, useEffect } from "react";
-import { Download, FileSpreadsheet, FileText, Table2, ChevronDown } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Table2, ChevronDown, Loader2 } from "lucide-react";
 import { exportExcel, exportCSV, exportPDF } from "../utils/exportUtils";
 
 const ExportMenu = ({
-  data      = [],
-  nombre    = "exportacion",
-  titulo    = "Reporte",
-  subtitulo = "",
-  columnas  = null,
-  headers   = {},
-  orientacion = "landscape",
-  disabled  = false,
+  data         = [],
+  dataProvider = null,   // async () => row[] — si se provee, se llama al exportar
+  nombre       = "exportacion",
+  titulo       = "Reporte",
+  subtitulo    = "",
+  columnas     = null,
+  headers      = {},
+  orientacion  = "landscape",
+  disabled     = false,
 }) => {
   const [open, setOpen] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -31,54 +33,51 @@ const ExportMenu = ({
   const opts = { nombre, titulo, subtitulo, columnas, headers, orientacion };
 
   const acciones = [
-    {
-      label: "Excel (.xlsx)",
-      icon: FileSpreadsheet,
-      color: "text-green-700",
-      action: () => exportExcel(data, opts),
-    },
-    {
-      label: "CSV",
-      icon: Table2,
-      color: "text-blue-700",
-      action: () => exportCSV(data, opts),
-    },
-    {
-      label: "PDF",
-      icon: FileText,
-      color: "text-red-700",
-      action: () => exportPDF(data, opts),
-    },
+    { label: "Excel (.xlsx)", icon: FileSpreadsheet, color: "text-green-700", fn: exportExcel },
+    { label: "CSV",            icon: Table2,          color: "text-blue-700",  fn: exportCSV   },
+    { label: "PDF",            icon: FileText,         color: "text-red-700",   fn: exportPDF   },
   ];
 
-  const handleAction = (fn) => {
-    fn();
+  const handleAction = async (fn) => {
     setOpen(false);
+    if (dataProvider) {
+      setFetching(true);
+      try {
+        const rows = await dataProvider();
+        fn(rows, opts);
+      } finally {
+        setFetching(false);
+      }
+    } else {
+      fn(data, opts);
+    }
   };
+
+  const hasData = dataProvider || data.length > 0;
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        disabled={disabled || !data.length}
+        disabled={disabled || !hasData || fetching}
         className="btn btn-export btn-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-        title={!data.length ? "Sin datos para exportar" : "Exportar"}
+        title={!hasData ? "Sin datos para exportar" : fetching ? "Preparando…" : "Exportar"}
       >
-        <Download size={13} />
-        <span className="hidden sm:inline">Exportar</span>
-        <ChevronDown size={11} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />
+        {fetching ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+        <span className="hidden sm:inline">{fetching ? "Preparando…" : "Exportar"}</span>
+        {!fetching && <ChevronDown size={11} className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`} />}
       </button>
 
       {open && (
         <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-lg
                         border border-gray-100 py-1 z-50">
           <p className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-            {data.length} registro{data.length !== 1 ? "s" : ""}
+            {dataProvider ? "Todos los registros filtrados" : `${data.length} registro${data.length !== 1 ? "s" : ""}`}
           </p>
-          {acciones.map(({ label, icon: Icon, color, action }) => (
+          {acciones.map(({ label, icon: Icon, color, fn }) => (
             <button
               key={label}
-              onClick={() => handleAction(action)}
+              onClick={() => handleAction(fn)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700
                          hover:bg-gray-50 transition-colors"
             >

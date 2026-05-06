@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import ExportMenu from "../components/ExportMenu";
 
-import { obtenerOCsPaginadas } from "../firebase/firestoreHelpers";
+import { obtenerOCsPaginadas, obtenerOCsConFiltros } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import VerOCModal from "../components/VerOCModal";
 import FirmarLoteModal from "../components/FirmarLoteModal";
@@ -437,7 +437,25 @@ const Historial = () => {
             Limpiar
           </button>
           <ExportMenu
-            data={ordenesProcesadas.map(flattenOC)}
+            dataProvider={async () => {
+              const todos = await obtenerOCsConFiltros({
+                estadoFiltro,
+                fechaDesde,
+                fechaHasta,
+                centroCosto: filtroCentroCosto,
+              });
+              // Aplica filtro de texto en cliente
+              const q = (busqueda || "").trim().toLowerCase();
+              const filtrados = q
+                ? todos.filter((oc) => {
+                    const n = (oc.numeroOC || oc.numero || "").toString().toLowerCase();
+                    const p = (oc.proveedor?.razonSocial || "").toLowerCase();
+                    const e = (oc.estado || "").toLowerCase();
+                    return n.includes(q) || p.includes(q) || e.includes(q);
+                  })
+                : todos;
+              return filtrados.map(flattenOC);
+            }}
             nombre={`historial-oc-${new Date().toISOString().slice(0,10)}`}
             titulo="Historial de Órdenes de Compra"
             columnas={HISTORIAL_COLS}

@@ -1,5 +1,6 @@
 // src/pages/FlujosFinancieros.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   obtenerCatalogosFinanzas,
   obtenerTransaccionesFinancieras,
@@ -87,7 +88,10 @@ function FlujosFinancieros() {
   const [centrosCosto, setCentrosCosto] = useState([]);
 
   const [filtros, setFiltros] = useState(initialFilters);
+  const [busquedaTabla, setBusquedaTabla] = useState("");
   const [transacciones, setTransacciones] = useState([]);
+  const [paginaTrans, setPaginaTrans] = useState(1);
+  const TRANS_POR_PAGINA = 25;
   const [cargando, setCargando] = useState(false);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
   const [error, setError] = useState("");
@@ -182,6 +186,7 @@ function FlujosFinancieros() {
         centro_costo_id: filtros.centro_costo_id || null,
       });
       setTransacciones(transacciones);
+      setPaginaTrans(1);
     } catch (e) {
       console.error(e);
       setError("Error cargando transacciones financieras.");
@@ -195,12 +200,22 @@ function FlujosFinancieros() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Filtrado local (text search)
+  const transaccionesFiltradas = useMemo(() => {
+    const q = busquedaTabla.trim().toLowerCase();
+    if (!q) return transacciones;
+    return transacciones.filter((t) =>
+      [t.proveedor_cliente_nombre, t.centro_costo_nombre, t.oc_numero, t.documento_numero, t.categoriaNombre, t.notas]
+        .some((v) => String(v || "").toLowerCase().includes(q))
+    );
+  }, [transacciones, busquedaTabla]);
+
   // Resumen
   const resumen = useMemo(() => {
     let ingresos = 0;
     let egresos = 0;
 
-    transacciones.forEach((t) => {
+    transaccionesFiltradas.forEach((t) => {
       const totalPen =
         t.monto_total_pen != null
           ? Number(t.monto_total_pen)
@@ -220,7 +235,7 @@ function FlujosFinancieros() {
       egresos: +egresos.toFixed(2),
       flujoNeto: +flujoNeto.toFixed(2),
     };
-  }, [transacciones]);
+  }, [transaccionesFiltradas]);
 
   // Filtros
   const handleFiltroChange = (e) => {
@@ -232,11 +247,89 @@ function FlujosFinancieros() {
     cargarTransacciones();
   };
 
-  const handleLimpiarFiltros = () => {
-    setFiltros(initialFilters());
-    setTimeout(() => {
-      cargarTransacciones();
-    }, 0);
+  const handleLimpiarFiltros = async () => {
+    const nuevo = initialFilters();
+    setFiltros(nuevo);
+    setBusquedaTabla("");
+    setCargando(true);
+    setError("");
+    try {
+      const { transacciones: data } = await obtenerTransaccionesFinancieras({
+        fechaDesde: nuevo.fechaDesde,
+        fechaHasta: nuevo.fechaHasta,
+        tipo: null, estado: null, categoriaId: null, centro_costo_id: null,
+      });
+      setTransacciones(data);
+      setPaginaTrans(1);
+    } catch (e) {
+      console.error(e);
+      setError("Error cargando transacciones financieras.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const aplicarPeriodo = async (dias) => {
+    const hoy = new Date();
+    const desde = dias === 0 ? "" : (() => {
+      const d = new Date();
+      if (dias === 365) { d.setFullYear(d.getFullYear(), 0, 1); }
+      else { d.setDate(d.getDate() - dias); }
+      return d;
+    })();
+    const nuevo = {
+      ...filtros,
+      fechaDesde: dias === 0 ? "" : (desde instanceof Date ? desde.toISOString().slice(0, 10) : ""),
+      fechaHasta: dias === 0 ? "" : hoy.toISOString().slice(0, 10),
+    };
+    setFiltros(nuevo);
+    setBusquedaTabla("");
+    setCargando(true);
+    setError("");
+    try {
+      const { transacciones: data } = await obtenerTransaccionesFinancieras({
+        fechaDesde: nuevo.fechaDesde || null,
+        fechaHasta: nuevo.fechaHasta || null,
+        tipo: nuevo.tipo || null,
+        estado: nuevo.estado || null,
+        categoriaId: nuevo.categoriaId || null,
+        centro_costo_id: nuevo.centro_costo_id || null,
+      });
+      setTransacciones(data);
+      setPaginaTrans(1);
+    } catch (e) {
+      console.error(e);
+      setError("Error cargando transacciones financieras.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const exportarExcel = () => {
+    const rows = transaccionesFiltradas.map((t) => ({
+      Fecha: t.fechaISO || "",
+      Tipo: t.tipo,
+      Clasificación: t.clasificacion || "",
+      Moneda: t.moneda,
+      "Monto sin IGV": Number(t.monto_sin_igv || 0).toFixed(2),
+      "Monto total": Number(t.monto_total ?? 0).toFixed(2),
+      "Monto total (S/)": Number(t.monto_total_pen ?? t.monto_total ?? 0).toFixed(2),
+      Categoría: t.categoriaNombre || "",
+      Subcategoría: t.subcategoriaNombre || "",
+      Proveedor: t.proveedor_cliente_nombre || "",
+      "Centro de Costo": t.centro_costo_nombre || "",
+      Proyecto: t.proyecto_nombre || "",
+      Estado: t.estado || "",
+      "Tipo Doc": t.documento_tipo || "",
+      "N° Doc": t.documento_numero || "",
+      "N° OC": t.oc_numero || "",
+      Notas: t.notas || "",
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = Object.keys(rows[0] || {}).map(() => ({ wch: 18 }));
+    XLSX.utils.book_append_sheet(wb, ws, "Flujos");
+    XLSX.writeFile(wb, `flujos-financieros-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   // Modal / form
@@ -507,9 +600,30 @@ function FlujosFinancieros() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-1">
-        Flujos financieros
-      </h1>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">
+          Flujos financieros
+        </h1>
+        <div className="flex items-center gap-2">
+          {transaccionesFiltradas.length > 0 && (
+            <button
+              type="button"
+              onClick={exportarExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-white border border-gray-300 hover:bg-gray-50 text-xs sm:text-sm font-medium text-gray-700 shadow-sm"
+            >
+              ⬇ Exportar Excel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleNuevoClick}
+            className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
+          >
+            + Nueva transacción
+          </button>
+        </div>
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
@@ -519,6 +633,36 @@ function FlujosFinancieros() {
 
       {/* Filtros */}
       <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 space-y-3 shadow-sm">
+        {/* Period presets */}
+        <div className="flex flex-wrap gap-1.5">
+          <span className="text-xs text-gray-500 self-center mr-1">Período:</span>
+          {[
+            { label: "30 días", dias: 30 },
+            { label: "Este mes", dias: -1 },
+            { label: "3 meses", dias: 90 },
+            { label: "6 meses", dias: 180 },
+            { label: "Este año", dias: 365 },
+            { label: "Todo", dias: 0 },
+          ].map(({ label, dias }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                if (dias === -1) {
+                  const hoy = new Date();
+                  const primero = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                  aplicarPeriodo(Math.ceil((hoy - primero) / 86400000));
+                } else {
+                  aplicarPeriodo(dias);
+                }
+              }}
+              className="px-2.5 py-1 rounded text-xs border border-gray-300 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap gap-3">
           <div className="flex flex-col">
             <label className="text-xs text-gray-600 mb-1">Desde</label>
@@ -618,31 +762,38 @@ function FlujosFinancieros() {
         <ResumenCard titulo="Flujo neto" valor={resumen.flujoNeto} resaltado />
       </div>
 
-      {/* Acciones */}
-      <div className="flex justify-between items-center mt-2">
+      {/* Text search + count */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              value={busquedaTabla}
+              onChange={(e) => { setBusquedaTabla(e.target.value); setPaginaTrans(1); }}
+              placeholder="Buscar proveedor, CC, OC, doc…"
+              className="pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
+            />
+          </div>
+          {cargandoCatalogos && <span className="text-xs text-gray-400">Cargando catálogos…</span>}
+        </div>
         <span className="text-xs text-gray-500">
-          {cargandoCatalogos && "Cargando catálogos..."}
+          {cargando ? "Cargando…" : `${transaccionesFiltradas.length} transacción${transaccionesFiltradas.length !== 1 ? "es" : ""}`}
         </span>
-        <button
-          type="button"
-          onClick={handleNuevoClick}
-          className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
-        >
-          Nueva transacción
-        </button>
       </div>
 
       {/* Tabla */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto mt-2 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto shadow-sm">
         <table className="min-w-full text-xs sm:text-sm">
           <thead className="bg-gray-50">
             <tr>
               <Th>Fecha</Th>
               <Th>Tipo</Th>
               <Th>Moneda</Th>
-              <Th className="text-right">Monto</Th>
+              <Th className="text-right">Monto (S/)</Th>
               <Th>Categoría</Th>
-              <Th>Subcategoría</Th>
+              <Th>Proveedor</Th>
+              <Th>Centro de Costo</Th>
               <Th>Estado</Th>
               <Th>Doc</Th>
               <Th>OC</Th>
@@ -650,15 +801,15 @@ function FlujosFinancieros() {
             </tr>
           </thead>
           <tbody>
-            {transacciones.length === 0 && !cargando && (
+            {transaccionesFiltradas.length === 0 && !cargando && (
               <tr>
-                <td colSpan={10} className="text-center text-gray-500 py-3">
+                <td colSpan={11} className="text-center text-gray-500 py-3">
                   No hay transacciones en el rango seleccionado.
                 </td>
               </tr>
             )}
 
-            {transacciones.map((t) => (
+            {transaccionesFiltradas.slice((paginaTrans - 1) * TRANS_POR_PAGINA, paginaTrans * TRANS_POR_PAGINA).map((t) => (
               <tr
                 key={t.id}
                 className="border-t border-gray-100 hover:bg-gray-50"
@@ -675,7 +826,8 @@ function FlujosFinancieros() {
                   })}
                 </Td>
                 <Td>{t.categoriaNombre}</Td>
-                <Td>{t.subcategoriaNombre}</Td>
+                <Td className="max-w-[140px] truncate" title={t.proveedor_cliente_nombre || ""}>{t.proveedor_cliente_nombre || "—"}</Td>
+                <Td className="max-w-[120px] truncate" title={t.centro_costo_nombre || ""}>{t.centro_costo_nombre || "—"}</Td>
                 <Td>{t.estado}</Td>
                 <Td>
                   {t.documento_tipo} {t.documento_numero}
@@ -695,6 +847,30 @@ function FlujosFinancieros() {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación transacciones */}
+      {Math.ceil(transaccionesFiltradas.length / TRANS_POR_PAGINA) > 1 && (
+        <div className="flex justify-center items-center mt-4 gap-1 flex-wrap">
+          <button onClick={() => setPaginaTrans((p) => Math.max(1, p - 1))} disabled={paginaTrans === 1}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100">‹</button>
+          {(() => {
+            const total = Math.ceil(transaccionesFiltradas.length / TRANS_POR_PAGINA);
+            const win = 5;
+            let start = Math.max(1, paginaTrans - Math.floor(win / 2));
+            let end = Math.min(total, start + win - 1);
+            if (end - start < win - 1) start = Math.max(1, end - win + 1);
+            return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
+              <button key={p} onClick={() => setPaginaTrans(p)}
+                className={`px-3 py-1 border rounded text-sm ${p === paginaTrans ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"}`}>
+                {p}
+              </button>
+            ));
+          })()}
+          <button onClick={() => setPaginaTrans((p) => Math.min(Math.ceil(transaccionesFiltradas.length / TRANS_POR_PAGINA), p + 1))} disabled={paginaTrans === Math.ceil(transaccionesFiltradas.length / TRANS_POR_PAGINA)}
+            className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100">›</button>
+          <span className="text-xs text-gray-400 ml-1">{paginaTrans}/{Math.ceil(transaccionesFiltradas.length / TRANS_POR_PAGINA)}</span>
+        </div>
+      )}
 
       {/* Modal */}
       {mostrarModal && (
@@ -1103,9 +1279,9 @@ function ResumenCard({ titulo, valor, resaltado }) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-      <div className="text-xs text-gray-500">{titulo}</div>
-      <div className={"mt-1 text-lg sm:text-xl font-semibold " + color}>
-        {valor.toLocaleString("es-PE", {
+      <div className="text-xs text-gray-500">{titulo} (S/)</div>
+      <div className={"mt-1 text-lg sm:text-xl font-semibold font-mono " + color}>
+        S/ {valor.toLocaleString("es-PE", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}
