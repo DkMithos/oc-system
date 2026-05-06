@@ -15,6 +15,50 @@ import {
 } from "../firebase/finanzasHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 
+// ── Area tabs ─────────────────────────────────────────────────
+const AREAS_CONFIG = [
+  { id: "administracion", label: "Admin",        color: "blue"   },
+  { id: "contabilidad",   label: "Contabilidad", color: "green"  },
+  { id: "operaciones",    label: "Operaciones",  color: "purple" },
+  { id: "ti",             label: "TI",           color: "orange" },
+  { id: "consolidado",    label: "Consolidado",  color: "gray"   },
+];
+
+const TABS_POR_ROL = {
+  administracion:       ["administracion", "consolidado"],
+  finanzas:             ["contabilidad", "consolidado"],
+  "gerencia finanzas":  ["consolidado", "contabilidad"],
+  operaciones:          ["operaciones", "consolidado"],
+  "gerencia operaciones": ["consolidado", "operaciones"],
+  "gerencia general":   ["consolidado"],
+  gerencia:             ["consolidado"],
+  admin:   ["administracion", "contabilidad", "operaciones", "ti", "consolidado"],
+  soporte: ["administracion", "contabilidad", "operaciones", "ti", "consolidado"],
+};
+
+const DEFAULT_AREA = {
+  administracion:         "administracion",
+  finanzas:               "contabilidad",
+  "gerencia finanzas":    "consolidado",
+  operaciones:            "operaciones",
+  "gerencia operaciones": "consolidado",
+  "gerencia general":     "consolidado",
+  gerencia:               "consolidado",
+  admin:                  "consolidado",
+  soporte:                "ti",
+};
+
+const AREA_POR_ROL = {
+  administracion: "administracion",
+  finanzas:       "contabilidad",
+  operaciones:    "operaciones",
+  soporte:        "ti",
+};
+
+const PUEDE_ESCRIBIR = new Set(["administracion", "finanzas", "operaciones", "admin", "soporte"]);
+
+const METODOS_PAGO_OPCIONES = ["Transferencia", "CIPRL", "Efectivo", "Cheque", "Detracción", "Retención"];
+
 const initialFilters = () => {
   const hoy = new Date();
   const hace30 = new Date();
@@ -69,10 +113,30 @@ const initialFormState = (usuario) => ({
   adjuntoFile: null,
   creadoPor: usuario?.nombreCompleto || usuario?.email || "",
   creadoPorUid: usuario?.uid || "",
+  // Campos extendidos — todos los flujos
+  mesVencimiento:    "",
+  montoPresupuestado: "",
+  postergado:        false,
+  detraccion:        "",
+  retencion:         "",
+  metodoPago:        "",
+  // Campos exclusivos Operaciones
+  codigoItem:        "",
+  cantidad:          "",
+  precioUnitario:    "",
+  diasCredito:       "",
+  fechaInicio:       "",
 });
 
 function FlujosFinancieros() {
   const { usuario } = useUsuario();
+  const rol = String(usuario?.rol || "").toLowerCase();
+
+  const tabsVisibles = TABS_POR_ROL[rol] || ["consolidado"];
+  const [areaTab, setAreaTab] = useState(() => DEFAULT_AREA[rol] || "consolidado");
+
+  const puedeEscribir = PUEDE_ESCRIBIR.has(rol);
+  const areaDefault = AREA_POR_ROL[rol] || null;
 
   const [catalogos, setCatalogos] = useState({
     igv: [],
@@ -200,15 +264,23 @@ function FlujosFinancieros() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filtrado local (text search)
+  // Filtrado local (área + text search)
   const transaccionesFiltradas = useMemo(() => {
+    let data = transacciones;
+    // Filtro por área (cliente)
+    if (areaTab !== "consolidado") {
+      data = data.filter((t) => (t.area || "") === areaTab);
+    }
+    // Búsqueda textual
     const q = busquedaTabla.trim().toLowerCase();
-    if (!q) return transacciones;
-    return transacciones.filter((t) =>
-      [t.proveedor_cliente_nombre, t.centro_costo_nombre, t.oc_numero, t.documento_numero, t.categoriaNombre, t.notas]
-        .some((v) => String(v || "").toLowerCase().includes(q))
-    );
-  }, [transacciones, busquedaTabla]);
+    if (q) {
+      data = data.filter((t) =>
+        [t.proveedor_cliente_nombre, t.centro_costo_nombre, t.oc_numero, t.documento_numero, t.categoriaNombre, t.notas]
+          .some((v) => String(v || "").toLowerCase().includes(q))
+      );
+    }
+    return data;
+  }, [transacciones, busquedaTabla, areaTab]);
 
   // Resumen
   const resumen = useMemo(() => {
@@ -562,6 +634,23 @@ function FlujosFinancieros() {
           usuario?.email ||
           "",
         creadoPorUid: form.creadoPorUid || usuario?.uid || "",
+        // Área del flujo
+        area: areaTab === "consolidado" ? (areaDefault || "ti") : areaTab,
+        // Campos extendidos comunes
+        mesVencimiento:     form.mesVencimiento    || null,
+        montoPresupuestado: form.montoPresupuestado ? Number(form.montoPresupuestado) : null,
+        postergado:         Boolean(form.postergado),
+        detraccion:         form.detraccion   ? Number(form.detraccion)   : null,
+        retencion:          form.retencion    ? Number(form.retencion)    : null,
+        metodoPago:         form.metodoPago   || "",
+        // Campos Operaciones
+        ...(areaTab === "operaciones" && {
+          codigoItem:     form.codigoItem    || "",
+          cantidad:       form.cantidad      ? Number(form.cantidad)       : null,
+          precioUnitario: form.precioUnitario ? Number(form.precioUnitario) : null,
+          diasCredito:    form.diasCredito   ? Number(form.diasCredito)    : null,
+          fechaInicio:    form.fechaInicio   || "",
+        }),
       };
 
       let idTransaccion = form.id || null;
@@ -615,19 +704,46 @@ function FlujosFinancieros() {
               ⬇ Exportar Excel
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleNuevoClick}
-            className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
-          >
-            + Nueva transacción
-          </button>
+          {puedeEscribir && (
+            <button
+              type="button"
+              onClick={handleNuevoClick}
+              className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
+            >
+              + Nueva transacción
+            </button>
+          )}
         </div>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
           {error}
+        </div>
+      )}
+
+      {/* Tabs de área */}
+      {tabsVisibles.length > 1 && (
+        <div className="flex gap-1 border-b border-gray-200">
+          {AREAS_CONFIG.filter((a) => tabsVisibles.includes(a.id)).map((area) => (
+            <button
+              key={area.id}
+              type="button"
+              onClick={() => { setAreaTab(area.id); setPaginaTrans(1); }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                areaTab === area.id
+                  ? "border-[#004990] text-[#004990]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {area.label}
+              {area.id === "consolidado" && (
+                <span className="ml-1.5 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                  todos
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       )}
 
@@ -788,6 +904,7 @@ function FlujosFinancieros() {
           <thead className="bg-gray-50">
             <tr>
               <Th>Fecha</Th>
+              {areaTab === "consolidado" && <Th>Área</Th>}
               <Th>Tipo</Th>
               <Th>Moneda</Th>
               <Th className="text-right">Monto (S/)</Th>
@@ -815,6 +932,13 @@ function FlujosFinancieros() {
                 className="border-t border-gray-100 hover:bg-gray-50"
               >
                 <Td>{t.fechaISO || ""}</Td>
+                {areaTab === "consolidado" && (
+                  <Td>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium capitalize">
+                      {t.area || "—"}
+                    </span>
+                  </Td>
+                )}
                 <Td>{t.tipo}</Td>
                 <Td>{t.moneda}</Td>
                 <Td className="text-right">
@@ -1198,6 +1322,80 @@ function FlujosFinancieros() {
                   onChange={handleChangeForm}
                   className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
+              </div>
+            </div>
+
+            {/* Campos Operaciones */}
+            {(areaTab === "operaciones" || form.area === "operaciones") && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-3">
+                <p className="col-span-full text-xs font-semibold text-purple-700 mb-0">Datos de Operaciones</p>
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600 mb-1">Código ítem</label>
+                  <input type="text" name="codigoItem" value={form.codigoItem} onChange={handleChangeForm}
+                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600 mb-1">Cantidad</label>
+                  <input type="number" step="1" name="cantidad" value={form.cantidad} onChange={handleChangeForm}
+                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600 mb-1">Precio unitario</label>
+                  <input type="number" step="0.01" name="precioUnitario" value={form.precioUnitario} onChange={handleChangeForm}
+                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600 mb-1">Días crédito</label>
+                  <input type="number" step="1" name="diasCredito" value={form.diasCredito} onChange={handleChangeForm}
+                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-xs text-gray-600 mb-1">Fecha inicio</label>
+                  <input type="date" name="fechaInicio" value={form.fechaInicio} onChange={handleChangeForm}
+                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                </div>
+              </div>
+            )}
+
+            {/* Campos extendidos comunes */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-3">
+              <p className="col-span-full text-xs font-semibold text-gray-500 mb-0">Datos adicionales</p>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Método de pago</label>
+                <select name="metodoPago" value={form.metodoPago} onChange={handleChangeForm}
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                  <option value="">Seleccione...</option>
+                  {METODOS_PAGO_OPCIONES.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Mes vencimiento</label>
+                <input type="month" name="mesVencimiento" value={form.mesVencimiento} onChange={handleChangeForm}
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Detracción (S/)</label>
+                <input type="number" step="0.01" name="detraccion" value={form.detraccion} onChange={handleChangeForm}
+                  placeholder="0.00"
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Retención (S/)</label>
+                <input type="number" step="0.01" name="retencion" value={form.retencion} onChange={handleChangeForm}
+                  placeholder="0.00"
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Monto presupuestado</label>
+                <input type="number" step="0.01" name="montoPresupuestado" value={form.montoPresupuestado} onChange={handleChangeForm}
+                  placeholder="0.00"
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div className="flex items-center gap-2 pt-4">
+                <input type="checkbox" id="postergado" name="postergado" checked={Boolean(form.postergado)}
+                  onChange={(e) => setForm((p) => ({ ...p, postergado: e.target.checked }))}
+                  className="accent-amber-500" />
+                <label htmlFor="postergado" className="text-xs text-gray-700 cursor-pointer">Postergado</label>
               </div>
             </div>
 

@@ -402,7 +402,7 @@ export async function obtenerTransaccionesFinancieras(filtros = {}) {
     estado,
     categoriaId,
     centro_costo_id,
-    pageSize = 200,
+    pageSize = 500,
     startAfterDoc,
   } = filtros;
 

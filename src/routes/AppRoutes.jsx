@@ -37,8 +37,9 @@ const Reporteria        = lazy(() => import("../pages/reportes/Reporteria"));
 const CentroExportaciones = lazy(() => import("../pages/reportes/CentroExportaciones"));
 const Inventario          = lazy(() => import("../pages/Inventario"));
 const RecepcionBienes     = lazy(() => import("../pages/RecepcionBienes"));
-const PagosPorCentroCosto = lazy(() => import("../pages/PagosPorCentroCosto"));
-const SolicitudesEdicion  = lazy(() => import("../pages/SolicitudesEdicion"));
+const PagosPorCentroCosto  = lazy(() => import("../pages/PagosPorCentroCosto"));
+const SolicitudesEdicion   = lazy(() => import("../pages/SolicitudesEdicion"));
+const ImportarFlujosExcel  = lazy(() => import("../pages/ImportarFlujosExcel"));
 
 // ── Todos los roles del sistema ──────────────────────────────
 const TODOS = [
@@ -163,6 +164,13 @@ const AppRoutes = () => (
       <Route path="pagos-cc" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general","gerencia","gerencia operaciones","operaciones"]}>
           <Suspense fallback={<Cargando />}><PagosPorCentroCosto /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* IMPORTAR FLUJOS EXCEL */}
+      <Route path="importar-flujos" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte"]}>
+          <Suspense fallback={<Cargando />}><ImportarFlujosExcel /></Suspense>
         </RutaProtegida>
       } />
 

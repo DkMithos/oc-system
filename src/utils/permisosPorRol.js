@@ -46,6 +46,7 @@ const permisosPorRol = {
     "/solicitudes-edicion",
     "/adminsoporte",
     "/flujos-financieros",
+    "/importar-flujos",
     "/reportes",
     "/exportaciones",
   ],
@@ -70,6 +71,7 @@ const permisosPorRol = {
     "/pago",
     "/adminsoporte",
     "/flujos-financieros",
+    "/importar-flujos",
   ],
 
   // Comprador (no firma OCs)

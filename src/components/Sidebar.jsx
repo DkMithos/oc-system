@@ -6,7 +6,7 @@ import {
   DollarSign, BarChart2, CreditCard, ArrowDownCircle, TrendingUp,
   PieChart, Download, Activity, LifeBuoy, MessageSquare, PenTool,
   Settings, FolderOpen, BookOpen, ChevronDown, LogOut, X,
-  Boxes, ClipboardCheck, Edit3
+  Boxes, ClipboardCheck, Edit3, Upload
 } from "lucide-react";
 import { puedeAcceder } from "../utils/permisosPorRol";
 import { useUsuario } from "../context/UsuarioContext";
@@ -42,6 +42,7 @@ const MENU = [
       { ruta: "/pagos-cc",          texto: "Pagos por Centro de Costo", icon: PieChart },
       { ruta: "/pago",              texto: "Registrar Pago",       icon: ArrowDownCircle },
       { ruta: "/flujos-financieros",texto: "Flujos Financieros",   icon: TrendingUp },
+      { ruta: "/importar-flujos",   texto: "Importar Flujos",      icon: Upload },
     ],
   },
   {
