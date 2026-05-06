@@ -459,6 +459,25 @@ export async function obtenerTransaccionesFinancieras(filtros = {}) {
   };
 }
 
+// Vista de planificación mensual
+
+export async function obtenerTransaccionesPlaneadas(mesDesde, mesHasta) {
+  const colRef = collection(db, COL_TRANSACCIONES);
+  const q = query(
+    colRef,
+    where("mesVencimiento", ">=", mesDesde),
+    where("mesVencimiento", "<=", mesHasta),
+    limit(2000)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => enriquecerTransaccion(d.data(), d.id));
+}
+
+export async function patchTransaccionFinanciera(id, campos) {
+  const docRef = doc(db, COL_TRANSACCIONES, id);
+  await updateDoc(docRef, { ...campos, actualizadoEn: Timestamp.now() });
+}
+
 // Adjuntos
 
 export async function subirAdjuntoFinanzas(file, transaccionId) {

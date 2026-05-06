@@ -46,6 +46,7 @@ const permisosPorRol = {
     "/solicitudes-edicion",
     "/adminsoporte",
     "/flujos-financieros",
+    "/planificacion",
     "/importar-flujos",
     "/reportes",
     "/exportaciones",
@@ -71,6 +72,7 @@ const permisosPorRol = {
     "/pago",
     "/adminsoporte",
     "/flujos-financieros",
+    "/planificacion",
     "/importar-flujos",
   ],
 
@@ -100,6 +102,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
+    "/planificacion",
     "/reportes",
     "/exportaciones",
     "/proveedores",
@@ -115,6 +118,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
+    "/planificacion",
   ],
 
   // Gerencia General
@@ -124,7 +128,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
-    // Si habilitas acceso al dashboard en AppRoutes para este rol, añade "/dashboard".
+    "/planificacion",
   ],
 
   // Finanzas/Contabilidad
@@ -139,6 +143,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
+    "/planificacion",
     "/exportaciones",
   ],
 
@@ -152,6 +157,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
+    "/planificacion",
     "/exportaciones",
   ],
 
@@ -165,6 +171,7 @@ const permisosPorRol = {
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
+    "/planificacion",
     "/reportes",
     "/exportaciones",
   ],
@@ -174,6 +181,7 @@ const permisosPorRol = {
     ...comunes,
     "/caja",
     "/flujos-financieros",
+    "/planificacion",
   ],
 
   // Legal

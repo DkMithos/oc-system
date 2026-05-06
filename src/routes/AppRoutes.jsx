@@ -40,6 +40,7 @@ const RecepcionBienes     = lazy(() => import("../pages/RecepcionBienes"));
 const PagosPorCentroCosto  = lazy(() => import("../pages/PagosPorCentroCosto"));
 const SolicitudesEdicion   = lazy(() => import("../pages/SolicitudesEdicion"));
 const ImportarFlujosExcel  = lazy(() => import("../pages/ImportarFlujosExcel"));
+const FlujoCajaPlanning    = lazy(() => import("../pages/FlujoCajaPlanning"));
 
 // ── Todos los roles del sistema ──────────────────────────────
 const TODOS = [
@@ -164,6 +165,13 @@ const AppRoutes = () => (
       <Route path="pagos-cc" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general","gerencia","gerencia operaciones","operaciones"]}>
           <Suspense fallback={<Cargando />}><PagosPorCentroCosto /></Suspense>
+        </RutaProtegida>
+      } />
+
+      {/* PLANIFICACIÓN DE PAGOS */}
+      <Route path="planificacion" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia finanzas","operaciones","gerencia operaciones","administracion","gerencia","gerencia general"]}>
+          <Suspense fallback={<Cargando />}><FlujoCajaPlanning /></Suspense>
         </RutaProtegida>
       } />
 
