@@ -38,8 +38,6 @@ const permisosPorRol = {
     "/cargar-maestros",
     "/logs",
     "/dashboard",
-    "/resumen",
-    "/indicadores",
     "/pagos",
     "/pagos-cc",
     "/pago",
@@ -50,6 +48,11 @@ const permisosPorRol = {
     "/importar-flujos",
     "/reportes",
     "/exportaciones",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   soporte: [
@@ -66,14 +69,17 @@ const permisosPorRol = {
     "/cargar-maestros",
     "/logs",
     "/dashboard",
-    "/resumen",
-    "/indicadores",
     "/pagos",
     "/pago",
     "/adminsoporte",
     "/flujos-financieros",
     "/planificacion",
     "/importar-flujos",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Comprador (no firma OCs)
@@ -106,6 +112,11 @@ const permisosPorRol = {
     "/reportes",
     "/exportaciones",
     "/proveedores",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Gerencia de Operaciones y Proyectos
@@ -119,6 +130,11 @@ const permisosPorRol = {
     "/solicitudes-edicion",
     "/flujos-financieros",
     "/planificacion",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Gerencia General
@@ -129,6 +145,11 @@ const permisosPorRol = {
     "/solicitudes-edicion",
     "/flujos-financieros",
     "/planificacion",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Finanzas/Contabilidad
@@ -145,6 +166,11 @@ const permisosPorRol = {
     "/flujos-financieros",
     "/planificacion",
     "/exportaciones",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Gerencia de Finanzas
@@ -159,6 +185,11 @@ const permisosPorRol = {
     "/flujos-financieros",
     "/planificacion",
     "/exportaciones",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Gerencia (rol genérico de directivos)
@@ -166,14 +197,17 @@ const permisosPorRol = {
     ...comunes,
     "/firmar",
     "/dashboard",
-    "/resumen",
-    "/indicadores",
     "/pagos-cc",
     "/solicitudes-edicion",
     "/flujos-financieros",
     "/planificacion",
     "/reportes",
     "/exportaciones",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Administración (sin acento)
@@ -182,6 +216,11 @@ const permisosPorRol = {
     "/caja",
     "/flujos-financieros",
     "/planificacion",
+    "/dashboard-gerencial",
+    "/presupuesto-vs-ejecutado",
+    "/mesa-pagos",
+    "/compromisos",
+    "/instrumentos-financieros",
   ],
 
   // Legal

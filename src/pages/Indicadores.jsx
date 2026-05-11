@@ -1,6 +1,7 @@
 // ✅ src/pages/Indicadores.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { obtenerOCs, obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 import {
   obtenerMovimientosTodas, // ← ahora existente en helpers
 } from "../firebase/cajaChicaHelpers";
@@ -84,7 +85,7 @@ const Indicadores = () => {
   useEffect(() => {
     (async () => {
       const [ocs, movs, usrs, ccs] = await Promise.all([
-        obtenerOCs(),
+        obtenerTodasOC(),
         obtenerMovimientosTodas(), // TODAS las cajas
         obtenerUsuarios(),
         obtenerCentrosCosto(),
@@ -222,25 +223,7 @@ const Indicadores = () => {
     "centroCostoNombre"
   );
 
-  // Roles permitidos
-  if (
-    !usuario ||
-    ![
-      "admin",
-      "soporte",
-      "comprador",
-      "operaciones",
-      "gerencia",
-      "gerencia operaciones",
-      "gerencia finanzas",
-      "gerencia general",
-      "finanzas",
-      "administracion",
-      "legal",
-    ].includes((usuario.rol || "").toLowerCase())
-  ) {
-    return <div className="p-6">Acceso no autorizado</div>;
-  }
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   // ─────────────────────────────────────────────────────────────
   // Render
@@ -331,7 +314,7 @@ const GraficoPie = ({ titulo, datos, colores }) => {
         <PieChart>
           <Pie dataKey="value" data={data} label outerRadius={80}>
             {data.map((_, i) => (
-              <Cell key={i} fill={colores[i % colores.length]} />
+              <Cell key={_.name || `cell-${i}`} fill={colores[i % colores.length]} />
             ))}
           </Pie>
           <Tooltip />

@@ -81,15 +81,20 @@ const HistorialPagos = () => {
   const totalPaginas = Math.ceil(filtradas.length / POR_PAGINA);
   const filtradas_pag = filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
 
-  const totalPagado = useMemo(
-    () => filtradas.reduce((acc, o) => acc + Number(o.montoPagado || 0), 0),
-    [filtradas]
-  );
+  const { totalSoles, totalDolares } = useMemo(() => {
+    return filtradas.reduce((acc, o) => {
+      const m = Number(o.montoPagado || 0);
+      if (o.monedaSeleccionada === "Dólares") {
+        acc.totalDolares += m;
+      } else {
+        acc.totalSoles += m;
+      }
+      return acc;
+    }, { totalSoles: 0, totalDolares: 0 });
+  }, [filtradas]);
 
   if (loading || cargando) return <div className="p-6">Cargando…</div>;
-  if (!usuario || !["admin", "finanzas", "gerencia finanzas", "gerencia general"].includes(usuario.rol)) {
-    return <div className="p-6 text-red-600">Acceso no autorizado</div>;
-  }
+  if (!usuario) return <div className="p-6 text-red-600">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -126,10 +131,18 @@ const HistorialPagos = () => {
       </div>
 
       {/* KPI */}
-      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-sm">
-        <span className="font-medium">Total pagado (filtro actual): </span>
-        <span className="text-green-700 font-bold text-base">{formatearMoneda(totalPagado, "Soles")}</span>
-        <span className="text-gray-500 ml-3">({filtradas.length} {filtradas.length === 1 ? "registro" : "registros"})</span>
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-sm flex flex-wrap gap-4 items-center">
+        <span className="font-medium">Total pagado (filtro actual):</span>
+        {totalSoles > 0 && (
+          <span className="text-green-700 font-bold text-base">S/ {totalSoles.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+        )}
+        {totalDolares > 0 && (
+          <span className="text-green-700 font-bold text-base">$ {totalDolares.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+        )}
+        {totalSoles === 0 && totalDolares === 0 && (
+          <span className="text-gray-400">Sin pagos</span>
+        )}
+        <span className="text-gray-500">({filtradas.length} {filtradas.length === 1 ? "registro" : "registros"})</span>
       </div>
 
       {/* Tabla */}

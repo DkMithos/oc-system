@@ -354,7 +354,7 @@ const Requerimientos = () => {
                 </thead>
                 <tbody>
                   {form.items.map((item, i) => (
-                    <tr key={i} className="border-t">
+                    <tr key={item.id || `req-item-${i}`} className="border-t">
                       <td className="p-2 border">
                         <input
                           type="text"

@@ -284,50 +284,62 @@ const RegistrarPago = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ── masivo: procesar ──
+  // ── masivo: procesar (paralelizado en chunks de 5) ──
   const procesarPagosMasivos = async () => {
     const validas = filasMasivas.filter((f) => f.valido);
     if (validas.length === 0) return;
     setProcesandoMasivo(true);
     const resultados = [];
+    const CHUNK_SIZE = 5;
 
-    for (const fila of validas) {
-      try {
-        const { oc, tipoComprobante, nroComprobante, fecha, tipoPago, monto, tipoCambio, observaciones } = fila;
-        const esDol = oc.monedaSeleccionada === "Dólares";
+    // Helper: procesar una fila individual
+    const procesarFila = async (fila) => {
+      const { oc, tipoComprobante, nroComprobante, fecha, tipoPago, monto, tipoCambio, observaciones } = fila;
+      const esDol = oc.monedaSeleccionada === "Dólares";
 
-        await runTransaction(db, async (tx) => {
-          const ocRef = doc(db, "ordenesCompra", oc.id);
-          const ocSnap = await tx.get(ocRef);
-          if (!ocSnap.exists()) throw new Error("OC no encontrada");
-          const ocData = ocSnap.data();
-          const pagadoActual = Number(ocData.montoPagado || 0);
-          const totalOCTx   = Number(ocData.resumen?.total || 0);
-          const nuevoTotal  = pagadoActual + monto;
-          if (nuevoTotal > totalOCTx + 0.01) throw new Error("Monto excede saldo pendiente");
-          const saldoFinal  = Math.max(0, totalOCTx - nuevoTotal);
-          const estadoFinal = saldoFinal <= 0.01 ? "Pagado" : "Pago Parcial";
+      await runTransaction(db, async (tx) => {
+        const ocRef = doc(db, "ordenesCompra", oc.id);
+        const ocSnap = await tx.get(ocRef);
+        if (!ocSnap.exists()) throw new Error("OC no encontrada");
+        const ocData = ocSnap.data();
+        const pagadoActual = Number(ocData.montoPagado || 0);
+        const totalOCTx   = Number(ocData.resumen?.total || 0);
+        const nuevoTotal  = pagadoActual + monto;
+        if (nuevoTotal > totalOCTx + 0.01) throw new Error("Monto excede saldo pendiente");
+        const saldoFinal  = Math.max(0, totalOCTx - nuevoTotal);
+        const estadoFinal = saldoFinal <= 0.01 ? "Pagado" : "Pago Parcial";
 
-          const facturaRef = doc(collection(db, `ordenesCompra/${oc.id}/facturas`));
-          tx.set(facturaRef, {
-            tipoComprobante, numero: nroComprobante, fecha, tipoPago,
-            monto, tipoCambio: esDol ? tipoCambio : null,
-            observaciones: observaciones || null,
-            registradoPor: usuario?.email || "",
-            creadaEn: serverTimestamp(),
-            origenMasivo: true,
-          });
-          tx.update(ocRef, {
-            estado: estadoFinal, montoPagado: nuevoTotal,
-            montoPendiente: saldoFinal, fechaPago: fecha,
-            actualizadoEn: new Date().toISOString(),
-          });
+        const facturaRef = doc(collection(db, `ordenesCompra/${oc.id}/facturas`));
+        tx.set(facturaRef, {
+          tipoComprobante, numero: nroComprobante, fecha, tipoPago,
+          monto, tipoCambio: esDol ? tipoCambio : null,
+          observaciones: observaciones || null,
+          registradoPor: usuario?.email || "",
+          creadaEn: serverTimestamp(),
+          origenMasivo: true,
         });
+        tx.update(ocRef, {
+          estado: estadoFinal, montoPagado: nuevoTotal,
+          montoPendiente: saldoFinal, fechaPago: fecha,
+          actualizadoEn: new Date().toISOString(),
+        });
+      });
+    };
 
-        resultados.push({ ...fila, exito: true });
-      } catch (err) {
-        resultados.push({ ...fila, exito: false, errorRegistro: err.message });
-      }
+    // Procesar en chunks paralelos
+    for (let i = 0; i < validas.length; i += CHUNK_SIZE) {
+      const chunk = validas.slice(i, i + CHUNK_SIZE);
+      const settled = await Promise.allSettled(
+        chunk.map((fila) => procesarFila(fila))
+      );
+      settled.forEach((result, idx) => {
+        const fila = chunk[idx];
+        if (result.status === "fulfilled") {
+          resultados.push({ ...fila, exito: true });
+        } else {
+          resultados.push({ ...fila, exito: false, errorRegistro: result.reason?.message || "Error desconocido" });
+        }
+      });
     }
 
     setResultadosMasivos(resultados);
@@ -358,9 +370,7 @@ const RegistrarPago = () => {
   }, [filasMasivas]);
 
   if (loadingAuth || cargando) return <div className="p-6">Cargando…</div>;
-  if (!usuario || !["admin", "finanzas", "gerencia finanzas", "soporte"].includes(usuario.rol)) {
-    return <div className="p-6 text-red-600">Acceso no autorizado</div>;
-  }
+  if (!usuario) return <div className="p-6 text-red-600">Acceso no autorizado</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">

@@ -1,5 +1,6 @@
 // src/firebase/fcm.js
 import { initializeApp, getApps, getApp } from "firebase/app";
+import logger from "../utils/logger";
 import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
 import { db, firebaseConfig } from "./config";
 import { doc, setDoc, collection, serverTimestamp, getDoc, arrayUnion, getDocs, query, where } from "firebase/firestore";
@@ -51,16 +52,20 @@ export const solicitarPermisoYObtenerToken = async (email) => {
 
     const reg = await ensureMessagingSW();
     if (!reg) {
-      console.warn("[FCM] No se pudo registrar el Service Worker de messaging.");
+      logger.warn("[FCM] No se pudo registrar el Service Worker de messaging.");
       return null;
     }
 
-    // Usa tu VAPID pública (de la consola → Cloud Messaging → Web Push certificates)
-    const vapidKey = "BOiaDAVx-SNnO4sCATGgK8w8--WehBRQmhg7_nafznWGrSD7jFRQbX2JN4g3H9VvT0QQM6YKzI6EVQ3XqhbPQAU";
+    // VAPID pública desde variable de entorno (no hardcodear en el bundle)
+    const vapidKey = import.meta.env.VITE_VAPID_KEY;
+    if (!vapidKey) {
+      console.error("[FCM] VITE_VAPID_KEY no configurada en .env.local");
+      return null;
+    }
 
     const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
     if (!token) {
-      console.warn("[FCM] No se obtuvo token (¿permiso/VAPID?).");
+      logger.warn("[FCM] No se obtuvo token (¿permiso/VAPID?).");
       return null;
     }
 
@@ -104,7 +109,7 @@ export const solicitarPermisoYObtenerToken = async (email) => {
       );
     }
 
-    console.log("[FCM] Token listo:", token.slice(0, 12) + "…");
+    logger.log("[FCM] Token listo:", token.slice(0, 12) + "…");
     return token;
   } catch (error) {
     console.error("[FCM] Error obteniendo token:", error);

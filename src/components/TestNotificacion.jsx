@@ -2,6 +2,7 @@
 import React from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useUsuario } from "../context/UsuarioContext";
+import logger from "../utils/logger";
 
 const TestNotificacion = () => {
   const { usuario } = useUsuario();
@@ -9,7 +10,7 @@ const TestNotificacion = () => {
   const enviar = async () => {
     try {
       if (!usuario?.email) {
-        console.warn("Sin usuario logueado");
+        logger.warn("Sin usuario logueado");
         return;
       }
       const email = usuario.email.toLowerCase().trim();
@@ -23,7 +24,7 @@ const TestNotificacion = () => {
         body: "Si ves esto, FCM está OK",
       });
 
-      console.log("Respuesta enviarNotificacionTest:", res.data);
+      logger.log("Respuesta enviarNotificacionTest:", res.data);
     } catch (e) {
       console.error("Error enviando notificación de prueba:", e);
     }

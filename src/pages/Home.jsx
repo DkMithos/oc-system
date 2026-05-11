@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
 import { usePendientes } from "../context/PendientesContext";
-import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { obtenerOCsRecientes } from "../firebase/firestoreHelpers";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 import {
   listarSolicitudesPendientesGlobal,
@@ -110,7 +110,7 @@ const Home = () => {
     (async () => {
       try {
         // Recientes para la tabla (últimas 5)
-        const recientes = await obtenerOCs(30).catch(() => []);
+        const recientes = await obtenerOCsRecientes(30).catch(() => []);
         setRecentOCs((recientes || []).slice(0, 5));
 
         // KPIs: usar TODAS las OCs para no perder aprobadas con número bajo

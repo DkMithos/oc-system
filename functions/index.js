@@ -48,28 +48,37 @@ async function getUserTokensByEmail(email) {
 async function purgeTokenEverywhere(token) {
   const db = getFirestore();
 
-  const snap = await db.collection("tokensFCM").get();
-  await Promise.all(
-    snap.docs.map(async (d) => {
-      const data = d.data() || {};
-      if (data.token === token) await d.ref.update({ token: FieldValue.delete() });
-      if (Array.isArray(data.tokens) && data.tokens.includes(token)) {
-        await d.ref.update({ tokens: data.tokens.filter((t) => t !== token) });
-      }
-    })
-  );
+  // 1. Buscar en tokensFCM usando where() en lugar de scan completo
+  const fcmSnap = await db.collection("tokensFCM")
+    .where("token", "==", token).get();
+  const fcmArraySnap = await db.collection("tokensFCM")
+    .where("tokens", "array-contains", token).get();
 
-  const usersSnap = await db.collection("usuarios").get();
-  await Promise.all(
-    usersSnap.docs.map(async (userDoc) => {
-      const tokensSnap = await userDoc.ref.collection("tokens").get();
-      await Promise.all(
-        tokensSnap.docs.map(async (tDoc) => {
-          if (tDoc.data()?.token === token) await tDoc.ref.delete();
-        })
-      );
-    })
-  );
+  const seen = new Set();
+  const ops = [];
+
+  fcmSnap.forEach((d) => {
+    if (!seen.has(d.id)) {
+      seen.add(d.id);
+      ops.push(d.ref.update({ token: FieldValue.delete() }));
+    }
+  });
+  fcmArraySnap.forEach((d) => {
+    if (!seen.has(d.id)) seen.add(d.id);
+    const data = d.data() || {};
+    if (Array.isArray(data.tokens)) {
+      ops.push(d.ref.update({ tokens: data.tokens.filter((t) => t !== token) }));
+    }
+  });
+
+  // 2. Buscar en sub-colecciones tokens usando collectionGroup query
+  const tokensSnap = await db.collectionGroup("tokens")
+    .where("token", "==", token).get();
+  tokensSnap.forEach((tDoc) => {
+    ops.push(tDoc.ref.delete());
+  });
+
+  if (ops.length > 0) await Promise.all(ops);
 }
 
 function buildOCMessage({ token, ocId, title, body }) {

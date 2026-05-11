@@ -10,6 +10,7 @@ import {
   updateDoc,
   doc,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -55,6 +56,57 @@ export const resolverSolicitudEdicion = async (ocId, solId, estado, { resueltoPo
     resueltoPorEmail: resueltoPorEmail || "",
     resueltoPorNombre: resueltoPorNombre || "",
     resueltoEn: serverTimestamp(),
+  });
+};
+
+/**
+ * [C-03] Aprueba una solicitud de edición dentro de una transacción atómica.
+ * Actualiza tanto la solicitud como la OC padre para evitar race conditions.
+ * @param {string} ocId
+ * @param {string} solId
+ * @param {{ resueltoPorEmail: string, resueltoPorNombre?: string, observacion?: string }} resolucion
+ */
+export const aprobarSolicitudEdicionAtomico = async (ocId, solId, resolucion) => {
+  const ocRef = doc(db, "ordenesCompra", ocId);
+  const solRef = doc(db, "ordenesCompra", ocId, "solicitudesEdicion", solId);
+
+  await runTransaction(db, async (tx) => {
+    const [ocSnap, solSnap] = await Promise.all([tx.get(ocRef), tx.get(solRef)]);
+
+    if (!ocSnap.exists()) throw new Error("Orden no encontrada");
+    if (!solSnap.exists()) throw new Error("Solicitud no encontrada");
+
+    const solData = solSnap.data();
+    if (solData.estado !== "pendiente") {
+      throw new Error(`La solicitud ya fue resuelta (estado: ${solData.estado})`);
+    }
+
+    const oc = ocSnap.data();
+    const historial = [
+      ...(oc.historial || []),
+      {
+        accion: "Solicitud de edición aprobada",
+        por: resolucion.resueltoPorEmail,
+        fecha: new Date().toLocaleString("es-PE"),
+      },
+    ];
+
+    // Actualizar solicitud
+    tx.update(solRef, {
+      estado: "aprobada",
+      observacion: resolucion.observacion || "",
+      resueltoPorEmail: resolucion.resueltoPorEmail || "",
+      resueltoPorNombre: resolucion.resueltoPorNombre || "",
+      resueltoEn: serverTimestamp(),
+    });
+
+    // Actualizar OC: habilitar edición
+    tx.update(ocRef, {
+      permiteEdicion: true,
+      tieneSolicitudEdicion: false,
+      historial,
+      actualizadoEn: new Date().toISOString(),
+    });
   });
 };
 

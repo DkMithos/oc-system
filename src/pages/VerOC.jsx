@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useLocation, useNavigate } from "react-router-dom";
-import html2pdf from "html2pdf.js";
+// PDF: imports dinámicos en exportarPDF() para forzar 1 sola página
 import { obtenerOCporId } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
@@ -120,20 +120,34 @@ const VerOC = () => {
   ];
   const estadoIdx = useMemo(() => ORDEN_ESTADOS.indexOf(oc?.estado || ""), [oc?.estado]);
 
-  const exportarPDF = () => {
+  const exportarPDF = async () => {
     const el = document.getElementById("contenido-oc");
     if (!el) return;
-    html2pdf()
-      .set({
-        margin: [0.25, 0.25, 0.25, 0.25],
-        filename: `OC-${oc?.numeroOC || oc?.id || "orden"}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 3, scrollY: 0, useCORS: true },
-        jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["avoid-all"] },
-      })
-      .from(el)
-      .save();
+
+    // Renderizar a canvas y escalar para forzar 1 sola página A4
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    const canvas = await html2canvas(el, { scale: 3, scrollY: 0, useCORS: true });
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+    // A4 en mm: 210 x 297. Margen 6mm por lado → área útil 198 x 285
+    const pageW = 198;
+    const pageH = 285;
+    const marginX = 6;
+    const marginY = 6;
+
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const ratio = Math.min(pageW / imgW, pageH / imgH);
+    const finalW = imgW * ratio;
+    const finalH = imgH * ratio;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    // Centrar verticalmente si sobra espacio
+    const offsetY = marginY + Math.max(0, (pageH - finalH) / 2);
+    pdf.addImage(imgData, "JPEG", marginX, offsetY, finalW, finalH);
+    pdf.save(`OC-${oc?.numeroOC || oc?.id || "orden"}.pdf`);
   };
 
   if (loading) return <PageLoader />;
@@ -225,7 +239,7 @@ const VerOC = () => {
                 const ds = Number(it.descuento || 0);
                 const tot = c * pu - ds;
                 return (
-                  <tr key={i} className="text-center">
+                  <tr key={it.id || `item-${i}`} className="text-center">
                     <td className="border px-1 py-1">{i + 1}</td>
                     <td className="border px-1 py-1 text-left">{it.nombre || it.descripcion || "—"}</td>
                     <td className="border px-1 py-1">{c}</td>

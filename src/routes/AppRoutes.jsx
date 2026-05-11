@@ -2,13 +2,21 @@
 // Lazy loading: cada página se carga solo cuando el usuario navega a ella.
 // Reduce el bundle inicial de ~2.9MB a ~400KB.
 import React, { Suspense, lazy } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "../layout/Layout";
 import RutaProtegida from "../components/RutaProtegida";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { PageLoader } from "../components/ui/Skeleton";
 
 // ── Fallback de carga ────────────────────────────────────────
 const Cargando = () => <PageLoader mensaje="Cargando módulo…" />;
+
+// ── Wrapper: ErrorBoundary + Suspense ────────────────────────
+const SafeLoad = ({ children }) => (
+  <ErrorBoundary>
+    <Suspense fallback={<Cargando />}>{children}</Suspense>
+  </ErrorBoundary>
+);
 
 // ── Importaciones lazy ───────────────────────────────────────
 const Home              = lazy(() => import("../pages/Home"));
@@ -25,8 +33,7 @@ const RegistrarPago     = lazy(() => import("../pages/RegistrarPago"));
 const HistorialPagos    = lazy(() => import("../pages/HistorialPagos"));
 const FlujosFinancieros = lazy(() => import("../pages/FlujosFinancieros"));
 const Dashboard         = lazy(() => import("../pages/Dashboard"));
-const Indicadores       = lazy(() => import("../pages/Indicadores"));
-const ResumenGeneral    = lazy(() => import("../pages/ResumenGeneral"));
+// Indicadores y ResumenGeneral eliminados (Fase 7: consolidación → redirigen a /dashboard)
 const Admin             = lazy(() => import("../pages/Admin"));
 const Logs              = lazy(() => import("../pages/Logs"));
 const CargarMaestros    = lazy(() => import("../pages/CargarMaestros"));
@@ -41,6 +48,11 @@ const PagosPorCentroCosto  = lazy(() => import("../pages/PagosPorCentroCosto"));
 const SolicitudesEdicion   = lazy(() => import("../pages/SolicitudesEdicion"));
 const ImportarFlujosExcel  = lazy(() => import("../pages/ImportarFlujosExcel"));
 const FlujoCajaPlanning    = lazy(() => import("../pages/FlujoCajaPlanning"));
+const DashboardGerencial       = lazy(() => import("../pages/DashboardGerencial"));
+const PresupuestoVsEjecutado   = lazy(() => import("../pages/PresupuestoVsEjecutado"));
+const SalaPagos                = lazy(() => import("../pages/SalaPagos"));
+const CompromisosActivos       = lazy(() => import("../pages/CompromisosActivos"));
+const InstrumentosFinancieros  = lazy(() => import("../pages/InstrumentosFinancieros"));
 
 // ── Todos los roles del sistema ──────────────────────────────
 const TODOS = [
@@ -59,210 +71,237 @@ const AppRoutes = () => (
       {/* HOME */}
       <Route index element={
         <RutaProtegida rolesPermitidos={TODOS.filter(r => r !== "soporte")}>
-          <Suspense fallback={<Cargando />}><Home /></Suspense>
+          <SafeLoad><Home /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* HISTORIAL */}
       <Route path="historial" element={
         <RutaProtegida rolesPermitidos={TODOS}>
-          <Suspense fallback={<Cargando />}><Historial /></Suspense>
+          <SafeLoad><Historial /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* VER OC */}
       <Route path="ver" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","finanzas","gerencia operaciones","gerencia general","gerencia finanzas","soporte"]}>
-          <Suspense fallback={<Cargando />}><VerOC /></Suspense>
+          <SafeLoad><VerOC /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* CREAR OC */}
       <Route path="crear" element={
         <RutaProtegida rolesPermitidos={["admin","comprador"]}>
-          <Suspense fallback={<Cargando />}><CrearOC /></Suspense>
+          <SafeLoad><CrearOC /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* EDITAR OC */}
       <Route path="editar" element={
         <RutaProtegida rolesPermitidos={["admin","comprador"]}>
-          <Suspense fallback={<Cargando />}><EditarOC /></Suspense>
+          <SafeLoad><EditarOC /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* FIRMAR OC */}
       <Route path="firmar" element={
         <RutaProtegida rolesPermitidos={["comprador","operaciones","gerencia","finanzas","gerencia operaciones","gerencia general","gerencia finanzas","admin"]}>
-          <Suspense fallback={<Cargando />}><FirmarOC /></Suspense>
+          <SafeLoad><FirmarOC /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* COTIZACIONES */}
       <Route path="cotizaciones" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","soporte"]}>
-          <Suspense fallback={<Cargando />}><Cotizaciones /></Suspense>
+          <SafeLoad><Cotizaciones /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* PROVEEDORES */}
       <Route path="proveedores" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","soporte"]}>
-          <Suspense fallback={<Cargando />}><Proveedores /></Suspense>
+          <SafeLoad><Proveedores /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* INVENTARIO */}
       <Route path="inventario" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","gerencia operaciones","soporte"]}>
-          <Suspense fallback={<Cargando />}><Inventario /></Suspense>
+          <SafeLoad><Inventario /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* RECEPCIÓN DE BIENES */}
       <Route path="recepcion" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","gerencia","gerencia operaciones","soporte"]}>
-          <Suspense fallback={<Cargando />}><RecepcionBienes /></Suspense>
+          <SafeLoad><RecepcionBienes /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* REQUERIMIENTOS */}
       <Route path="requerimientos" element={
         <RutaProtegida rolesPermitidos={["admin","comprador","operaciones","soporte"]}>
-          <Suspense fallback={<Cargando />}><Requerimientos /></Suspense>
+          <SafeLoad><Requerimientos /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* CAJA CHICA */}
       <Route path="caja" element={
         <RutaProtegida rolesPermitidos={["admin","operaciones","administracion","gerencia operaciones","soporte"]}>
-          <Suspense fallback={<Cargando />}><CajaChica /></Suspense>
+          <SafeLoad><CajaChica /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* REGISTRAR PAGO */}
       <Route path="pago" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas"]}>
-          <Suspense fallback={<Cargando />}><RegistrarPago /></Suspense>
+          <SafeLoad><RegistrarPago /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* HISTORIAL PAGOS */}
       <Route path="pagos" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general"]}>
-          <Suspense fallback={<Cargando />}><HistorialPagos /></Suspense>
+          <SafeLoad><HistorialPagos /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* SOLICITUDES DE EDICIÓN */}
       <Route path="solicitudes-edicion" element={
         <RutaProtegida rolesPermitidos={["admin","operaciones","gerencia","gerencia operaciones","gerencia general","gerencia finanzas","finanzas"]}>
-          <Suspense fallback={<Cargando />}><SolicitudesEdicion /></Suspense>
+          <SafeLoad><SolicitudesEdicion /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* PAGOS POR CENTRO DE COSTO */}
       <Route path="pagos-cc" element={
         <RutaProtegida rolesPermitidos={["admin","finanzas","gerencia finanzas","gerencia general","gerencia","gerencia operaciones","operaciones"]}>
-          <Suspense fallback={<Cargando />}><PagosPorCentroCosto /></Suspense>
+          <SafeLoad><PagosPorCentroCosto /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* PLANIFICACIÓN DE PAGOS */}
       <Route path="planificacion" element={
         <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia finanzas","operaciones","gerencia operaciones","administracion","gerencia","gerencia general"]}>
-          <Suspense fallback={<Cargando />}><FlujoCajaPlanning /></Suspense>
+          <SafeLoad><FlujoCajaPlanning /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* IMPORTAR FLUJOS EXCEL */}
       <Route path="importar-flujos" element={
         <RutaProtegida rolesPermitidos={["admin","soporte"]}>
-          <Suspense fallback={<Cargando />}><ImportarFlujosExcel /></Suspense>
+          <SafeLoad><ImportarFlujosExcel /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* FLUJOS FINANCIEROS */}
       <Route path="flujos-financieros" element={
         <RutaProtegida rolesPermitidos={["admin","operaciones","administracion","gerencia","finanzas","gerencia general","gerencia operaciones","gerencia finanzas"]}>
-          <Suspense fallback={<Cargando />}><FlujosFinancieros /></Suspense>
+          <SafeLoad><FlujosFinancieros /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* DASHBOARD */}
       <Route path="dashboard" element={
         <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia",...GERENCIAS,"operaciones"]}>
-          <Suspense fallback={<Cargando />}><Dashboard /></Suspense>
+          <SafeLoad><Dashboard /></SafeLoad>
         </RutaProtegida>
       } />
 
-      {/* INDICADORES */}
-      <Route path="indicadores" element={
-        <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia",...GERENCIAS,"operaciones"]}>
-          <Suspense fallback={<Cargando />}><Indicadores /></Suspense>
+      {/* DASHBOARD GERENCIAL — Flujos Financieros */}
+      <Route path="dashboard-gerencial" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","gerencia","gerencia general","gerencia finanzas","gerencia operaciones","finanzas","operaciones","administracion"]}>
+          <SafeLoad><DashboardGerencial /></SafeLoad>
         </RutaProtegida>
       } />
 
-      {/* RESUMEN GENERAL */}
-      <Route path="resumen" element={
-        <RutaProtegida rolesPermitidos={["admin","soporte","gerencia","finanzas",...GERENCIAS,"operaciones"]}>
-          <Suspense fallback={<Cargando />}><ResumenGeneral /></Suspense>
+      {/* MESA DE PAGOS */}
+      <Route path="mesa-pagos" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia finanzas","gerencia","gerencia general","gerencia operaciones","operaciones","administracion"]}>
+          <SafeLoad><SalaPagos /></SafeLoad>
         </RutaProtegida>
       } />
+
+      {/* COMPROMISOS DE PAGO */}
+      <Route path="compromisos" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia finanzas","gerencia","gerencia general","gerencia operaciones","operaciones","administracion"]}>
+          <SafeLoad><CompromisosActivos /></SafeLoad>
+        </RutaProtegida>
+      } />
+
+      {/* INSTRUMENTOS FINANCIEROS (CIPRL) */}
+      <Route path="instrumentos-financieros" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia finanzas","gerencia","gerencia general","gerencia operaciones","operaciones","administracion"]}>
+          <SafeLoad><InstrumentosFinancieros /></SafeLoad>
+        </RutaProtegida>
+      } />
+
+      {/* PRESUPUESTO VS EJECUTADO */}
+      <Route path="presupuesto-vs-ejecutado" element={
+        <RutaProtegida rolesPermitidos={["admin","soporte","gerencia","gerencia general","gerencia finanzas","gerencia operaciones","finanzas","operaciones","administracion"]}>
+          <SafeLoad><PresupuestoVsEjecutado /></SafeLoad>
+        </RutaProtegida>
+      } />
+
+      {/* INDICADORES — redirigido a Dashboard (Fase 7: consolidación) */}
+      <Route path="indicadores" element={<Navigate to="/dashboard" replace />} />
+
+      {/* RESUMEN GENERAL — redirigido a Dashboard (Fase 7: consolidación) */}
+      <Route path="resumen" element={<Navigate to="/dashboard" replace />} />
 
       {/* REPORTES */}
       <Route path="reportes" element={
         <RutaProtegida rolesPermitidos={["admin","gerencia","finanzas",...GERENCIAS,"operaciones"]}>
-          <Suspense fallback={<Cargando />}><Reporteria /></Suspense>
+          <SafeLoad><Reporteria /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* EXPORTACIONES */}
       <Route path="exportaciones" element={
         <RutaProtegida rolesPermitidos={["admin","soporte","finanzas","gerencia",...GERENCIAS,"comprador","operaciones"]}>
-          <Suspense fallback={<Cargando />}><CentroExportaciones /></Suspense>
+          <SafeLoad><CentroExportaciones /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* TICKETS */}
       <Route path="soporte" element={
         <RutaProtegida rolesPermitidos={TODOS}>
-          <Suspense fallback={<Cargando />}><Tickets /></Suspense>
+          <SafeLoad><Tickets /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* ADMIN TICKETS */}
       <Route path="adminsoporte" element={
         <RutaProtegida rolesPermitidos={["admin","soporte"]}>
-          <Suspense fallback={<Cargando />}><AdminTickets /></Suspense>
+          <SafeLoad><AdminTickets /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* MI FIRMA */}
       <Route path="mi-firma" element={
         <RutaProtegida rolesPermitidos={TODOS}>
-          <Suspense fallback={<Cargando />}><MiFirma /></Suspense>
+          <SafeLoad><MiFirma /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* PANEL ADMIN */}
       <Route path="admin" element={
         <RutaProtegida rolesPermitidos={SOLO_ADMIN}>
-          <Suspense fallback={<Cargando />}><Admin /></Suspense>
+          <SafeLoad><Admin /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* LOGS */}
       <Route path="logs" element={
         <RutaProtegida rolesPermitidos={SOLO_ADMIN}>
-          <Suspense fallback={<Cargando />}><Logs /></Suspense>
+          <SafeLoad><Logs /></SafeLoad>
         </RutaProtegida>
       } />
 
       {/* CARGAR MAESTROS */}
       <Route path="cargar-maestros" element={
         <RutaProtegida rolesPermitidos={SOLO_ADMIN}>
-          <Suspense fallback={<Cargando />}><CargarMaestros /></Suspense>
+          <SafeLoad><CargarMaestros /></SafeLoad>
         </RutaProtegida>
       } />
 

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
 import { ROLES } from "../utils/aprobaciones";
+import logger from "../utils/logger";
 
 import {
   obtenerUsuarios,
   eliminarUsuario,
   actualizarRolUsuario,
-  obtenerOCs,
+  obtenerOCsRecientes,
   obtenerCotizaciones,
   obtenerProveedores,
   obtenerCentrosCosto,
@@ -45,7 +46,7 @@ const Admin = () => {
       try {
         const results = await Promise.allSettled([
           obtenerUsuarios(),
-          obtenerOCs(),
+          obtenerOCsRecientes(500),
           obtenerCotizaciones(),    // si esta falla, no tumba el panel
           obtenerProveedores(),
           obtenerCentrosCosto(),
@@ -72,7 +73,7 @@ const Admin = () => {
         results.forEach((r, idx) => {
           if (r.status === "rejected") {
             const nombre = ["usuarios","ordenes","cotizaciones","proveedores","centros","condiciones"][idx];
-            console.warn(`⚠️ ${nombre}:`, r.reason?.message || r.reason);
+            logger.warn(`⚠️ ${nombre}:`, r.reason?.message || r.reason);
           }
         });
       } finally {

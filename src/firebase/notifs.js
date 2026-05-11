@@ -3,6 +3,7 @@
 // Si NO está configurado → guarda in-app en Firestore (colección "notificaciones")
 import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { db } from "./config";
+import logger from "../utils/logger";
 
 const API = import.meta.env.VITE_NOTIFS_ENDPOINT;
 
@@ -42,7 +43,7 @@ export const notificarUsuario = async ({ email, title, body, ocId }) => {
     try {
       return await postJSON(API, { toEmail: email, title, body, ocId });
     } catch (e) {
-      console.warn("[notifs] Push falló, guardando in-app:", e.message);
+      logger.warn("[notifs] Push falló, guardando in-app:", e.message);
     }
   }
   return guardarNotificacionInApp({ destinatario: email, title, body, ocId });
@@ -57,7 +58,7 @@ export const notificarRol = async ({ rol, title, body, ocId }) => {
     try {
       return await postJSON(API, { toRole: rol, title, body, ocId });
     } catch (e) {
-      console.warn("[notifs] Push falló, guardando in-app:", e.message);
+      logger.warn("[notifs] Push falló, guardando in-app:", e.message);
     }
   }
   return guardarNotificacionInApp({ rol, title, body, ocId });

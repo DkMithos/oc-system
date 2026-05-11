@@ -78,7 +78,7 @@ const ActualizarPago = () => {
   };
 
   if (loading || !orden) return <div className="p-6">Cargando...</div>;
-  if (!["finanzas","admin"].includes(usuario?.rol)) return <div className="p-6 text-red-600">No tienes acceso a esta sección.</div>;
+  if (!usuario) return <div className="p-6 text-red-600">No tienes acceso a esta sección.</div>;
 
   return (
     <div className="p-6 max-w-xl mx-auto">

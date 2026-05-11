@@ -4,8 +4,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { listarSolicitudesPendientesGlobal, resolverSolicitudEdicion } from "../firebase/solicitudesHelpers";
-import { actualizarOC, obtenerOCporId } from "../firebase/firestoreHelpers";
+import { listarSolicitudesPendientesGlobal, resolverSolicitudEdicion, aprobarSolicitudEdicionAtomico } from "../firebase/solicitudesHelpers";
+import { actualizarOC } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
 import { CheckCircle, XCircle, ExternalLink, RefreshCw, Clock } from "lucide-react";
@@ -42,30 +42,17 @@ const SolicitudesEdicion = () => {
   const aprobar = async (sol) => {
     setProcesando(sol.id);
     try {
-      await resolverSolicitudEdicion(sol.ocId, sol.id, "aprobada", {
+      // [C-03] Transacción atómica: actualiza solicitud + OC en un solo paso
+      await aprobarSolicitudEdicionAtomico(sol.ocId, sol.id, {
         resueltoPorEmail: usuario.email,
         resueltoPorNombre: usuario.nombre || usuario.email,
         observacion: "",
-      });
-      const oc = await obtenerOCporId(sol.ocId);
-      await actualizarOC(sol.ocId, {
-        permiteEdicion: true,
-        tieneSolicitudEdicion: false,
-        historial: [
-          ...(oc?.historial || []),
-          {
-            accion: "Solicitud de edición aprobada",
-            por: usuario.email,
-            rol: usuario.rol,
-            fecha: new Date().toLocaleString("es-PE"),
-          },
-        ],
       });
       toast.success(`Solicitud aprobada — ${sol.numeroOC || sol.ocId} puede ser editada ✅`);
       await cargar();
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo aprobar la solicitud.");
+      toast.error(e.message || "No se pudo aprobar la solicitud.");
     } finally {
       setProcesando(null);
     }

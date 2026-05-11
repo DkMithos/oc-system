@@ -4,6 +4,8 @@ import DashboardGeneral from "./DashboardGeneral";
 import DashboardCajaChica from "./DashboardCajaChica";
 import DashboardFinanzas from "./DashboardFinanzas";
 import DashboardCompras from "./DashboardCompras";
+import DashboardOperaciones from "./DashboardOperaciones";
+import DashboardReqsCotizaciones from "./DashboardReqsCotizaciones";
 import {
   obtenerCentrosCostoLigero,
   obtenerProveedoresLigero,
@@ -74,8 +76,9 @@ const Reporteria = () => {
     { id: "general", label: "General" },
     { id: "compras", label: "Compras" },
     { id: "finanzas", label: "Finanzas" },
+    { id: "operaciones", label: "Operaciones" },
     { id: "caja", label: "Caja Chica" },
-    { id: "reqs", label: "Requerimientos / Cotizaciones" },
+    { id: "reqs", label: "Reqs / Cotizaciones" },
   ];
 
   return (
@@ -223,17 +226,13 @@ const Reporteria = () => {
             <DashboardCompras filtros={filtros} />
           )}
 
-          {dashboardActivo !== "general" &&
-            dashboardActivo !== "caja" &&
-            dashboardActivo !== "finanzas" &&
-            dashboardActivo !== "compras" && (
-              <div className="text-sm text-gray-500 py-10 text-center">
-                Aún no hemos implementado este dashboard.
-                <br />
-                Empezaremos por el <strong>Dashboard General</strong> y luego
-                iremos habilitando las demás pestañas.
-              </div>
-            )}
+          {dashboardActivo === "operaciones" && (
+            <DashboardOperaciones filtros={filtros} />
+          )}
+
+          {dashboardActivo === "reqs" && (
+            <DashboardReqsCotizaciones filtros={filtros} />
+          )}
         </div>
       </div>
     </div>

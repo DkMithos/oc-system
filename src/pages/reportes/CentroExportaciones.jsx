@@ -57,6 +57,7 @@ const usePermisosExport = (rol) => {
     puedeRequerimientos:
       esAdminSoporte || esFinanzas || esGerencia || esComprador || esOperaciones,
     puedeCajaChica: esAdminSoporte || esFinanzas || esGerencia,
+    puedeFlujos: esAdminSoporte || esFinanzas || esGerencia || esOperaciones,
   };
 };
 
@@ -71,6 +72,7 @@ const CentroExportaciones = () => {
     cotizaciones: false,
     requerimientos: false,
     caja: false,
+    flujos: false,
   });
 
   const setLoadingKey = (key, value) =>
@@ -176,6 +178,56 @@ const CentroExportaciones = () => {
     }
   };
 
+  // ------------ Exportar: Flujos Financieros (transaccionesFinancieras) ------------
+
+  const handleExportFlujos = async () => {
+    try {
+      setLoadingKey("flujos", true);
+      const snap = await getDocs(collection(db, "transaccionesFinancieras"));
+      const rows = snap.docs.map((d) => {
+        const data = d.data();
+        const fechaISO = data.fecha?.toDate
+          ? data.fecha.toDate().toISOString().slice(0, 10)
+          : typeof data.fecha === "string" ? data.fecha.slice(0, 10) : "";
+        const montoTotal = Number(data.monto_total ?? 0);
+        const montoPen = Number(data.monto_total_pen ?? montoTotal);
+        return {
+          ID: d.id,
+          Fecha: fechaISO,
+          Area: data.area || "",
+          Tipo: data.tipo || "",
+          Clasificacion: data.clasificacion || "",
+          Moneda: data.moneda || "PEN",
+          "Monto sin IGV": Number(data.monto_sin_igv ?? 0).toFixed(2),
+          IGV: Number(data.igv ?? 0).toFixed(2),
+          "Monto Total": montoTotal.toFixed(2),
+          "Monto Total PEN": montoPen.toFixed(2),
+          TC: data.tc || "",
+          Categoria: data.categoriaNombre || "",
+          Subcategoria: data.subcategoriaNombre || "",
+          Proveedor: data.proveedor_cliente_nombre || "",
+          "Centro de Costo": data.centro_costo_nombre || "",
+          Proyecto: data.proyecto_nombre || "",
+          Estado: data.estado || "",
+          "Forma de Pago": data.forma_pago || "",
+          "Tipo Documento": data.documento_tipo || "",
+          "N Documento": data.documento_numero || "",
+          "N OC": data.oc_numero || "",
+          "Mes Vencimiento": data.mesVencimiento || "",
+          "Monto Presupuestado": data.montoPresupuestado || "",
+          Notas: data.notas || "",
+        };
+      });
+      // Ordenar por fecha desc
+      rows.sort((a, b) => (b.Fecha || "").localeCompare(a.Fecha || ""));
+      exportJsonToExcel(rows, "flujos_financieros.xlsx", "Flujos");
+    } catch (e) {
+      console.error("Error exportando flujos financieros:", e);
+    } finally {
+      setLoadingKey("flujos", false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Encabezado */}
@@ -238,6 +290,15 @@ const CentroExportaciones = () => {
           onClick={handleExportCajaChica}
           loading={loading.caja}
           enabled={permisos.puedeCajaChica}
+        />
+
+        {/* Flujos Financieros */}
+        <ExportCard
+          titulo="Flujos Financieros"
+          descripcion="Exporta todas las transacciones financieras con detalle de montos, categorias, proveedores, CDC y estados."
+          onClick={handleExportFlujos}
+          loading={loading.flujos}
+          enabled={permisos.puedeFlujos}
         />
       </div>
 

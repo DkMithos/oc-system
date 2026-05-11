@@ -923,6 +923,180 @@ export async function obtenerIndicadoresFinanzas(filtros = {}) {
 // Dashboard Compras
 // ──────────────────────────────────────────────
 
+// ──────────────────────────────────────────────
+// Dashboard Gerencial — KPIs consolidados
+// ──────────────────────────────────────────────
+
+/**
+ * Indicadores para el Dashboard Gerencial.
+ * Combina flujos financieros + OCs pendientes en una sola llamada.
+ * Usa queries con where + limit para evitar full-scan.
+ */
+export async function obtenerIndicadoresGerencial(filtros = {}) {
+  const { anio = new Date().getFullYear() } = filtros;
+
+  const fechaDesde = `${anio}-01-01`;
+  const fechaHasta = `${anio}-12-31`;
+
+  // 1) Flujos financieros del año (ya optimizado en finanzasHelpers)
+  const { transacciones = [] } = await obtenerTransaccionesFinancieras({
+    fechaDesde,
+    fechaHasta,
+    pageSize: 10000,
+  });
+
+  // 2) OCs pendientes (solo estados relevantes, no full-scan)
+  const estadosPendientes = [
+    "Pendiente de Comprador",
+    "Pendiente de Operaciones",
+    "Pendiente de Gerencia General",
+  ];
+  const qPend = query(
+    collection(db, "ordenesCompra"),
+    where("estado", "in", estadosPendientes)
+  );
+  const snapPend = await getDocs(qPend);
+  const ocsPendientes = snapPend.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((oc) => !oc.eliminada);
+
+  // ── KPIs flujos ──
+  let ingresos = 0, egresos = 0, pendientesPago = 0, pagados = 0;
+  const porAreaMap = {};
+  const porMes = Array.from({ length: 12 }, (_, i) => ({
+    mes: i,
+    ingresos: 0,
+    egresos: 0,
+  }));
+  const porEstadoMap = {};
+  const porCategoriaMap = {};
+  const porProveedorMap = {};
+  const porProveedorPendMap = {};
+
+  transacciones.forEach((t) => {
+    const pen = Number(t.monto_total_pen ?? t.monto_total ?? 0);
+    const tipo = (t.tipo || "").toUpperCase();
+    const est = (t.estado || "").toLowerCase();
+    const area = t.area || "administracion";
+
+    if (tipo === "INGRESO") ingresos += pen;
+    else egresos += pen;
+
+    if (est === "pagado" || est === "pagada") pagados += pen;
+    else if (est === "pendiente") pendientesPago += pen;
+
+    // Por área
+    if (!porAreaMap[area]) porAreaMap[area] = { ingresos: 0, egresos: 0, count: 0 };
+    if (tipo === "INGRESO") porAreaMap[area].ingresos += pen;
+    else porAreaMap[area].egresos += pen;
+    porAreaMap[area].count++;
+
+    // Por mes
+    const fechaISO = t.fechaISO || "";
+    if (fechaISO.length >= 7) {
+      const mesIdx = parseInt(fechaISO.slice(5, 7), 10) - 1;
+      if (mesIdx >= 0 && mesIdx <= 11) {
+        if (tipo === "INGRESO") porMes[mesIdx].ingresos += pen;
+        else porMes[mesIdx].egresos += pen;
+      }
+    }
+
+    // Por estado
+    const estOrig = t.estado || "Sin estado";
+    porEstadoMap[estOrig] = (porEstadoMap[estOrig] || 0) + pen;
+
+    // Top categorías (egresos)
+    if (tipo === "EGRESO") {
+      const cat = t.categoriaNombre || "Sin categoría";
+      if (!porCategoriaMap[cat]) porCategoriaMap[cat] = { monto: 0, count: 0 };
+      porCategoriaMap[cat].monto += pen;
+      porCategoriaMap[cat].count++;
+    }
+
+    // Proveedores por egreso total
+    if (tipo === "EGRESO") {
+      const prov = t.proveedor_cliente_nombre || "Sin proveedor";
+      if (!porProveedorMap[prov]) porProveedorMap[prov] = { monto: 0, count: 0 };
+      porProveedorMap[prov].monto += pen;
+      porProveedorMap[prov].count++;
+    }
+
+    // Proveedores con monto pendiente
+    if (est === "pendiente") {
+      const prov = t.proveedor_cliente_nombre || "Sin proveedor";
+      if (!porProveedorPendMap[prov]) porProveedorPendMap[prov] = { monto: 0, count: 0 };
+      porProveedorPendMap[prov].monto += pen;
+      porProveedorPendMap[prov].count++;
+    }
+  });
+
+  // ── Alertas urgentes: OCs pendientes > 3 días ──
+  const ahora = Date.now();
+  const alertas = ocsPendientes
+    .map((oc) => {
+      let fecha = null;
+      if (oc.creadaEn?.toDate) fecha = oc.creadaEn.toDate();
+      else if (typeof oc.fechaEmision === "string") fecha = new Date(oc.fechaEmision);
+      const diasPend = fecha ? Math.floor((ahora - fecha.getTime()) / 86400000) : 0;
+      return {
+        id: oc.id,
+        numeroOC: oc.numeroOC || oc.correlativo || oc.codigo || oc.id,
+        estado: oc.estado,
+        proveedor: oc.proveedor?.razonSocial || oc.proveedorNombre || "—",
+        diasPendiente: diasPend,
+        montoTotal: Number(oc.montoTotalConIGV ?? oc.totalConIGV ?? oc.montoTotal ?? 0),
+        moneda: (oc.moneda || "PEN").toUpperCase(),
+        urgente: diasPend > 3,
+      };
+    })
+    .sort((a, b) => b.diasPendiente - a.diasPendiente);
+
+  // ── Formatear salidas ──
+  const topProveedores = Object.entries(porProveedorMap)
+    .map(([nombre, d]) => ({ nombre, ...d, monto: +d.monto.toFixed(2) }))
+    .sort((a, b) => b.monto - a.monto)
+    .slice(0, 10);
+
+  const topProveedoresPendientes = Object.entries(porProveedorPendMap)
+    .map(([nombre, d]) => ({ nombre, ...d, monto: +d.monto.toFixed(2) }))
+    .sort((a, b) => b.monto - a.monto)
+    .slice(0, 10);
+
+  const topCategorias = Object.entries(porCategoriaMap)
+    .map(([nombre, d]) => ({ nombre, ...d, monto: +d.monto.toFixed(2) }))
+    .sort((a, b) => b.monto - a.monto)
+    .slice(0, 8);
+
+  const distribucionEstado = Object.entries(porEstadoMap)
+    .map(([name, value]) => ({ name, value: +value.toFixed(2) }))
+    .sort((a, b) => b.value - a.value);
+
+  return {
+    kpis: {
+      totalTransacciones: transacciones.length,
+      ingresos: +ingresos.toFixed(2),
+      egresos: +egresos.toFixed(2),
+      flujoNeto: +(ingresos - egresos).toFixed(2),
+      pendientes: +pendientesPago.toFixed(2),
+      pagados: +pagados.toFixed(2),
+      ocsEnAprobacion: ocsPendientes.length,
+    },
+    porArea: porAreaMap,
+    tendenciaMensual: porMes.map((m) => ({
+      ...m,
+      ingresos: +m.ingresos.toFixed(2),
+      egresos: +m.egresos.toFixed(2),
+      neto: +(m.ingresos - m.egresos).toFixed(2),
+    })),
+    distribucionEstado,
+    topCategorias,
+    topProveedores,
+    topProveedoresPendientes,
+    alertas,
+  };
+}
+
+
 export async function obtenerIndicadoresCompras(filtros = {}) {
   const {
     fechaDesde,

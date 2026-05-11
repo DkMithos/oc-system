@@ -15,6 +15,7 @@ import {
   runTransaction,
   limit,
   startAfter,
+  Timestamp,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./config";
@@ -101,6 +102,31 @@ export const obtenerLogs = async () => {
   }));
 };
 
+/**
+ * Obtener logs paginados con filtros de fecha.
+ * @param {{ pageSize?: number, lastDoc?: any, desde?: string, hasta?: string }} opts
+ * @returns {{ logs: Array, lastDoc: any, hayMas: boolean }}
+ */
+export const obtenerLogsPaginados = async ({ pageSize = 50, lastDoc: cursor, desde, hasta } = {}) => {
+  const constraints = [];
+  if (desde) constraints.push(where("fecha", ">=", Timestamp.fromDate(new Date(desde + "T00:00:00"))));
+  if (hasta) constraints.push(where("fecha", "<=", Timestamp.fromDate(new Date(hasta + "T23:59:59"))));
+  constraints.push(orderBy("fecha", "desc"));
+  if (cursor) constraints.push(startAfter(cursor));
+  constraints.push(limit(pageSize));
+
+  const qy = query(collection(db, LOGS_COLLECTION), ...constraints);
+  const snapshot = await getDocs(qy);
+  const logs = snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    fecha: d.data().fecha?.toDate().toLocaleString("es-PE") || "",
+    _fechaRaw: d.data().fecha,
+  }));
+  const last = snapshot.docs[snapshot.docs.length - 1] || null;
+  return { logs, lastDoc: last, hayMas: snapshot.docs.length === pageSize };
+};
+
 /** =========================
  *  ORDENES (OC/OS/OI)
  * ========================= */
@@ -185,6 +211,42 @@ export const obtenerOCs = async () => {
   };
   vivas.sort((a, b) => parseN(b.numero) - parseN(a.numero));
   return vivas;
+};
+
+// [S2-1] Query optimizada: OCs recientes con limit (para Home, Admin, etc.)
+export const obtenerOCsRecientes = async (maxResultados = 30) => {
+  const q = query(
+    collection(db, OC_COLLECTION),
+    where("eliminada", "!=", true),
+    orderBy("eliminada"),
+    orderBy("creadaEn", "desc"),
+    limit(maxResultados)
+  );
+  try {
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    // Fallback si falta índice compuesto: usar full scan con limit local
+    const snap = await getDocs(query(collection(db, OC_COLLECTION), orderBy("creadaEn", "desc"), limit(maxResultados * 2)));
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((x) => x?.eliminada !== true)
+      .slice(0, maxResultados);
+  }
+};
+
+// [S2-1] OCs por estado específico (para RecepcionBienes, etc.)
+export const obtenerOCsPorEstado = async (estados = []) => {
+  if (!estados.length) return [];
+  // Firestore "in" acepta max 30 valores
+  const q = query(
+    collection(db, OC_COLLECTION),
+    where("estado", "in", estados.slice(0, 30))
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((x) => x?.eliminada !== true);
 };
 
 // Paginación con cursor — devuelve { items, lastDoc, hasMore }
@@ -520,7 +582,7 @@ export const rechazarOC = async (ordenId, rechazadoPor, rolRechazador, motivo = 
     };
 
     tx.update(ref, {
-      estado: "Rechazado",
+      estado: "Rechazada",
       historialAprobaciones: [...(orden.historialAprobaciones || []), entrada],
       actualizadoEn: new Date().toISOString(),
     });

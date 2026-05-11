@@ -1,10 +1,12 @@
 // src/pages/ImportarFlujosExcel.jsx
-// Importación masiva de flujos financieros desde Excel.
-// Soporta dos esquemas: Estándar (Admin/Conta/TI) y Operaciones (CDC/Proyectos).
+// Importacion masiva de flujos financieros desde Excel.
+// Soporta dos esquemas: Estandar (Admin/Conta/TI) y Operaciones (CDC/Proyectos).
+// Permite elegir la hoja del archivo Excel a importar.
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   leerExcel,
+  leerHojasExcel,
   parsearFilaEstandar,
   parsearFilaOperaciones,
   importarTransacciones,
@@ -12,7 +14,7 @@ import {
 import { useUsuario } from "../context/UsuarioContext";
 
 const ESQUEMAS = [
-  { id: "administracion", label: "Admin",        descripcion: "Flujo de Administración" },
+  { id: "administracion", label: "Admin",        descripcion: "Flujo de Administracion" },
   { id: "contabilidad",   label: "Contabilidad", descripcion: "Flujo de Contabilidad" },
   { id: "ti",             label: "TI",           descripcion: "Flujo de TI" },
   { id: "operaciones",    label: "Operaciones",  descripcion: "Flujo de Proyectos (CDC)" },
@@ -24,29 +26,29 @@ const MAX_PREVIEW = 200;
 
 // ── Columnas de preview ────────────────────────────────────────
 const COLS_ESTANDAR = [
-  { key: "fecha",                   label: "Fecha" },
-  { key: "proveedor_cliente_nombre",label: "Proveedor" },
-  { key: "moneda",                  label: "Moneda" },
-  { key: "monto_total",             label: "Total" },
-  { key: "documento_tipo",          label: "Tipo Doc" },
-  { key: "documento_numero",        label: "N° Doc" },
-  { key: "oc_numero",               label: "OC" },
-  { key: "mesVencimiento",          label: "Mes Vcto." },
-  { key: "metodoPago",              label: "Método Pago" },
-  { key: "estado",                  label: "Estado" },
+  { key: "categoriaNombre",          label: "Categoria" },
+  { key: "proveedor_cliente_nombre", label: "Proveedor" },
+  { key: "centro_costo_nombre",      label: "CDC" },
+  { key: "moneda",                   label: "Mon" },
+  { key: "monto_total",              label: "Total" },
+  { key: "montoPresupuestado",       label: "Presup." },
+  { key: "mesVencimiento",           label: "Mes Vcto." },
+  { key: "estado",                   label: "Estado" },
+  { key: "postergado",               label: "Post." },
+  { key: "notas",                    label: "Notas" },
 ];
 
 const COLS_OPERACIONES = [
-  { key: "codigoItem",              label: "Código" },
-  { key: "proveedor_cliente_nombre",label: "Proveedor" },
-  { key: "cantidad",                label: "Cant." },
-  { key: "precioUnitario",          label: "P.U." },
-  { key: "monto_total",             label: "Total" },
-  { key: "moneda",                  label: "Moneda" },
-  { key: "detraccion",              label: "Detrac." },
-  { key: "diasCredito",             label: "Días Cred." },
-  { key: "mesVencimiento",          label: "Mes Vcto." },
-  { key: "metodoPago",              label: "Método Pago" },
+  { key: "categoriaNombre",          label: "Categoria" },
+  { key: "proveedor_cliente_nombre", label: "Proveedor" },
+  { key: "centro_costo_nombre",      label: "CDC" },
+  { key: "moneda",                   label: "Mon" },
+  { key: "monto_total",              label: "Total" },
+  { key: "montoPresupuestado",       label: "Presup." },
+  { key: "tc",                       label: "TC" },
+  { key: "mesVencimiento",           label: "Mes Vcto." },
+  { key: "metodoPago",               label: "Met. Pago" },
+  { key: "estado",                   label: "Estado" },
 ];
 
 // ── Componente ─────────────────────────────────────────────────
@@ -62,6 +64,11 @@ export default function ImportarFlujosExcel() {
   const [resultado, setResultado] = useState(null);
   const [drag, setDrag] = useState(false);
 
+  // Selector de hoja
+  const [hojas, setHojas] = useState([]); // [{name, filas}]
+  const [hojaSeleccionada, setHojaSeleccionada] = useState("");
+  const [archivoBuffer, setArchivoBuffer] = useState(null); // File object guardado para re-parsear
+
   const inputRef = useRef(null);
 
   const stats = useMemo(() => {
@@ -73,35 +80,67 @@ export default function ImportarFlujosExcel() {
 
   const columnas = ES_OPERACIONES(esquema) ? COLS_OPERACIONES : COLS_ESTANDAR;
 
-  const procesarArchivo = useCallback(async (file) => {
-    if (!file) return;
+  // Paso 1: leer hojas del archivo
+  const cargarHojas = useCallback(async (file) => {
     setError("");
     setResultado(null);
     setFilas([]);
     setCargando(true);
     setNombreArchivo(file.name);
+    setArchivoBuffer(file);
     try {
-      const rows = await leerExcel(file);
-      if (!rows.length) { setError("El archivo no tiene filas de datos."); return; }
-      const parser = ES_OPERACIONES(esquema) ? parsearFilaOperaciones : parsearFilaEstandar;
-      setFilas(rows.map((r, i) => parser(r, i)));
+      const info = await leerHojasExcel(file);
+      setHojas(info);
+      // Auto-seleccionar la primera hoja con > 10 filas
+      const candidata = info.find((h) => h.filas > 10) || info[0];
+      if (candidata) {
+        setHojaSeleccionada(candidata.name);
+        await parsearHoja(file, candidata.name);
+      }
     } catch (e) {
-      setError(`Error leyendo el archivo: ${e.message}`);
+      setError("Error leyendo el archivo: " + e.message);
     } finally {
       setCargando(false);
     }
   }, [esquema]);
 
+  // Paso 2: parsear una hoja especifica
+  const parsearHoja = useCallback(async (file, sheetName) => {
+    setCargando(true);
+    setError("");
+    setFilas([]);
+    try {
+      const { rows } = await leerExcel(file, sheetName);
+      if (!rows.length) {
+        setError("La hoja '" + sheetName + "' no tiene filas de datos.");
+        return;
+      }
+      const parser = ES_OPERACIONES(esquema) ? parsearFilaOperaciones : parsearFilaEstandar;
+      setFilas(rows.map((r, i) => parser(r, i)));
+    } catch (e) {
+      setError("Error procesando la hoja: " + e.message);
+    } finally {
+      setCargando(false);
+    }
+  }, [esquema]);
+
+  const handleCambiarHoja = async (sheetName) => {
+    setHojaSeleccionada(sheetName);
+    if (archivoBuffer) {
+      await parsearHoja(archivoBuffer, sheetName);
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) procesarArchivo(file);
+    if (file) cargarHojas(file);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setDrag(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) procesarArchivo(file);
+    if (file) cargarHojas(file);
   };
 
   const handleEsquemaCambio = (id) => {
@@ -110,6 +149,9 @@ export default function ImportarFlujosExcel() {
     setNombreArchivo("");
     setResultado(null);
     setError("");
+    setHojas([]);
+    setHojaSeleccionada("");
+    setArchivoBuffer(null);
   };
 
   const handleImportar = async () => {
@@ -120,48 +162,24 @@ export default function ImportarFlujosExcel() {
       const n = await importarTransacciones(filas, esquema, usuario?.email || "");
       setResultado({ importadas: n });
       setFilas([]);
-      setNombreArchivo("");
     } catch (e) {
-      setError(`Error importando: ${e.message}`);
+      setError("Error importando: " + e.message);
     } finally {
       setImportando(false);
     }
   };
 
-  const descargarPlantilla = () => {
-    // Importación dinámica para no aumentar bundle inicial
-    import("xlsx").then((XLSX) => {
-      const headers = ES_OPERACIONES(esquema)
-        ? ["Código","Proveedor","RUC","Descripción","Cantidad","PU","Total S/","Total $","Detracción","Retención","Días Crédito","Fecha Inicio","Mes Vencimiento","Método Pago","N° OC","Estado","Notas","Centro Costo"]
-        : ["Fecha","Concepto","Proveedor","RUC","Tipo Doc","N° Doc","Monto S/","Monto $","IGV","Total","Detracción","Retención","Mes Vencimiento","Estado","Método Pago","N° OC","Postergado","Notas","Centro Costo"];
-      const ws = XLSX.utils.aoa_to_sheet([headers]);
-      ws["!cols"] = headers.map(() => ({ wch: 18 }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-      XLSX.writeFile(wb, `plantilla-flujo-${esquema}.xlsx`);
-    });
-  };
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Importar Flujos Financieros</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Carga masiva desde archivos Excel (.xlsx / .xls)</p>
-        </div>
-        <button
-          type="button"
-          onClick={descargarPlantilla}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-gray-700 font-medium"
-        >
-          ⬇ Descargar plantilla
-        </button>
+      <div>
+        <h1 className="text-2xl font-bold text-[#004990]">Importar Flujos Financieros</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Carga masiva desde archivos Excel (.xlsx / .xls)</p>
       </div>
 
       {/* Selector de esquema */}
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Área de flujo</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Area de flujo</p>
         <div className="flex flex-wrap gap-2">
           {ESQUEMAS.map((e) => (
             <button
@@ -196,16 +214,44 @@ export default function ImportarFlujosExcel() {
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
         <div className="text-4xl mb-2">📂</div>
         {cargando ? (
-          <p className="text-sm text-gray-500">Procesando archivo…</p>
+          <p className="text-sm text-gray-500">Procesando archivo...</p>
         ) : nombreArchivo ? (
           <p className="text-sm text-[#004990] font-semibold">{nombreArchivo}</p>
         ) : (
           <>
-            <p className="text-sm font-medium text-gray-600">Arrastra tu archivo aquí o haz clic para seleccionar</p>
-            <p className="text-xs text-gray-400 mt-1">Formatos: .xlsx, .xls — hasta 10 000 filas</p>
+            <p className="text-sm font-medium text-gray-600">Arrastra tu archivo aqui o haz clic para seleccionar</p>
+            <p className="text-xs text-gray-400 mt-1">Formatos: .xlsx, .xls</p>
           </>
         )}
       </div>
+
+      {/* Selector de hoja */}
+      {hojas.length > 1 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Selecciona la hoja a importar ({hojas.length} hojas encontradas)
+          </p>
+          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+            {hojas.map((h) => (
+              <button
+                key={h.name}
+                type="button"
+                onClick={() => handleCambiarHoja(h.name)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                  hojaSeleccionada === h.name
+                    ? "bg-[#004990] text-white border-[#004990]"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                }`}
+              >
+                {h.name}
+                <span className={`ml-1 text-[10px] ${hojaSeleccionada === h.name ? "text-blue-200" : "text-gray-400"}`}>
+                  ({h.filas} filas)
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -215,11 +261,11 @@ export default function ImportarFlujosExcel() {
 
       {resultado && (
         <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm font-medium">
-          ✅ {resultado.importadas} transacciones importadas correctamente al área <strong>{esquema}</strong>.
+          {resultado.importadas} transacciones importadas correctamente al area <strong>{esquema}</strong>.
         </div>
       )}
 
-      {/* Resumen de validación */}
+      {/* Resumen de validacion */}
       {filas.length > 0 && (
         <>
           <div className="flex flex-wrap gap-4 items-center">
@@ -228,7 +274,7 @@ export default function ImportarFlujosExcel() {
                 Total: <strong>{stats.total}</strong>
               </span>
               <span className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
-                Válidas: <strong>{stats.validas}</strong>
+                Validas: <strong>{stats.validas}</strong>
               </span>
               {stats.invalidas > 0 && (
                 <span className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-sm font-medium">
@@ -242,7 +288,7 @@ export default function ImportarFlujosExcel() {
               disabled={importando || !stats.validas}
               className="ml-auto px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {importando ? "Importando…" : `Importar ${stats.validas} transacciones`}
+              {importando ? "Importando..." : `Importar ${stats.validas} transacciones a ${esquema}`}
             </button>
           </div>
 
@@ -250,7 +296,7 @@ export default function ImportarFlujosExcel() {
           <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
             <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Vista previa {filas.length > MAX_PREVIEW ? `(primeras ${MAX_PREVIEW} filas)` : ""}
+                Vista previa — {hojaSeleccionada} {filas.length > MAX_PREVIEW ? ` (primeras ${MAX_PREVIEW} filas)` : ""}
               </p>
             </div>
             <table className="min-w-full text-xs">
@@ -260,7 +306,7 @@ export default function ImportarFlujosExcel() {
                   {columnas.map((c) => (
                     <th key={c.key} className="px-3 py-2 text-left text-gray-600 whitespace-nowrap">{c.label}</th>
                   ))}
-                  <th className="px-3 py-2 text-left text-gray-600">Estado</th>
+                  <th className="px-3 py-2 text-left text-gray-600">Validacion</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,15 +318,17 @@ export default function ImportarFlujosExcel() {
                     <td className="px-3 py-1.5 text-gray-400 font-mono">{fila._fila}</td>
                     {columnas.map((c) => (
                       <td key={c.key} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[160px] truncate" title={String(fila[c.key] ?? "")}>
-                        {fila[c.key] != null && fila[c.key] !== "" ? String(fila[c.key]) : <span className="text-gray-300">—</span>}
+                        {fila[c.key] != null && fila[c.key] !== "" && fila[c.key] !== false
+                          ? String(fila[c.key])
+                          : <span className="text-gray-300">-</span>}
                       </td>
                     ))}
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       {fila._valida ? (
-                        <span className="text-green-600 font-medium">✓ OK</span>
+                        <span className="text-green-600 font-medium">OK</span>
                       ) : (
                         <span className="text-red-600 font-medium" title={fila._errores.join(", ")}>
-                          ✕ {fila._errores.join(", ")}
+                          {fila._errores.join(", ")}
                         </span>
                       )}
                     </td>

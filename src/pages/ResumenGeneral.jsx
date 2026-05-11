@@ -1,6 +1,6 @@
 // src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
 import React, { useEffect, useMemo, useState } from "react";
-import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,7 +27,7 @@ const ResumenGeneral = () => {
   useEffect(() => {
     (async () => {
       try {
-        const data = await obtenerOCs();
+        const data = await obtenerTodasOC();
         setOcs(data || []);
       } finally {
         setCargando(false);

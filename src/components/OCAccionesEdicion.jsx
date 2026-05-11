@@ -130,7 +130,7 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
         <div className="mt-3 mb-1">
           <div className="flex items-center gap-0">
             {pasos.map((paso, idx) => (
-              <React.Fragment key={idx}>
+              <React.Fragment key={paso.label || `paso-${idx}`}>
                 <div className="flex flex-col items-center gap-1 min-w-0" style={{ flex: 1 }}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${colorPaso(idx)}`}>
                     {paso.icon}

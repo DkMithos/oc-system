@@ -138,7 +138,7 @@ const EditCotizacionModal = ({ cotizacion, onClose, onSaved }) => {
                 {items.map((it, i) => {
                   const subtotal = Number(it.cantidad || 0) * Number(it.precioUnitario || 0);
                   return (
-                    <tr key={i} className="border-t">
+                    <tr key={it.id || `edit-cot-${i}`} className="border-t">
                       <td className="p-2">
                         <input
                           className="border rounded px-2 py-1 w-full"

@@ -15,7 +15,7 @@ import {
   obtenerCentrosCosto,
   obtenerCondicionesPago,
   obtenerProveedores,
-  obtenerOCs,
+  obtenerOCsRecientes,
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
@@ -343,7 +343,7 @@ const CrearOC = () => {
 
   const verificarDuplicados = async () => {
     try {
-      const todas = await obtenerOCs();
+      const todas = await obtenerOCsRecientes(200);
       const hace90Dias = new Date();
       hace90Dias.setDate(hace90Dias.getDate() - 90);
       const limite90 = hace90Dias.toISOString().slice(0, 10);
@@ -758,7 +758,7 @@ const CrearOC = () => {
                       Number(it.dscto || it.descuento || 0)
                   );
                   return (
-                    <tr key={i} className="border-t">
+                    <tr key={it.id || `oc-item-${i}`} className="border-t">
                       <td className="p-2">
                         <input className="border rounded px-2 py-1 w-full" value={it.codigo}
                           onChange={(e) => actualizarItem(i, "codigo", e.target.value)} />

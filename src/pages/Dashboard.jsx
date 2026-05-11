@@ -208,8 +208,8 @@ const Dashboard = () => {
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie data={dataCaja} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, value }) => `${name}: S/${fmt(value)}`} labelLine={false}>
-                  {dataCaja.map((_, i) => (
-                    <Cell key={i} fill={i === 0 ? "#34D399" : "#F87171"} />
+                  {dataCaja.map((entry, i) => (
+                    <Cell key={entry.name || `cell-${i}`} fill={i === 0 ? "#34D399" : "#F87171"} />
                   ))}
                 </Pie>
                 <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />

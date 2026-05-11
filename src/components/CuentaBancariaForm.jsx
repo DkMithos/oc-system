@@ -79,7 +79,7 @@ const CuentaBancariaForm = ({
           </thead>
           <tbody>
             {cuentas.map((b, i) => (
-              <tr key={i} className="border-t">
+              <tr key={b.cuenta || `banco-${i}`} className="border-t">
                 <td className="p-1">{b.nombre}</td>
                 <td className="p-1">{b.cuenta}</td>
                 <td className="p-1">{b.cci}</td>

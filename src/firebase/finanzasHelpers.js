@@ -181,6 +181,7 @@ export async function obtenerCatalogosFinanzas() {
           { id: "cheque", nombre: "Cheque" },
           { id: "tarjeta", nombre: "Tarjeta" },
           { id: "deposito", nombre: "Depósito" },
+          { id: "ciprl", nombre: "CIPRL" },
           { id: "otro", nombre: "Otro" },
         ];
 
@@ -326,10 +327,11 @@ async function prepararPayloadTransaccion(data) {
   payload.fecha = normalizarFecha(data.fecha) || now;
   payload.programado_fecha = normalizarFecha(data.programado_fecha);
 
-  const base = Number(data.monto_sin_igv || 0);
+  // Forzar montos positivos — el signo lo determina el campo "tipo"
+  const base = Math.abs(Number(data.monto_sin_igv || 0));
 
-  let igvMonto = data.igv != null ? Number(data.igv) : 0;
-  let montoTotal = data.monto_total != null ? Number(data.monto_total) : 0;
+  let igvMonto = Math.abs(data.igv != null ? Number(data.igv) : 0);
+  let montoTotal = data.monto_total != null ? Math.abs(Number(data.monto_total)) : 0;
   let igvTasa = data.igvTasa != null ? Number(data.igvTasa) : null;
 
   if (!montoTotal) {
@@ -402,7 +404,7 @@ export async function obtenerTransaccionesFinancieras(filtros = {}) {
     estado,
     categoriaId,
     centro_costo_id,
-    pageSize = 500,
+    pageSize = 5000,
     startAfterDoc,
   } = filtros;
 
@@ -630,4 +632,81 @@ export async function crearTransaccionDesdeFactura({
   });
 
   return id;
+}
+
+// ── Corrección masiva: tipo/montos inconsistentes ────────────────
+/**
+ * Busca transacciones con datos inconsistentes y las corrige:
+ * 1. categoriaNombre contiene "ingreso" pero tipo == "EGRESO" → corrige a INGRESO
+ * 2. monto_sin_igv o monto_total negativos → los vuelve positivos
+ *
+ * Devuelve { revisadas, corregidas, detalles[] } para mostrar en UI.
+ * Solo ejecutar desde panel Admin — NO es idempotente si se cambian los criterios.
+ */
+export async function corregirTransaccionesInconsistentes() {
+  const colRef = collection(db, COL_TRANSACCIONES);
+  const snap = await getDocs(colRef);
+
+  const detalles = [];
+  let revisadas = 0;
+  let corregidas = 0;
+
+  for (const d of snap.docs) {
+    revisadas++;
+    const data = d.data();
+    const cambios = {};
+    const motivos = [];
+
+    const catNombre = (data.categoriaNombre || "").toLowerCase();
+    const tipo = data.tipo || "";
+    const montoSin = Number(data.monto_sin_igv || 0);
+    const montoTotal = Number(data.monto_total || 0);
+    const igv = Number(data.igv || 0);
+
+    // 1) Categoría "Ingresos" con tipo EGRESO → corregir a INGRESO
+    if (catNombre.includes("ingreso") && tipo === "EGRESO") {
+      cambios.tipo = "INGRESO";
+      motivos.push("tipo EGRESO→INGRESO (cat: ingresos)");
+    }
+
+    // 2) Montos negativos → valor absoluto
+    if (montoSin < 0) {
+      cambios.monto_sin_igv = Math.abs(montoSin);
+      motivos.push(`monto_sin_igv ${montoSin}→${Math.abs(montoSin)}`);
+    }
+    if (montoTotal < 0) {
+      cambios.monto_total = Math.abs(montoTotal);
+      motivos.push(`monto_total ${montoTotal}→${Math.abs(montoTotal)}`);
+    }
+    if (igv < 0) {
+      cambios.igv = Math.abs(igv);
+      motivos.push(`igv ${igv}→${Math.abs(igv)}`);
+    }
+
+    // Recalcular monto_total_pen si cambió algo de montos
+    if (cambios.monto_total !== undefined || cambios.tipo !== undefined) {
+      const finalTotal = cambios.monto_total !== undefined ? cambios.monto_total : Math.abs(montoTotal);
+      if (data.moneda === "PEN" || !data.moneda) {
+        cambios.monto_total_pen = finalTotal;
+      } else {
+        const tc = Number(data.tc || 0);
+        if (tc > 0) cambios.monto_total_pen = +(finalTotal * tc).toFixed(2);
+      }
+    }
+
+    if (Object.keys(cambios).length > 0) {
+      cambios.actualizadoEn = Timestamp.now();
+      cambios._correccionAuto = true;
+      await updateDoc(doc(db, COL_TRANSACCIONES, d.id), cambios);
+      corregidas++;
+      detalles.push({
+        id: d.id,
+        proveedor: data.proveedor_cliente_nombre || "—",
+        area: data.area || "—",
+        motivos,
+      });
+    }
+  }
+
+  return { revisadas, corregidas, detalles };
 }

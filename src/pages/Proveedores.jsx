@@ -241,8 +241,7 @@ const Proveedores = () => {
   };
 
   if (loading) return <PageLoader />;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
-    return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">

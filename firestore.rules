@@ -122,8 +122,21 @@ service cloud.firestore {
     }
 
     match /transaccionesFinancieras/{tranId} {
-      allow read: if signedIn();
-      allow create, update: if hasAnyRole([
+      // [S0-5] Lectura restringida a roles financieros/operativos (no compradores ni legal)
+      allow read: if hasAnyRole([
+        'admin','soporte','finanzas','administracion','operaciones',
+        'gerencia','gerencia operaciones','gerencia general','gerencia finanzas'
+      ]);
+      // [S0-5] Validación de campos obligatorios en escritura
+      allow create: if hasAnyRole([
+        'admin','soporte','finanzas','administracion','operaciones',
+        'gerencia','gerencia operaciones','gerencia general','gerencia finanzas'
+      ]) && request.resource.data.keys().hasAll(['tipo', 'moneda', 'monto_total', 'area'])
+         && request.resource.data.tipo in ['INGRESO', 'EGRESO']
+         && request.resource.data.moneda in ['PEN', 'USD', 'EUR']
+         && request.resource.data.monto_total is number
+         && request.resource.data.area is string;
+      allow update: if hasAnyRole([
         'admin','soporte','finanzas','administracion','operaciones',
         'gerencia','gerencia operaciones','gerencia general','gerencia finanzas'
       ]);
@@ -300,6 +313,39 @@ service cloud.firestore {
         ]);
         allow delete: if false;
       }
+
+      match /recepciones/{recId} {
+        allow read: if signedIn();
+        allow create: if hasAnyRole([
+          'admin','soporte','comprador','operaciones','gerencia operaciones'
+        ]);
+        allow update: if hasAnyRole(['admin','soporte','operaciones','gerencia operaciones']);
+        allow delete: if false;
+      }
+    }
+
+    /* ─────────────────────────────
+     * Notificaciones in-app
+     * ───────────────────────────── */
+    match /notificaciones/{notifId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Inventario
+     * ───────────────────────────── */
+    match /inventario/{itemId} {
+      allow read: if signedIn();
+      allow create: if hasAnyRole([
+        'admin','soporte','comprador','operaciones','gerencia operaciones'
+      ]);
+      allow update: if hasAnyRole([
+        'admin','soporte','comprador','operaciones','gerencia operaciones'
+      ]);
+      allow delete: if false;
     }
 
     /* ─────────────────────────────
@@ -327,6 +373,46 @@ service cloud.firestore {
           ]);
         allow delete: if false;
       }
+    }
+
+    /* ─────────────────────────────
+     * Presupuestos Anuales
+     * ───────────────────────────── */
+    match /presupuestosAnuales/{anio} {
+      allow read: if hasAnyRole([
+        'admin','soporte','finanzas','gerencia finanzas','gerencia','gerencia general',
+        'gerencia operaciones','operaciones','administracion'
+      ]);
+      allow create, update: if hasAnyRole(['admin','soporte','finanzas','gerencia finanzas']);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Instrumentos Financieros (CIPRL, cartas fianza, etc.)
+     * ───────────────────────────── */
+    match /instrumentosFinancieros/{instId} {
+      allow read: if hasAnyRole([
+        'admin','soporte','finanzas','gerencia finanzas','gerencia','gerencia general',
+        'gerencia operaciones','operaciones','administracion'
+      ]);
+      allow create: if hasAnyRole(['admin','soporte','finanzas','gerencia finanzas']);
+      allow update: if hasAnyRole(['admin','soporte','finanzas','gerencia finanzas']);
+      allow delete: if false;
+    }
+
+    /* ─────────────────────────────
+     * Sesiones de Pago (Mesa de Pagos)
+     * ───────────────────────────── */
+    match /sesionesPago/{sesionId} {
+      allow read: if hasAnyRole([
+        'admin','soporte','finanzas','gerencia finanzas','gerencia','gerencia general',
+        'gerencia operaciones','operaciones','administracion'
+      ]);
+      allow create: if hasAnyRole(['admin','soporte','finanzas','gerencia finanzas']);
+      allow update: if hasAnyRole([
+        'admin','soporte','finanzas','gerencia finanzas','gerencia','gerencia general'
+      ]);
+      allow delete: if false;
     }
 
     /* ─────────────────────────────

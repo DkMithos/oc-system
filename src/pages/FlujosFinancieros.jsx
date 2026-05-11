@@ -1,19 +1,11 @@
 // src/pages/FlujosFinancieros.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import {
-  obtenerCatalogosFinanzas,
-  obtenerTransaccionesFinancieras,
-  crearTransaccionFinanciera,
-  actualizarTransaccionFinanciera,
-  subirAdjuntoFinanzas,
-  TIPO_TRANSACCION,
-  CLASIFICACION_TRANSACCION,
-  obtenerProveedoresLigero,
-  obtenerCentrosCostoLigero,
-  buscarOrdenesCompraPorNumero,
-} from "../firebase/finanzasHelpers";
+import { TIPO_TRANSACCION, corregirTransaccionesInconsistentes } from "../firebase/finanzasHelpers";
 import { useUsuario } from "../context/UsuarioContext";
+import TransaccionFormModal from "../components/TransaccionFormModal";
+import useCatalogosFinanzas from "../hooks/useCatalogosFinanzas";
+import useTransacciones from "../hooks/useTransacciones";
 
 // ── Area tabs ─────────────────────────────────────────────────
 const AREAS_CONFIG = [
@@ -57,16 +49,15 @@ const AREA_POR_ROL = {
 
 const PUEDE_ESCRIBIR = new Set(["administracion", "finanzas", "operaciones", "admin", "soporte"]);
 
-const METODOS_PAGO_OPCIONES = ["Transferencia", "CIPRL", "Efectivo", "Cheque", "Detracción", "Retención"];
-
 const initialFilters = () => {
-  const hoy = new Date();
-  const hace30 = new Date();
-  hace30.setDate(hace30.getDate() - 30);
+  const hoy   = new Date();
+  const anio  = hoy.getFullYear();
+  const hasta = new Date(anio, 11, 31); // 31 dic del año actual
+  const desde = new Date(anio, 0, 1);  // 1 ene del año actual
   const toISO = (d) => d.toISOString().slice(0, 10);
   return {
-    fechaDesde: toISO(hace30),
-    fechaHasta: toISO(hoy),
+    fechaDesde: toISO(desde),
+    fechaHasta: toISO(hasta),
     tipo: "",
     estado: "",
     categoriaId: "",
@@ -74,59 +65,6 @@ const initialFilters = () => {
   };
 };
 
-const initialFormState = (usuario) => ({
-  id: null,
-  tipo: TIPO_TRANSACCION.EGRESO,
-  clasificacion: CLASIFICACION_TRANSACCION.OPEX,
-  categoriaId: "",
-  subcategoriaId: "",
-  moneda: "PEN",
-  tc: "",
-  monto_sin_igv: "",
-  igvCodigo: "",
-  igvTasa: "",
-  monto_total: "",
-  forma_pago: "",
-  // Proveedor / cliente
-  proveedor_cliente_id: "",
-  proveedor_cliente_nombre: "",
-  proveedorSearch: "",
-  // Centro de costo
-  centro_costo_id: "",
-  centro_costo_nombre: "",
-  centro_costo_search: "",
-  // Proyecto
-  proyecto_id: "",
-  proyecto_nombre: "",
-  // Documento
-  documento_tipo: "",
-  documento_numero: "",
-  // Orden relacionada
-  oc_id: "",
-  oc_numero: "",
-  // Factura (si aplica)
-  facturaId: "",
-  estado: "",
-  fecha: new Date().toISOString().slice(0, 10),
-  programado_fecha: "",
-  notas: "",
-  adjuntoFile: null,
-  creadoPor: usuario?.nombreCompleto || usuario?.email || "",
-  creadoPorUid: usuario?.uid || "",
-  // Campos extendidos — todos los flujos
-  mesVencimiento:    "",
-  montoPresupuestado: "",
-  postergado:        false,
-  detraccion:        "",
-  retencion:         "",
-  metodoPago:        "",
-  // Campos exclusivos Operaciones
-  codigoItem:        "",
-  cantidad:          "",
-  precioUnitario:    "",
-  diasCredito:       "",
-  fechaInicio:       "",
-});
 
 function FlujosFinancieros() {
   const { usuario } = useUsuario();
@@ -138,208 +76,37 @@ function FlujosFinancieros() {
   const puedeEscribir = PUEDE_ESCRIBIR.has(rol);
   const areaDefault = AREA_POR_ROL[rol] || null;
 
-  const [catalogos, setCatalogos] = useState({
-    igv: [],
-    categorias: [],
-    subcategorias: [],
-    formasPago: [],
-    estados: [],
-    tiposDocumento: [],
-    proyectos: [],
-  });
+  // Hooks extraídos (Fase 2 refactor)
+  const { catalogos, proveedorOptions, centroCostoOptions, cargandoCatalogos } = useCatalogosFinanzas();
+  const {
+    filtros, setFiltros, busquedaTabla, setBusquedaTabla,
+    transacciones, pagina: paginaTrans, setPagina: setPaginaTrans, porPagina: TRANS_POR_PAGINA,
+    cargando, error, setError, cargarTransacciones, filtrar, calcularResumen,
+    handleFiltroChange, limpiarFiltros: handleLimpiarFiltrosBase,
+  } = useTransacciones({ porPagina: 25 });
 
-  const [proveedores, setProveedores] = useState([]);
-  const [centrosCosto, setCentrosCosto] = useState([]);
-
-  const [filtros, setFiltros] = useState(initialFilters);
-  const [busquedaTabla, setBusquedaTabla] = useState("");
-  const [transacciones, setTransacciones] = useState([]);
-  const [paginaTrans, setPaginaTrans] = useState(1);
-  const TRANS_POR_PAGINA = 25;
-  const [cargando, setCargando] = useState(false);
-  const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
-  const [error, setError] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [form, setForm] = useState(() => initialFormState(usuario));
-  const [guardando, setGuardando] = useState(false);
+  const [editarData, setEditarData] = useState(null);
 
-  const [buscandoOc, setBuscandoOc] = useState(false);
-  const [ocError, setOcError] = useState("");
+  // Corrección masiva (solo admin)
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const [resultadoCorreccion, setResultadoCorreccion] = useState(null);
 
-  // Opciones para buscadores tipo Select2
-  const proveedorOptions = useMemo(
-    () =>
-      proveedores.map((p) => ({
-        id: p.id || p.ruc,
-        label: p.razonSocial,
-        subLabel: p.ruc,
-        raw: p,
-      })),
-    [proveedores]
+  // Filtrado local (área + text search) — usa helper del hook
+  const transaccionesFiltradas = useMemo(
+    () => filtrar(transacciones, areaTab, busquedaTabla),
+    [transacciones, busquedaTabla, areaTab, filtrar]
   );
 
-  const centroCostoOptions = useMemo(
-    () =>
-      centrosCosto.map((c) => ({
-        id: c.id,
-        label: c.nombre,
-        subLabel: c.codigo || "",
-        raw: c,
-      })),
-    [centrosCosto]
+  // Resumen — usa helper del hook
+  const resumen = useMemo(
+    () => calcularResumen(transaccionesFiltradas),
+    [transaccionesFiltradas, calcularResumen]
   );
 
-  // Cargar catálogos
-  useEffect(() => {
-    let activo = true;
-    const cargar = async () => {
-      setCargandoCatalogos(true);
-      try {
-        const data = await obtenerCatalogosFinanzas();
-        if (!activo) return;
-        setCatalogos((prev) => ({
-          ...prev,
-          ...data,
-        }));
-      } catch (e) {
-        console.error(e);
-        if (activo) setError("Error cargando catálogos financieros.");
-      } finally {
-        if (activo) setCargandoCatalogos(false);
-      }
-    };
-    cargar();
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  // Cargar proveedores y centros de costo
-  useEffect(() => {
-    let activo = true;
-    const cargarExtras = async () => {
-      try {
-        const [provs, ccs] = await Promise.all([
-          obtenerProveedoresLigero(),
-          obtenerCentrosCostoLigero(),
-        ]);
-        if (!activo) return;
-        setProveedores(provs);
-        setCentrosCosto(ccs);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    cargarExtras();
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  // Cargar transacciones
-  const cargarTransacciones = async () => {
-    setCargando(true);
-    setError("");
-    try {
-      const { transacciones } = await obtenerTransaccionesFinancieras({
-        fechaDesde: filtros.fechaDesde || null,
-        fechaHasta: filtros.fechaHasta || null,
-        tipo: filtros.tipo || null,
-        estado: filtros.estado || null,
-        categoriaId: filtros.categoriaId || null,
-        centro_costo_id: filtros.centro_costo_id || null,
-      });
-      setTransacciones(transacciones);
-      setPaginaTrans(1);
-    } catch (e) {
-      console.error(e);
-      setError("Error cargando transacciones financieras.");
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  useEffect(() => {
-    cargarTransacciones();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Filtrado local (área + text search)
-  const transaccionesFiltradas = useMemo(() => {
-    let data = transacciones;
-    // Filtro por área (cliente)
-    if (areaTab !== "consolidado") {
-      data = data.filter((t) => (t.area || "") === areaTab);
-    }
-    // Búsqueda textual
-    const q = busquedaTabla.trim().toLowerCase();
-    if (q) {
-      data = data.filter((t) =>
-        [t.proveedor_cliente_nombre, t.centro_costo_nombre, t.oc_numero, t.documento_numero, t.categoriaNombre, t.notas]
-          .some((v) => String(v || "").toLowerCase().includes(q))
-      );
-    }
-    return data;
-  }, [transacciones, busquedaTabla, areaTab]);
-
-  // Resumen
-  const resumen = useMemo(() => {
-    let ingresos = 0;
-    let egresos = 0;
-
-    transaccionesFiltradas.forEach((t) => {
-      const totalPen =
-        t.monto_total_pen != null
-          ? Number(t.monto_total_pen)
-          : Number(t.monto_total || 0);
-
-      if (t.tipo === TIPO_TRANSACCION.INGRESO) {
-        ingresos += totalPen;
-      } else if (t.tipo === TIPO_TRANSACCION.EGRESO) {
-        egresos += totalPen;
-      }
-    });
-
-    const flujoNeto = ingresos - egresos;
-
-    return {
-      ingresos: +ingresos.toFixed(2),
-      egresos: +egresos.toFixed(2),
-      flujoNeto: +flujoNeto.toFixed(2),
-    };
-  }, [transaccionesFiltradas]);
-
-  // Filtros
-  const handleFiltroChange = (e) => {
-    const { name, value } = e.target;
-    setFiltros((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleBuscarClick = () => {
-    cargarTransacciones();
-  };
-
-  const handleLimpiarFiltros = async () => {
-    const nuevo = initialFilters();
-    setFiltros(nuevo);
-    setBusquedaTabla("");
-    setCargando(true);
-    setError("");
-    try {
-      const { transacciones: data } = await obtenerTransaccionesFinancieras({
-        fechaDesde: nuevo.fechaDesde,
-        fechaHasta: nuevo.fechaHasta,
-        tipo: null, estado: null, categoriaId: null, centro_costo_id: null,
-      });
-      setTransacciones(data);
-      setPaginaTrans(1);
-    } catch (e) {
-      console.error(e);
-      setError("Error cargando transacciones financieras.");
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Filtros (delegados al hook)
+  const handleBuscarClick = () => cargarTransacciones();
+  const handleLimpiarFiltros = () => handleLimpiarFiltrosBase();
 
   const aplicarPeriodo = async (dias) => {
     const hoy = new Date();
@@ -356,45 +123,27 @@ function FlujosFinancieros() {
     };
     setFiltros(nuevo);
     setBusquedaTabla("");
-    setCargando(true);
-    setError("");
-    try {
-      const { transacciones: data } = await obtenerTransaccionesFinancieras({
-        fechaDesde: nuevo.fechaDesde || null,
-        fechaHasta: nuevo.fechaHasta || null,
-        tipo: nuevo.tipo || null,
-        estado: nuevo.estado || null,
-        categoriaId: nuevo.categoriaId || null,
-        centro_costo_id: nuevo.centro_costo_id || null,
-      });
-      setTransacciones(data);
-      setPaginaTrans(1);
-    } catch (e) {
-      console.error(e);
-      setError("Error cargando transacciones financieras.");
-    } finally {
-      setCargando(false);
-    }
+    await cargarTransacciones(nuevo);
   };
 
   const exportarExcel = () => {
     const rows = transaccionesFiltradas.map((t) => ({
       Fecha: t.fechaISO || "",
       Tipo: t.tipo,
-      Clasificación: t.clasificacion || "",
+      Clasificacion: t.clasificacion || "",
       Moneda: t.moneda,
       "Monto sin IGV": Number(t.monto_sin_igv || 0).toFixed(2),
       "Monto total": Number(t.monto_total ?? 0).toFixed(2),
       "Monto total (S/)": Number(t.monto_total_pen ?? t.monto_total ?? 0).toFixed(2),
-      Categoría: t.categoriaNombre || "",
-      Subcategoría: t.subcategoriaNombre || "",
+      Categoria: t.categoriaNombre || "",
+      Subcategoria: t.subcategoriaNombre || "",
       Proveedor: t.proveedor_cliente_nombre || "",
       "Centro de Costo": t.centro_costo_nombre || "",
       Proyecto: t.proyecto_nombre || "",
       Estado: t.estado || "",
       "Tipo Doc": t.documento_tipo || "",
-      "N° Doc": t.documento_numero || "",
-      "N° OC": t.oc_numero || "",
+      "N Doc": t.documento_numero || "",
+      "N OC": t.oc_numero || "",
       Notas: t.notas || "",
     }));
     const wb = XLSX.utils.book_new();
@@ -404,286 +153,44 @@ function FlujosFinancieros() {
     XLSX.writeFile(wb, `flujos-financieros-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  // Modal / form
+  // Modal
   const handleNuevoClick = () => {
-    setForm(initialFormState(usuario));
-    setOcError("");
+    setEditarData(null);
     setMostrarModal(true);
   };
 
   const handleEditarClick = (t) => {
-    setForm({
-      ...initialFormState(usuario),
-      ...t,
-      fecha: t.fechaISO || t.fecha || new Date().toISOString().slice(0, 10),
-      programado_fecha: t.programado_fechaISO || "",
-      id: t.id,
-      adjuntoFile: null,
-      proveedorSearch:
-        t.proveedor_cliente_nombre || t.proveedor_cliente_id || "",
-      centro_costo_search: t.centro_costo_nombre || "",
-    });
-    setOcError("");
+    setEditarData(t);
     setMostrarModal(true);
-  };
-
-  const handleChangeForm = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0] || null;
-    setForm((prev) => ({
-      ...prev,
-      adjuntoFile: file,
-    }));
   };
 
   const cerrarModal = () => {
     setMostrarModal(false);
-    setForm(initialFormState(usuario));
-    setOcError("");
+    setEditarData(null);
   };
 
-  // Proveedor (input + lista flotante)
-  const handleProveedorInputChange = (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({
-      ...prev,
-      proveedorSearch: value,
-      // mientras escribe, no forzamos ID; se setea al elegir de la lista
-      proveedor_cliente_id: prev.proveedor_cliente_id,
-      proveedor_cliente_nombre: prev.proveedor_cliente_nombre,
-    }));
+  const handleModalSaved = async () => {
+    await cargarTransacciones();
+    cerrarModal();
   };
 
-  const handleProveedorSeleccion = (opt) => {
-    const p = opt?.raw;
-    if (!p) return;
-    setForm((prev) => ({
-      ...prev,
-      proveedorSearch: `${p.razonSocial} - ${p.ruc}`,
-      proveedor_cliente_id: p.ruc,
-      proveedor_cliente_nombre: p.razonSocial,
-    }));
-  };
-
-  // Centro de costo (input + lista flotante)
-  const handleCentroCostoInputChange = (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({
-      ...prev,
-      centro_costo_search: value,
-      centro_costo_id: prev.centro_costo_id,
-      centro_costo_nombre: prev.centro_costo_nombre,
-    }));
-  };
-
-  const handleCentroCostoSeleccion = (opt) => {
-    const c = opt?.raw;
-    if (!c) return;
-    setForm((prev) => ({
-      ...prev,
-      centro_costo_search: c.nombre,
-      centro_costo_id: c.id,
-      centro_costo_nombre: c.nombre,
-    }));
-  };
-
-  // Proyecto (catálogo)
-  const handleProyectoChange = (e) => {
-    const value = e.target.value;
-    const p = catalogos.proyectos.find((proy) => proy.id === value);
-    setForm((prev) => ({
-      ...prev,
-      proyecto_id: value || "",
-      proyecto_nombre: p?.nombre || "",
-    }));
-  };
-
-  // Determinar IGV según cat/sub
-  const resolverIgvCodigo = () => {
-    const { categoriaId, subcategoriaId, igvCodigo } = form;
-    const sub = catalogos.subcategorias.find((s) => s.id === subcategoriaId);
-    if (sub?.igvCodigoDefault) return sub.igvCodigoDefault;
-    const cat = catalogos.categorias.find((c) => c.id === categoriaId);
-    if (cat?.igvCodigoDefault) return cat.igvCodigoDefault;
-    return igvCodigo || "";
-  };
-
-  // Buscar OC y autocompletar datos ligados
-  const handleBuscarOc = async () => {
-    setOcError("");
-    if (!form.oc_numero) {
-      setOcError("Ingrese el número de orden para buscar.");
-      return;
-    }
-    setBuscandoOc(true);
+  // Corrección masiva de datos (solo admin/soporte)
+  const handleCorregirDatos = async () => {
+    if (!window.confirm(
+      "Esto corregira transacciones con tipo incorrecto (EGRESO con categoria Ingresos) " +
+      "y montos negativos. ¿Continuar?"
+    )) return;
+    setCorrigiendo(true);
+    setResultadoCorreccion(null);
     try {
-      const resultados = await buscarOrdenesCompraPorNumero(
-        form.oc_numero.trim()
-      );
-      if (!resultados || resultados.length === 0) {
-        setOcError("No se encontró ninguna orden con ese número.");
-        return;
-      }
-      const oc = resultados[0];
-
-      setForm((prev) => ({
-        ...prev,
-        oc_id: oc.id,
-        oc_numero: oc.numero || oc.oc_numero || prev.oc_numero,
-        // Proveedor
-        proveedor_cliente_id: oc.proveedorRuc || prev.proveedor_cliente_id,
-        proveedor_cliente_nombre:
-          oc.proveedorNombre || prev.proveedor_cliente_nombre,
-        proveedorSearch:
-          oc.proveedorNombre && oc.proveedorRuc
-            ? `${oc.proveedorNombre} - ${oc.proveedorRuc}`
-            : prev.proveedorSearch,
-        // Centro de costo
-        centro_costo_id: oc.centroCostoId || prev.centro_costo_id,
-        centro_costo_nombre:
-          oc.centroCostoNombre || prev.centro_costo_nombre,
-        centro_costo_search:
-          oc.centroCostoNombre || prev.centro_costo_search,
-        // Proyecto
-        proyecto_id: oc.proyectoId || prev.proyecto_id,
-        proyecto_nombre: oc.proyectoNombre || prev.proyecto_nombre,
-        // Moneda
-        moneda: oc.moneda || prev.moneda,
-      }));
+      const resultado = await corregirTransaccionesInconsistentes();
+      setResultadoCorreccion(resultado);
+      if (resultado.corregidas > 0) await cargarTransacciones();
     } catch (e) {
       console.error(e);
-      setOcError("Error buscando la orden. Revisa la consola.");
+      setError("Error ejecutando la correccion de datos.");
     } finally {
-      setBuscandoOc(false);
-    }
-  };
-
-  const handleSubmitForm = async (e) => {
-    e.preventDefault();
-    if (!usuario) return;
-
-    setGuardando(true);
-    setError("");
-
-    try {
-      const igvCodigo = resolverIgvCodigo();
-
-      const cat = catalogos.categorias.find(
-        (c) => c.id === form.categoriaId
-      );
-      const sub = catalogos.subcategorias.find(
-        (s) => s.id === form.subcategoriaId
-      );
-      const estadoObj = catalogos.estados.find(
-        (s) => s.nombre === form.estado
-      );
-
-      const payloadBase = {
-        tipo: form.tipo,
-        clasificacion: form.clasificacion,
-        categoriaId: form.categoriaId || null,
-        categoriaNombre:
-          cat?.nombre || cat?.descripcion || cat?.codigo || "",
-        subcategoriaId: form.subcategoriaId || null,
-        subcategoriaNombre:
-          sub?.nombre || sub?.descripcion || sub?.codigo || "",
-        moneda: form.moneda,
-        tc: form.tc ? Number(form.tc) : null,
-        monto_sin_igv: form.monto_sin_igv
-          ? Number(form.monto_sin_igv)
-          : 0,
-        igvCodigo: igvCodigo || null,
-        forma_pago: form.forma_pago || "",
-        // Proveedor / cliente
-        proveedor_cliente_id: form.proveedor_cliente_id || null,
-        proveedor_cliente_nombre:
-          form.proveedor_cliente_nombre || form.proveedorSearch || "",
-        // Centro de costo
-        centro_costo_id: form.centro_costo_id || null,
-        centro_costo_nombre:
-          form.centro_costo_nombre || form.centro_costo_search || "",
-        // Proyecto
-        proyecto_id: form.proyecto_id || null,
-        proyecto_nombre: form.proyecto_nombre || "",
-        // Documento
-        documento_tipo: form.documento_tipo || "",
-        documento_numero: form.documento_numero || "",
-        // Orden relacionada
-        oc_id: form.oc_id || null,
-        oc_numero: form.oc_numero || "",
-        // Factura
-        facturaId: form.facturaId || null,
-        // Estado
-        estado: estadoObj?.nombre || form.estado || "",
-        // Fechas
-        fecha: form.fecha ? new Date(form.fecha) : new Date(),
-        programado_fecha: form.programado_fecha
-          ? new Date(form.programado_fecha)
-          : null,
-        notas: form.notas || "",
-        creadoPor:
-          form.creadoPor ||
-          usuario?.nombreCompleto ||
-          usuario?.email ||
-          "",
-        creadoPorUid: form.creadoPorUid || usuario?.uid || "",
-        // Área del flujo
-        area: areaTab === "consolidado" ? (areaDefault || "ti") : areaTab,
-        // Campos extendidos comunes
-        mesVencimiento:     form.mesVencimiento    || null,
-        montoPresupuestado: form.montoPresupuestado ? Number(form.montoPresupuestado) : null,
-        postergado:         Boolean(form.postergado),
-        detraccion:         form.detraccion   ? Number(form.detraccion)   : null,
-        retencion:          form.retencion    ? Number(form.retencion)    : null,
-        metodoPago:         form.metodoPago   || "",
-        // Campos Operaciones
-        ...(areaTab === "operaciones" && {
-          codigoItem:     form.codigoItem    || "",
-          cantidad:       form.cantidad      ? Number(form.cantidad)       : null,
-          precioUnitario: form.precioUnitario ? Number(form.precioUnitario) : null,
-          diasCredito:    form.diasCredito   ? Number(form.diasCredito)    : null,
-          fechaInicio:    form.fechaInicio   || "",
-        }),
-      };
-
-      let idTransaccion = form.id || null;
-
-      if (!idTransaccion) {
-        idTransaccion = await crearTransaccionFinanciera({
-          ...payloadBase,
-          igvCodigo,
-        });
-      } else {
-        await actualizarTransaccionFinanciera(idTransaccion, {
-          ...payloadBase,
-          igvCodigo,
-        });
-      }
-
-      if (form.adjuntoFile && idTransaccion) {
-        const adj = await subirAdjuntoFinanzas(
-          form.adjuntoFile,
-          idTransaccion
-        );
-        await actualizarTransaccionFinanciera(idTransaccion, {
-          adjuntos: [adj],
-        });
-      }
-
-      await cargarTransacciones();
-      cerrarModal();
-    } catch (e) {
-      console.error(e);
-      setError("Error guardando la transacción financiera.");
-    } finally {
-      setGuardando(false);
+      setCorrigiendo(false);
     }
   };
 
@@ -715,6 +222,48 @@ function FlujosFinancieros() {
           )}
         </div>
       </div>
+
+      {/* Botón corrección masiva — solo admin/soporte */}
+      {(rol === "admin" || rol === "soporte") && !resultadoCorreccion && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-800">Correccion de datos pendiente</p>
+            <p className="text-xs text-amber-600">Hay transacciones con tipo/montos inconsistentes (EGRESO con categoria Ingresos, montos negativos).</p>
+          </div>
+          <button type="button" onClick={handleCorregirDatos} disabled={corrigiendo}
+            className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium whitespace-nowrap disabled:opacity-50">
+            {corrigiendo ? "Corrigiendo..." : "Corregir ahora"}
+          </button>
+        </div>
+      )}
+
+      {/* Resultado de corrección */}
+      {resultadoCorreccion && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <p className="text-sm font-medium text-green-800">
+            Correccion completada: {resultadoCorreccion.corregidas} de {resultadoCorreccion.revisadas} transacciones corregidas.
+          </p>
+          {resultadoCorreccion.detalles.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs text-green-700 cursor-pointer font-medium">Ver detalle</summary>
+              <ul className="mt-1 text-xs text-green-700 space-y-0.5 max-h-40 overflow-auto">
+                {resultadoCorreccion.detalles.map((d) => (
+                  <li key={d.id} className="flex gap-2">
+                    <span className="font-mono text-[10px] text-green-600">{d.id.slice(0, 8)}</span>
+                    <span>{d.area}</span>
+                    <span className="text-green-500">{d.proveedor}</span>
+                    <span className="font-medium">{d.motivos.join(", ")}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <button type="button" onClick={() => setResultadoCorreccion(null)}
+            className="mt-2 text-xs text-green-600 hover:text-green-800 underline">
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
@@ -996,444 +545,19 @@ function FlujosFinancieros() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal de crear/editar transaccion */}
       {mostrarModal && (
-        <Modal onClose={cerrarModal}>
-          <form
-            onSubmit={handleSubmitForm}
-            className="space-y-3 max-h-[80vh] overflow-y-auto pr-1"
-          >
-            <h2 className="text-lg font-semibold mb-1 text-gray-800">
-              {form.id ? "Editar transacción" : "Nueva transacción"}
-            </h2>
-
-            {/* Tipo / clasif / estado */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Tipo</label>
-                <select
-                  name="tipo"
-                  value={form.tipo}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value={TIPO_TRANSACCION.INGRESO}>INGRESO</option>
-                  <option value={TIPO_TRANSACCION.EGRESO}>EGRESO</option>
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Clasificación
-                </label>
-                <select
-                  name="clasificacion"
-                  value={form.clasificacion}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value={CLASIFICACION_TRANSACCION.OPEX}>OPEX</option>
-                  <option value={CLASIFICACION_TRANSACCION.CAPEX}>CAPEX</option>
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Estado</label>
-                <select
-                  name="estado"
-                  value={form.estado}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.estados.map((e) => (
-                    <option
-                      key={e.id || e.nombre}
-                      value={e.nombre || e.descripcion}
-                    >
-                      {e.nombre || e.descripcion || e.codigo || e.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Fechas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Fecha</label>
-                <input
-                  type="date"
-                  name="fecha"
-                  value={form.fecha}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Fecha programada (pago)
-                </label>
-                <input
-                  type="date"
-                  name="programado_fecha"
-                  value={form.programado_fecha}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Categorías */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Categoría</label>
-                <select
-                  name="categoriaId"
-                  value={form.categoriaId}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.categorias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre || c.descripcion || c.codigo || c.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Subcategoría
-                </label>
-                <select
-                  name="subcategoriaId"
-                  value={form.subcategoriaId}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.subcategorias
-                    .filter(
-                      (s) =>
-                        !form.categoriaId ||
-                        s.categoriaId === form.categoriaId
-                    )
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombre || s.descripcion || s.codigo || s.id}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Montos */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Moneda</label>
-                <select
-                  name="moneda"
-                  value={form.moneda}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="PEN">PEN</option>
-                  <option value="USD">USD</option>
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  TC (si no es PEN)
-                </label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  name="tc"
-                  value={form.tc}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Opcional si PEN"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Monto sin IGV
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="monto_sin_igv"
-                  value={form.monto_sin_igv}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Forma de pago / doc */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Forma de pago
-                </label>
-                <select
-                  name="forma_pago"
-                  value={form.forma_pago}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.formasPago.map((f) => (
-                    <option
-                      key={f.id || f.nombre}
-                      value={f.nombre || f.codigo}
-                    >
-                      {f.nombre || f.descripcion || f.codigo || f.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  Tipo de documento
-                </label>
-                <select
-                  name="documento_tipo"
-                  value={form.documento_tipo}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccione...</option>
-                  {catalogos.tiposDocumento.map((td) => (
-                    <option key={td.id} value={td.nombre}>
-                      {td.nombre || td.descripcion || td.codigo || td.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  N° documento
-                </label>
-                <input
-                  type="text"
-                  name="documento_numero"
-                  value={form.documento_numero}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="F001-000123"
-                />
-              </div>
-            </div>
-
-            {/* Proveedor / CC / Proyecto */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* Proveedor */}
-              <SearchSelect
-                label="Proveedor / Cliente"
-                placeholder="Buscar por razón social o RUC"
-                value={form.proveedorSearch}
-                onInputChange={handleProveedorInputChange}
-                options={proveedorOptions}
-                onSelect={handleProveedorSeleccion}
-                helperText={
-                  form.proveedor_cliente_nombre
-                    ? `Seleccionado: ${form.proveedor_cliente_nombre}`
-                    : ""
-                }
-              />
-
-              {/* Centro de costo */}
-              <SearchSelect
-                label="Centro de costo"
-                placeholder="Buscar centro de costo"
-                value={form.centro_costo_search}
-                onInputChange={handleCentroCostoInputChange}
-                options={centroCostoOptions}
-                onSelect={handleCentroCostoSeleccion}
-                helperText={
-                  form.centro_costo_nombre
-                    ? `Seleccionado: ${form.centro_costo_nombre}`
-                    : ""
-                }
-              />
-
-              {/* Proyecto */}
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Proyecto</label>
-                <select
-                  name="proyecto_id"
-                  value={form.proyecto_id}
-                  onChange={handleProyectoChange}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Sin proyecto</option>
-                  {catalogos.proyectos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre || p.descripcion || p.codigo || p.id}
-                    </option>
-                  ))}
-                </select>
-                {form.proyecto_nombre && (
-                  <span className="mt-0.5 text-[10px] text-gray-500">
-                    {form.proyecto_nombre}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* OC / Notas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">
-                  N° Orden relacionada
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    name="oc_numero"
-                    value={form.oc_numero}
-                    onChange={handleChangeForm}
-                    className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="MM-000123, etc."
-                  />
-                  <button
-                    type="button"
-                    onClick={handleBuscarOc}
-                    className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded text-gray-700"
-                    disabled={buscandoOc}
-                  >
-                    {buscandoOc ? "Buscando..." : "Buscar"}
-                  </button>
-                </div>
-                {ocError && (
-                  <span className="mt-0.5 text-[10px] text-red-600">
-                    {ocError}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Notas</label>
-                <input
-                  type="text"
-                  name="notas"
-                  value={form.notas}
-                  onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Campos Operaciones */}
-            {(areaTab === "operaciones" || form.area === "operaciones") && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-3">
-                <p className="col-span-full text-xs font-semibold text-purple-700 mb-0">Datos de Operaciones</p>
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 mb-1">Código ítem</label>
-                  <input type="text" name="codigoItem" value={form.codigoItem} onChange={handleChangeForm}
-                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 mb-1">Cantidad</label>
-                  <input type="number" step="1" name="cantidad" value={form.cantidad} onChange={handleChangeForm}
-                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 mb-1">Precio unitario</label>
-                  <input type="number" step="0.01" name="precioUnitario" value={form.precioUnitario} onChange={handleChangeForm}
-                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 mb-1">Días crédito</label>
-                  <input type="number" step="1" name="diasCredito" value={form.diasCredito} onChange={handleChangeForm}
-                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-gray-600 mb-1">Fecha inicio</label>
-                  <input type="date" name="fechaInicio" value={form.fechaInicio} onChange={handleChangeForm}
-                    className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                </div>
-              </div>
-            )}
-
-            {/* Campos extendidos comunes */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-3">
-              <p className="col-span-full text-xs font-semibold text-gray-500 mb-0">Datos adicionales</p>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Método de pago</label>
-                <select name="metodoPago" value={form.metodoPago} onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-                  <option value="">Seleccione...</option>
-                  {METODOS_PAGO_OPCIONES.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Mes vencimiento</label>
-                <input type="month" name="mesVencimiento" value={form.mesVencimiento} onChange={handleChangeForm}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Detracción (S/)</label>
-                <input type="number" step="0.01" name="detraccion" value={form.detraccion} onChange={handleChangeForm}
-                  placeholder="0.00"
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Retención (S/)</label>
-                <input type="number" step="0.01" name="retencion" value={form.retencion} onChange={handleChangeForm}
-                  placeholder="0.00"
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">Monto presupuestado</label>
-                <input type="number" step="0.01" name="montoPresupuestado" value={form.montoPresupuestado} onChange={handleChangeForm}
-                  placeholder="0.00"
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div className="flex items-center gap-2 pt-4">
-                <input type="checkbox" id="postergado" name="postergado" checked={Boolean(form.postergado)}
-                  onChange={(e) => setForm((p) => ({ ...p, postergado: e.target.checked }))}
-                  className="accent-amber-500" />
-                <label htmlFor="postergado" className="text-xs text-gray-700 cursor-pointer">Postergado</label>
-              </div>
-            </div>
-
-            {/* Adjunto */}
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-600 mb-1">
-                Comprobante (opcional)
-              </label>
-              <input
-                type="file"
-                onChange={handleFileChange}
-                className="text-xs text-gray-700"
-              />
-            </div>
-
-            {/* Botones */}
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={cerrarModal}
-                className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-xs sm:text-sm text-gray-700 border border-gray-300"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={guardando}
-                className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white disabled:opacity-60"
-              >
-                {guardando
-                  ? "Guardando..."
-                  : form.id
-                  ? "Guardar cambios"
-                  : "Crear transacción"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <TransaccionFormModal
+          initialData={editarData}
+          usuario={usuario}
+          catalogos={catalogos}
+          proveedorOptions={proveedorOptions}
+          centroCostoOptions={centroCostoOptions}
+          areaTab={areaTab}
+          areaDefault={areaDefault}
+          onClose={cerrarModal}
+          onSaved={handleModalSaved}
+        />
       )}
     </div>
   );
@@ -1484,126 +608,6 @@ function ResumenCard({ titulo, valor, resaltado }) {
           maximumFractionDigits: 2,
         })}
       </div>
-    </div>
-  );
-}
-
-function Modal({ children, onClose }) {
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-      <div className="bg-white border border-gray-300 rounded-xl shadow-xl w-full max-w-4xl mx-2 p-4 relative">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-sm"
-        >
-          ✕
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Buscador tipo Select2 minimalista:
- * - Input con lupa
- * - Lista flotante con filtro por texto (label + subLabel)
- */
-function SearchSelect({
-  label,
-  placeholder,
-  value,
-  onInputChange,
-  options,
-  onSelect,
-  helperText,
-}) {
-  const [open, setOpen] = useState(false);
-
-  const filtered = useMemo(() => {
-    const term = (value || "").toLowerCase().trim();
-    if (!term) return options.slice(0, 40);
-    return options
-      .filter((o) => {
-        const l = (o.label || "").toLowerCase();
-        const s = (o.subLabel || "").toLowerCase();
-        return l.includes(term) || s.includes(term);
-      })
-      .slice(0, 40);
-  }, [options, value]);
-
-  const handleBlur = () => {
-    // Damos un pequeño tiempo para permitir el click en la lista
-    setTimeout(() => setOpen(false), 120);
-  };
-
-  return (
-    <div className="relative flex flex-col">
-      {label && (
-        <label className="text-xs text-gray-600 mb-1">{label}</label>
-      )}
-      <div className="relative">
-        <input
-          type="text"
-          value={value}
-          onChange={onInputChange}
-          onFocus={() => setOpen(true)}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          className="w-full bg-white border border-gray-300 rounded px-8 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        />
-        {/* Icono lupa */}
-        <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-gray-400">
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M9 3.5A5.5 5.5 0 1 1 3.5 9 5.5 5.5 0 0 1 9 3.5Zm0-1.5A7 7 0 1 0 16 9a7 7 0 0 0-7-7Z"
-              fill="currentColor"
-            />
-            <path
-              d="m13.5 13.5 3 3"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-      </div>
-
-      {open && filtered.length > 0 && (
-        <div className="absolute left-0 right-0 mt-1 max-h-52 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-xs sm:text-sm z-40">
-          {filtered.map((opt) => (
-            <button
-              type="button"
-              key={opt.id}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onSelect?.(opt);
-                setOpen(false);
-              }}
-              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 focus:bg-blue-50"
-            >
-              <div className="font-medium text-gray-800">{opt.label}</div>
-              {opt.subLabel && (
-                <div className="text-[11px] text-gray-500">
-                  {opt.subLabel}
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {helperText && (
-        <span className="mt-0.5 text-[10px] text-gray-500">
-          {helperText}
-        </span>
-      )}
     </div>
   );
 }

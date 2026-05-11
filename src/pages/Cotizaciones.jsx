@@ -345,8 +345,7 @@ const Cotizaciones = () => {
 
   // ======= render =======
   if (loading) return <div className="p-6">Cargando usuario…</div>;
-  if (!usuario || !["admin", "comprador"].includes(usuario?.rol))
-    return <div className="p-6">Acceso no autorizado</div>;
+  if (!usuario) return <div className="p-6">Acceso no autorizado</div>;
 
   return (
     <div className="p-6">
@@ -538,7 +537,7 @@ const Cotizaciones = () => {
                 {(form.items || []).map((it, i) => {
                   const total = num(it.cantidad) * num(it.precioUnitario) - num(it.descuento);
                   return (
-                    <tr key={i}>
+                    <tr key={it.id || `cot-${i}`}>
                       <td className="p-2 border">
                         <input
                           type="text"

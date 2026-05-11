@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { ClipboardCheck, CheckCircle, AlertCircle, Clock, ChevronRight, X } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
-import { obtenerOCs } from "../firebase/firestoreHelpers";
+import { obtenerOCsPorEstado } from "../firebase/firestoreHelpers";
 import { crearRecepcion, obtenerRecepcionesPorOC } from "../firebase/recepcionHelpers";
 
 // ── helpers ──────────────────────────────────────────────────
@@ -43,7 +43,7 @@ const RecepcionBienes = () => {
     (async () => {
       setCargando(true);
       try {
-        const todas = await obtenerOCs();
+        const todas = await obtenerOCsPorEstado(["Aprobada", "Pagado", "Pago Parcial"]);
         const elegibles = (todas || []).filter(
           (oc) =>
             oc.estado === "Aprobada" ||
@@ -321,7 +321,7 @@ const RecepcionBienes = () => {
                     </thead>
                     <tbody>
                       {itemsRecepcion.map((it, idx) => (
-                        <tr key={idx} className={`border-t ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                        <tr key={it.id || it.nombre || `rec-${idx}`} className={`border-t ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
                           <td className="px-3 py-2 font-medium text-gray-800 max-w-[140px] truncate" title={it.nombre}>{it.nombre}</td>
                           <td className="px-3 py-2 text-center text-gray-600">{it.cantidadOrdenada}</td>
                           {!esServicio && (

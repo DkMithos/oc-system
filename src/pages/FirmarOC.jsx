@@ -13,15 +13,17 @@ import React, { useEffect, useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
+import { getDoc, doc, runTransaction } from "firebase/firestore";
+import { db } from "../firebase/config";
 import {
   obtenerOCporId,
-  actualizarOC,
   obtenerFirmaUsuario,
   guardarFirmaUsuario,
   registrarLog,
 } from "../firebase/firestoreHelpers";
 import { notificarUsuario, notificarRol } from "../firebase/notifs";
 import { getTrimmedCanvas } from "../utils/trimCanvasFix";
+import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import {
@@ -86,6 +88,26 @@ const FirmarOC = () => {
   const [motivoRechazo,  setMotivoRechazo]  = useState("");
   const [configAprobaciones, setConfigAprobaciones] = useState(UMBRALES_DEFAULT);
   const sigPadRef = useRef(null);
+
+  // Panel de evidencia: cotización vinculada
+  const [cotPanelAbierto, setCotPanelAbierto] = useState(false);
+  const [cotizacion, setCotizacion]           = useState(null);
+  const [cotCargando, setCotCargando]         = useState(false);
+
+  const toggleCotPanel = async () => {
+    if (cotPanelAbierto) { setCotPanelAbierto(false); return; }
+    setCotPanelAbierto(true);
+    if (cotizacion || !orden?.cotizacionId) return;
+    setCotCargando(true);
+    try {
+      const snap = await getDoc(doc(db, "cotizaciones", orden.cotizacionId));
+      setCotizacion(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    } catch (e) {
+      console.error("[FirmarOC] Error cargando cotización:", e);
+    } finally {
+      setCotCargando(false);
+    }
+  };
 
   // ── Carga inicial ─────────────────────────────────────────────
   useEffect(() => {
@@ -189,7 +211,24 @@ const FirmarOC = () => {
         },
       ];
 
-      await actualizarOC(orden.id, { firmas: nuevasFirmas, estado: nuevoEstado, historial });
+      // [C-03] Transacción atómica para evitar race conditions entre aprobadores simultáneos.
+      const ocRef = doc(db, "ordenesCompra", orden.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ocRef);
+        if (!snap.exists()) throw new Error("Orden no encontrada");
+        const actual = snap.data();
+        // Verificar que el estado no cambió mientras el usuario firmaba
+        if (actual.estado !== estadoActual) {
+          throw new Error(`La OC cambió de estado (ahora: ${actual.estado}). Recarga la página.`);
+        }
+        tx.update(ocRef, {
+          firmas: nuevasFirmas,
+          estado: nuevoEstado,
+          historial,
+          actualizadoEn: new Date().toISOString(),
+        });
+      });
+
       await registrarLog({
         accion: "orden_firmada",
         ocId: orden.id,
@@ -250,12 +289,25 @@ const FirmarOC = () => {
           fecha: new Date().toLocaleString("es-PE"),
         },
       ];
-      await actualizarOC(orden.id, {
-        estado: "Rechazada",
-        motivoRechazo,
-        historial,
-        permiteEdicion: true,
+      // [C-03] Transacción atómica para rechazos
+      const ocRefR = doc(db, "ordenesCompra", orden.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ocRefR);
+        if (!snap.exists()) throw new Error("Orden no encontrada");
+        const actual = snap.data();
+        if (actual.estado !== estadoActual) {
+          throw new Error(`La OC cambió de estado (ahora: ${actual.estado}). Recarga la página.`);
+        }
+        tx.update(ocRefR, {
+          estado: "Rechazada",
+          motivoRechazo,
+          historial,
+          actualizadoEn: new Date().toISOString(),
+          // [S1-8] NO establecer permiteEdicion: true automáticamente.
+          // El comprador debe solicitar edición formalmente via SolicitudesEdicion.
+        });
       });
+
       await registrarLog({
         accion: "orden_rechazada",
         ocId: orden.id,
@@ -312,12 +364,124 @@ const FirmarOC = () => {
           <div><span className="text-gray-500">Fecha:</span> <b>{orden.fechaEmision || "—"}</b></div>
           <div><span className="text-gray-500">Moneda:</span> <b>{moneda}</b></div>
           <div><span className="text-gray-500">Total:</span> <b>{moneda === "Dólares" ? "$ " : "S/ "}{monto.toFixed(2)}</b></div>
+          {orden.centroCosto && (
+            <div><span className="text-gray-500">Centro de Costo:</span> <b>{orden.centroCosto}</b></div>
+          )}
+          {orden.cotizacion && (
+            <div><span className="text-gray-500">N° Cotización:</span> <b>{orden.cotizacion}</b></div>
+          )}
           {requiereGG && (
             <div className="col-span-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               ⚠ Monto mayor a S/{umbral.toLocaleString("es-PE")} — requiere aprobación de Gerencia General
             </div>
           )}
         </div>
+
+        {/* Panel de evidencia: cotización vinculada */}
+        {orden.cotizacionId && (
+          <div className="mb-5">
+            <button
+              onClick={toggleCotPanel}
+              className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-sm font-semibold transition-colors border border-indigo-200"
+            >
+              <span>📋 Ver evidencia — Cotización vinculada</span>
+              <span className="text-xs">{cotPanelAbierto ? "▲ Ocultar" : "▼ Mostrar"}</span>
+            </button>
+            {cotPanelAbierto && (
+              <div className="border border-indigo-200 border-t-0 rounded-b-lg p-4 bg-white text-sm">
+                {cotCargando && <p className="text-gray-400 text-center py-3">Cargando cotización…</p>}
+                {!cotCargando && cotizacion === null && (
+                  <p className="text-gray-400 italic">No se encontró la cotización vinculada.</p>
+                )}
+                {!cotCargando && cotizacion && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div><b>Código:</b> {cotizacion.codigo || cotizacion.numero || cotizacion.id}</div>
+                      <div><b>Proveedor:</b> {cotizacion.proveedor?.razonSocial || cotizacion.proveedorNombre || "—"}</div>
+                      <div><b>Fecha:</b> {cotizacion.fechaEmision || cotizacion.fecha || "—"}</div>
+                      <div><b>Moneda:</b> {cotizacion.moneda || cotizacion.monedaSeleccionada || "—"}</div>
+                      {cotizacion.total != null && (
+                        <div><b>Total cotizado:</b> {formatearMoneda(Number(cotizacion.total), cotizacion.moneda || cotizacion.monedaSeleccionada || "Soles")}</div>
+                      )}
+                      {cotizacion.condicionPago && (
+                        <div><b>Condición pago:</b> {cotizacion.condicionPago}</div>
+                      )}
+                      {cotizacion.notas && (
+                        <div className="col-span-2 text-gray-600 italic text-xs"><b>Notas:</b> {cotizacion.notas}</div>
+                      )}
+                    </div>
+                    {/* Ítems de la cotización */}
+                    {Array.isArray(cotizacion.items) && cotizacion.items.length > 0 && (
+                      <div className="mb-3">
+                        <p className="font-semibold text-indigo-900 text-xs mb-1">Detalle cotizado:</p>
+                        <table className="w-full text-xs border border-collapse">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="border px-1 py-1">#</th>
+                              <th className="border px-1 py-1 text-left">Descripción</th>
+                              <th className="border px-1 py-1">Cant.</th>
+                              <th className="border px-1 py-1">P.U.</th>
+                              <th className="border px-1 py-1">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cotizacion.items.slice(0, 15).map((it, idx) => (
+                              <tr key={it.id || `cot-item-${idx}`} className="text-center">
+                                <td className="border px-1 py-0.5">{idx + 1}</td>
+                                <td className="border px-1 py-0.5 text-left">{it.descripcion || it.nombre || "—"}</td>
+                                <td className="border px-1 py-0.5">{it.cantidad || "—"}</td>
+                                <td className="border px-1 py-0.5">{it.precioUnitario != null ? formatearMoneda(Number(it.precioUnitario), moneda) : "—"}</td>
+                                <td className="border px-1 py-0.5">{it.total != null ? formatearMoneda(Number(it.total), moneda) : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {cotizacion.items.length > 15 && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">Mostrando 15 de {cotizacion.items.length} ítems</p>
+                        )}
+                      </div>
+                    )}
+                    {/* Archivo adjunto */}
+                    {cotizacion.archivoUrl && (
+                      <div className="border-t pt-3">
+                        <p className="font-semibold text-indigo-900 mb-2 text-xs">Documento adjunto de la cotización:</p>
+                        {/\.(pdf)$/i.test(cotizacion.archivoUrl) ? (
+                          <iframe
+                            src={cotizacion.archivoUrl}
+                            className="w-full h-[400px] border rounded"
+                            title="Cotización PDF"
+                          />
+                        ) : (
+                          <img
+                            src={cotizacion.archivoUrl}
+                            alt="Cotización adjunta"
+                            className="max-w-full max-h-[400px] border rounded object-contain mx-auto"
+                          />
+                        )}
+                        <a
+                          href={cotizacion.archivoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block mt-2 text-xs text-indigo-700 underline"
+                        >
+                          Abrir en nueva pestaña
+                        </a>
+                      </div>
+                    )}
+                    {!cotizacion.archivoUrl && (
+                      <p className="text-xs text-amber-600 italic border-t pt-2">⚠ Esta cotización no tiene archivo adjunto cargado.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {!orden.cotizacionId && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-700 text-xs">
+            ⚠ Esta OC no tiene cotización vinculada. No hay evidencia documental disponible para verificar.
+          </div>
+        )}
 
         {/* Timeline del flujo de firmas */}
         <div className="mb-5">

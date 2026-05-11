@@ -1,6 +1,6 @@
 // ✅ src/components/VerOCModal.jsx (mismos criterios: 1 hoja, máx. 15 ítems, sin box de detracción)
 import React, { useEffect, useMemo, useState } from "react";
-import html2pdf from "html2pdf.js";
+// PDF: imports dinámicos en exportarPDF() para forzar 1 sola página
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { formatearMoneda } from "../utils/formatearMoneda";
@@ -112,20 +112,33 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
   const puedeExportar = !!ocLocal;
   const puedeFirmar = !!usuario && ocPendingForRole(ocLocal, usuario.rol, usuario.email);
 
-  const exportarPDF = () => {
+  const exportarPDF = async () => {
     const el = document.getElementById("modal-oc-print");
     if (!el) return;
-    html2pdf()
-      .set({
-        margin: [0.25, 0.25, 0.25, 0.25],
-        filename: `OC-${ocLocal.numeroOC || ocLocal.id}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 3, scrollY: 0 },
-        jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["avoid-all"] },
-      })
-      .from(el)
-      .save();
+
+    // Renderizar a canvas y escalar para forzar 1 sola página A4
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    const canvas = await html2canvas(el, { scale: 3, scrollY: 0, useCORS: true });
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+    // A4 en mm: 210 x 297. Margen 6mm por lado → área útil 198 x 285
+    const pageW = 198;
+    const pageH = 285;
+    const marginX = 6;
+    const marginY = 6;
+
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const ratio = Math.min(pageW / imgW, pageH / imgH);
+    const finalW = imgW * ratio;
+    const finalH = imgH * ratio;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const offsetY = marginY + Math.max(0, (pageH - finalH) / 2);
+    pdf.addImage(imgData, "JPEG", marginX, offsetY, finalW, finalH);
+    pdf.save(`OC-${ocLocal.numeroOC || ocLocal.id}.pdf`);
   };
 
   const handleFirmado = (ocActualizada) => {
@@ -170,42 +183,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           </div>
         </div>
 
-        {/* [F-07] Panel cotización de referencia */}
-        {ocLocal.cotizacionId && (
-          <div className="mb-2">
-            <button
-              onClick={toggleCotPanel}
-              className="w-full flex items-center justify-between px-3 py-2 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-semibold transition-colors border border-blue-200"
-            >
-              <span>Cotización de referencia {ocLocal.cotizacion ? `— ${ocLocal.cotizacion}` : ""}</span>
-              <span>{cotPanelAbierto ? "▲" : "▼"}</span>
-            </button>
-            {cotPanelAbierto && (
-              <div className="border border-blue-200 border-t-0 rounded-b p-3 bg-white text-sm">
-                {cotCargando && <p className="text-gray-400 text-center py-2">Cargando cotización…</p>}
-                {!cotCargando && cotizacion === null && ocLocal.cotizacionId && (
-                  <p className="text-gray-400 italic">No se encontró la cotización (ID: {ocLocal.cotizacionId}).</p>
-                )}
-                {!cotCargando && cotizacion && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><b>N° Cotización:</b> {cotizacion.numero || cotizacion.numeroCotizacion || cotizacion.id}</div>
-                    <div><b>Proveedor:</b> {cotizacion.proveedor?.razonSocial || cotizacion.proveedorNombre || "—"}</div>
-                    <div><b>Fecha:</b> {cotizacion.fechaEmision || cotizacion.fecha || "—"}</div>
-                    <div><b>Validez:</b> {cotizacion.validez || cotizacion.diasValidez ? `${cotizacion.validez || cotizacion.diasValidez} días` : "—"}</div>
-                    <div><b>Condición pago:</b> {cotizacion.condicionPago || "—"}</div>
-                    <div><b>Moneda:</b> {cotizacion.moneda || cotizacion.monedaSeleccionada || "—"}</div>
-                    {cotizacion.total != null && (
-                      <div className="col-span-2"><b>Total cotizado:</b> {formatearMoneda(Number(cotizacion.total), cotizacion.moneda || cotizacion.monedaSeleccionada || "Soles")}</div>
-                    )}
-                    {cotizacion.notas && (
-                      <div className="col-span-2 text-gray-600 italic"><b>Notas:</b> {cotizacion.notas}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Cotización de referencia REMOVIDA del área imprimible — se muestra fuera del PDF */}
 
         {/* Proveedor */}
         {ocLocal.tipoOrden !== "OI" && (
@@ -267,7 +245,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
                 const ds = Number(it.descuento || 0);
                 const tot = c * pu - ds;
                 return (
-                  <tr key={i} className="text-center">
+                  <tr key={it.id || `item-${i}`} className="text-center">
                     <td className="border px-1 py-1">{i + 1}</td>
                     <td className="border px-1 py-1 text-left">{it.nombre || it.descripcion || "—"}</td>
                     <td className="border px-1 py-1">{c}</td>
@@ -342,6 +320,71 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           </p>
         </div>
       </div>
+
+      {/* [F-07] Panel cotización — FUERA del área imprimible para no afectar el PDF de 1 hoja */}
+      {ocLocal.cotizacionId && (
+        <div className="px-3 pt-2">
+          <button
+            onClick={toggleCotPanel}
+            className="w-full flex items-center justify-between px-3 py-2 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-semibold transition-colors border border-blue-200"
+          >
+            <span>📎 Ver cotización vinculada {ocLocal.cotizacion ? `— ${ocLocal.cotizacion}` : ""}</span>
+            <span>{cotPanelAbierto ? "▲" : "▼"}</span>
+          </button>
+          {cotPanelAbierto && (
+            <div className="border border-blue-200 border-t-0 rounded-b p-3 bg-white text-sm">
+              {cotCargando && <p className="text-gray-400 text-center py-2">Cargando cotización…</p>}
+              {!cotCargando && cotizacion === null && ocLocal.cotizacionId && (
+                <p className="text-gray-400 italic">No se encontró la cotización (ID: {ocLocal.cotizacionId}).</p>
+              )}
+              {!cotCargando && cotizacion && (
+                <>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div><b>N° Cotización:</b> {cotizacion.numero || cotizacion.numeroCotizacion || cotizacion.codigo || cotizacion.id}</div>
+                    <div><b>Proveedor:</b> {cotizacion.proveedor?.razonSocial || cotizacion.proveedorNombre || "—"}</div>
+                    <div><b>Fecha:</b> {cotizacion.fechaEmision || cotizacion.fecha || "—"}</div>
+                    <div><b>Validez:</b> {cotizacion.validez || cotizacion.diasValidez ? `${cotizacion.validez || cotizacion.diasValidez} días` : "—"}</div>
+                    <div><b>Condición pago:</b> {cotizacion.condicionPago || "—"}</div>
+                    <div><b>Moneda:</b> {cotizacion.moneda || cotizacion.monedaSeleccionada || "—"}</div>
+                    {cotizacion.total != null && (
+                      <div className="col-span-2"><b>Total cotizado:</b> {formatearMoneda(Number(cotizacion.total), cotizacion.moneda || cotizacion.monedaSeleccionada || "Soles")}</div>
+                    )}
+                    {cotizacion.notas && (
+                      <div className="col-span-2 text-gray-600 italic"><b>Notas:</b> {cotizacion.notas}</div>
+                    )}
+                  </div>
+                  {cotizacion.archivoUrl && (
+                    <div className="mt-2 border-t pt-2">
+                      <p className="font-semibold text-blue-900 mb-1 text-xs">Documento adjunto:</p>
+                      {/\.(pdf)$/i.test(cotizacion.archivoUrl) ? (
+                        <iframe
+                          src={cotizacion.archivoUrl}
+                          className="w-full h-[400px] border rounded"
+                          title="Cotización PDF"
+                        />
+                      ) : (
+                        <img
+                          src={cotizacion.archivoUrl}
+                          alt="Cotización adjunta"
+                          className="max-w-full max-h-[400px] border rounded object-contain"
+                        />
+                      )}
+                      <a
+                        href={cotizacion.archivoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block mt-1 text-xs text-blue-700 underline"
+                      >
+                        Abrir en nueva pestaña
+                      </a>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Solicitudes de edición — solo comprador o roles de aprobación */}
       {["comprador", "operaciones", "gerencia general", "admin"].includes(usuario?.rol) && (
