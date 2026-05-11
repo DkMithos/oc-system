@@ -70,8 +70,8 @@ const MiFirma = () => {
     try {
       const c = canvasRef.current;
       const dataUrl = c.toDataURL("image/png");
-      await guardarFirmaUsuario(email, dataUrl);
-      setActual(dataUrl);
+      const url = await guardarFirmaUsuario(email, dataUrl);
+      setActual(url);
       toast.success("Firma guardada ✅");
     } catch (e) {
       console.error(e);

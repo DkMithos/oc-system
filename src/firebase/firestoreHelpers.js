@@ -20,6 +20,7 @@ import {
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "./config";
 import { etapasRequeridas, siguienteEstado } from "../utils/aprobaciones";
+import { obtenerFirmaGuardada, guardarFirmaUsuario as _guardarFirmaStorage } from "./firmasHelpers";
 
 /** =========================
  *  Constantes de colecciones
@@ -447,16 +448,9 @@ export const eliminarCondicionPago = async (id) => {
 /** =========================
  *  FIRMAS
  * ========================= */
-export const obtenerFirmaUsuario = async (email) => {
-  const docRef = doc(db, FIRMAS_COLLECTION, email);
-  const snap = await getDoc(docRef);
-  return snap.exists() ? snap.data().firma : null;
-};
-
-export const guardarFirmaUsuario = async (email, firmaDataUrl) => {
-  const docRef = doc(db, FIRMAS_COLLECTION, email);
-  await setDoc(docRef, { firma: firmaDataUrl });
-};
+// Delegado a firmasHelpers.js (Fase 8: Storage en vez de base64 inline)
+export const obtenerFirmaUsuario = obtenerFirmaGuardada;
+export const guardarFirmaUsuario = _guardarFirmaStorage;
 
 /** =========================
  *  Solicitud de Edición (workflow)

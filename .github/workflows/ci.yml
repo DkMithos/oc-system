@@ -1,0 +1,44 @@
+# .github/workflows/ci.yml
+# Fase 8: CI pipeline — lint + test + build en cada push y PR
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          # Variables mínimas para que Firebase config no lance error en tests
+          VITE_API_KEY: "test"
+          VITE_AUTH_DOMAIN: "test"
+          VITE_PROJECT_ID: "test"
+          VITE_STORAGE_BUCKET: "test"
+          VITE_MESSAGING_SENDER_ID: "test"
+          VITE_APP_ID: "test"
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_AUTH_DOMAIN: ${{ secrets.VITE_AUTH_DOMAIN }}
+          VITE_PROJECT_ID: ${{ secrets.VITE_PROJECT_ID }}
+          VITE_STORAGE_BUCKET: ${{ secrets.VITE_STORAGE_BUCKET }}
+          VITE_MESSAGING_SENDER_ID: ${{ secrets.VITE_MESSAGING_SENDER_ID }}
+          VITE_APP_ID: ${{ secrets.VITE_APP_ID }}

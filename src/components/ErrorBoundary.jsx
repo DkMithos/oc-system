@@ -1,6 +1,7 @@
 // src/components/ErrorBoundary.jsx
 // [S1-6] Error Boundary global — captura errores de renderizado y evita pantalla blanca
 import React from "react";
+import { reportError } from "../utils/errorReporting";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,10 +15,10 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
-    // En producción, aqui iria Sentry/Crashlytics
-    if (import.meta.env.DEV) {
-      console.error("[ErrorBoundary]", error, errorInfo);
-    }
+    reportError(error, {
+      source: "ErrorBoundary",
+      componentStack: errorInfo?.componentStack,
+    });
   }
 
   render() {

@@ -3,6 +3,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 const requiredEnv = [
   "VITE_API_KEY",
@@ -37,5 +38,22 @@ const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
+
+// ── Firebase App Check (Fase 8) ──────────────────────────────────────────────
+// Protege backend de llamadas no autorizadas.
+// En dev usamos debug token; en prod, reCAPTCHA Enterprise.
+// Para activar: definir VITE_RECAPTCHA_SITE_KEY en .env.local
+const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+if (recaptchaKey) {
+  // En dev Vite, habilitar debug para evitar bloqueos por reCAPTCHA
+  if (import.meta.env.DEV) {
+    // @ts-ignore — debug token para desarrollo local
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(recaptchaKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 export { app, db, storage, auth };

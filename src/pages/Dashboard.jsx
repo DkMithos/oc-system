@@ -3,6 +3,8 @@ import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
 import {
   obtenerTodasOC,
   obtenerTodosMovimientosCaja,
+  obtenerKPIsAgregados,
+  obtenerTotalesCaja,
 } from "../firebase/dashboardHelpers";
 import {
   PieChart,
@@ -42,17 +44,24 @@ const Dashboard = () => {
   const { usuario, cargando: loading } = useUsuario();
   const [ocData, setOcData]   = useState([]);
   const [movimientosCaja, setMovimientosCaja] = useState([]);
+  const [kpisServer, setKpisServer] = useState(null);
+  const [cajaServer, setCajaServer] = useState(null);
   const [periodo, setPeriodo] = useState(6); // meses a mostrar en el gráfico
 
   useEffect(() => {
     if (loading) return;
     const cargar = async () => {
-      const [oc, caja] = await Promise.all([
+      // Fase 8: Intentar aggregation queries primero (rápido, sin traer todos los docs)
+      const [kpis, caja, oc, mov] = await Promise.all([
+        obtenerKPIsAgregados().catch(() => null),
+        obtenerTotalesCaja().catch(() => null),
         obtenerTodasOC(),
         obtenerTodosMovimientosCaja(),
       ]);
+      setKpisServer(kpis);
+      setCajaServer(caja);
       setOcData(oc || []);
-      setMovimientosCaja(caja || []);
+      setMovimientosCaja(mov || []);
     };
     cargar();
   }, [loading]);
@@ -90,11 +99,14 @@ const Dashboard = () => {
       .slice(0, 5);
   }, [ocData]);
 
-  // ── Caja chica ───────────────────────────────────────────────────────────
-  const { ingresos, egresos } = useMemo(() => ({
-    ingresos: movimientosCaja.filter((m) => m.tipo === "ingreso").reduce((a, m) => a + Number(m.monto || 0), 0),
-    egresos:  movimientosCaja.filter((m) => m.tipo === "egreso") .reduce((a, m) => a + Number(m.monto || 0), 0),
-  }), [movimientosCaja]);
+  // ── Caja chica (usa aggregation server si disponible, sino cálculo local) ─
+  const { ingresos, egresos } = useMemo(() => {
+    if (cajaServer) return cajaServer;
+    return {
+      ingresos: movimientosCaja.filter((m) => m.tipo === "ingreso").reduce((a, m) => a + Number(m.monto || 0), 0),
+      egresos:  movimientosCaja.filter((m) => m.tipo === "egreso") .reduce((a, m) => a + Number(m.monto || 0), 0),
+    };
+  }, [movimientosCaja, cajaServer]);
 
   const dataCaja = [
     { name: "Ingresos", value: ingresos },

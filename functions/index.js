@@ -389,5 +389,68 @@ export const borrarUsuarioAdmin = onCall(
   }
 );
 
+// ───────────────────────────────────────────────────────────────
+// TIPO DE CAMBIO CON CACHÉ (Fase 8)
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * obtenerTipoCambioSUNAT — callable que retorna el TC de SUNAT.
+ * Cachea en Firestore (configuracion/tipoCambio) con TTL de 6h.
+ * Evita que cada usuario llame directamente a la API externa.
+ */
+export const obtenerTipoCambioSUNAT = onCall(
+  { region: "us-central1", cors: ALLOWED_ORIGINS },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const db = getFirestore();
+    const cacheRef = db.doc("configuracion/tipoCambio");
+    const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+    // 1. Intentar leer del caché
+    const cacheSnap = await cacheRef.get();
+    if (cacheSnap.exists) {
+      const cached = cacheSnap.data();
+      const cacheAge = Date.now() - (cached.actualizadoEn?.toMillis?.() || 0);
+      if (cacheAge < CACHE_TTL_MS && cached.venta > 0) {
+        return { venta: cached.venta, compra: cached.compra || 0, origen: "cache" };
+      }
+    }
+
+    // 2. Consultar API externa
+    const { default: fetch } = await import("node-fetch");
+    let venta = 0;
+    let compra = 0;
+    try {
+      const resp = await fetch("https://api.apis.net.pe/v1/tipo-cambio-sunat", { timeout: 8000 });
+      if (resp.ok) {
+        const data = await resp.json();
+        venta = parseFloat(data.venta) || 0;
+        compra = parseFloat(data.compra) || 0;
+      }
+    } catch (e) {
+      console.warn("[tipoCambio] Error consultando SUNAT:", e.message);
+    }
+
+    // 3. Si la API falló, retornar caché viejo o default
+    if (venta <= 0) {
+      if (cacheSnap.exists && cacheSnap.data().venta > 0) {
+        return { venta: cacheSnap.data().venta, compra: cacheSnap.data().compra || 0, origen: "cache-stale" };
+      }
+      return { venta: 3.8, compra: 3.7, origen: "default" };
+    }
+
+    // 4. Guardar en caché
+    await cacheRef.set({
+      venta,
+      compra,
+      actualizadoEn: FieldValue.serverTimestamp(),
+      consultadoPor: request.auth.token.email || "",
+    }, { merge: true });
+
+    return { venta, compra, origen: "api" };
+  }
+);
+
 // ── Re-export SUNAT proxy ──
 export { sunatProxy } from "./sunatProxy.js";

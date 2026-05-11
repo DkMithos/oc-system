@@ -182,8 +182,9 @@ const FirmarOC = () => {
           return;
         }
         const canvasRecortado = getTrimmedCanvas(sigPadRef.current.getCanvas());
-        firmaFinal = canvasRecortado.toDataURL("image/png");
-        await guardarFirmaUsuario(usuario.email, firmaFinal);
+        const dataUrl = canvasRecortado.toDataURL("image/png");
+        // guardarFirmaUsuario sube a Storage y devuelve la URL pública
+        firmaFinal = await guardarFirmaUsuario(usuario.email, dataUrl);
         setFirmaGuardada(firmaFinal);
       }
 
