@@ -58,6 +58,38 @@ async function getNextNumeroCaja(cajaId) {
   return numero;
 }
 
+/**
+ * Obtiene el número actual del contador para una caja (sin incrementar).
+ * Útil para mostrar "Siguiente caja: XXX" antes de abrir.
+ */
+export async function getContadorActual(cajaId) {
+  const snap = await getDoc(CONTADORES_REF);
+  return snap.exists() ? (snap.data()?.[cajaId] || 0) : 0;
+}
+
+/**
+ * Inicializa los contadores de caja para reflejar las cajas ya aperturadas
+ * en el sistema antiguo. Se ejecuta UNA VEZ la primera vez que se abre
+ * la página (si el doc _contadores no existe o está vacío).
+ *
+ * Administración: caja 15 (soles) y 8 (dólares) ya existen.
+ * Otras áreas: empiezan desde 0 (la siguiente será 1).
+ */
+const CONTADORES_INICIALES = {
+  "administracion-soles":   15,
+  "administracion-dolares":  8,
+  "operaciones-soles":       0,
+  "operaciones-dolares":     0,
+  "proyectos-soles":         0,
+  "proyectos-dolares":       0,
+};
+
+export async function asegurarContadoresIniciales() {
+  const snap = await getDoc(CONTADORES_REF);
+  if (snap.exists() && Object.keys(snap.data()).length > 0) return; // ya inicializado
+  await setDoc(CONTADORES_REF, CONTADORES_INICIALES, { merge: true });
+}
+
 /* ─────────────────────────────────────────────────────────────
  * Colecciones base
  * ───────────────────────────────────────────────────────────── */

@@ -17,6 +17,10 @@ import {
   cerrarCaja,
   filtrarMovsPorPeriodo,
   onMovimientosPorCaja,
+  getContadorActual,
+  getAreaConfig,
+  getMonedaConfig,
+  asegurarContadoresIniciales,
 } from "../firebase/cajaChicaHelpers";
 
 // ─── Permisos por rol ─────────────────────────────────────────
@@ -103,6 +107,7 @@ const CajaChica = () => {
   // Estado de caja
   const [estadoCaja, setEstadoCaja]     = useState(null);
   const [loadingEstado, setLoadingEstado] = useState(true);
+  const [nextNumero, setNextNumero]     = useState(null); // siguiente número de caja
 
   // Movimientos (realtime)
   const [movs, setMovs]               = useState([]);
@@ -140,7 +145,7 @@ const CajaChica = () => {
   const [saldoInicialInput, setSaldoInicialInput] = useState("");
   const [saldoCierreInput, setSaldoCierreInput]   = useState("");
 
-  // ── Catálogos ──
+  // ── Catálogos + inicialización de contadores ──
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -148,6 +153,7 @@ const CajaChica = () => {
         const [cent, tipos] = await Promise.all([
           obtenerCentrosCosto().catch(() => []),
           obtenerTiposDocumento().catch(() => []),
+          asegurarContadoresIniciales().catch(() => {}), // una sola vez
         ]);
         if (!alive) return;
         setCentros((cent || []).filter((c) => !!c?.nombre).map((c) => ({ value: c.id, label: c.nombre })));
@@ -161,8 +167,12 @@ const CajaChica = () => {
   const cargarEstadoCaja = async (id = cajaId) => {
     setLoadingEstado(true);
     try {
-      const est = await obtenerEstadoCajaActual(id);
+      const [est, num] = await Promise.all([
+        obtenerEstadoCajaActual(id),
+        getContadorActual(id),
+      ]);
       setEstadoCaja(est);
+      setNextNumero(num + 1);
     } catch (e) {
       console.error("Estado caja:", e);
       setEstadoCaja(null);
@@ -418,14 +428,33 @@ const CajaChica = () => {
         </div>
       </div>
 
-      {/* ── Badge código de caja ── */}
-      {estadoCaja?.codigoCaja && (
-        <div className="inline-flex items-center gap-2 bg-[#004990]/8 border border-[#004990]/20 rounded-lg px-4 py-2">
-          <span className="text-xs text-gray-500 uppercase tracking-wide">N° de Caja</span>
-          <span className="font-mono font-bold text-[#004990] text-base">{estadoCaja.codigoCaja}</span>
-          {estadoCaja.abierta
-            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Abierta</span>
-            : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Cerrada</span>}
+      {/* ── Badge código de caja (siempre visible) ── */}
+      {!loadingEstado && (
+        <div className="inline-flex items-center gap-3 bg-gradient-to-r from-[#004990]/5 to-[#004990]/10 border border-[#004990]/20 rounded-xl px-5 py-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase tracking-widest leading-none mb-1">N° de Caja</span>
+            <span className="font-mono font-bold text-[#004990] text-xl tracking-wide leading-none">
+              {estadoCaja?.codigoCaja
+                ? estadoCaja.codigoCaja
+                : nextNumero
+                  ? `${getAreaConfig(cajaId).prefix}${String(nextNumero).padStart(3, "0")}-${getMonedaConfig(cajaId).sufijo}`
+                  : "—"}
+            </span>
+          </div>
+          <div className="w-px h-8 bg-[#004990]/15" />
+          {estadoCaja?.abierta ? (
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-semibold text-green-700">Abierta</span>
+            </div>
+          ) : estadoCaja?.cierreFecha ? (
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400" />
+              <span className="text-xs font-semibold text-gray-500">Cerrada</span>
+            </div>
+          ) : (
+            <span className="text-xs text-amber-600 font-medium">Pendiente de apertura</span>
+          )}
         </div>
       )}
 
