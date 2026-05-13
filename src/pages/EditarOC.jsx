@@ -243,17 +243,17 @@ const EditarOC = () => {
         <div className="col-span-2 md:col-span-3">
           <Select
             value={
-              formData.proveedor?.ruc
+              formData.proveedor?.razonSocial
                 ? {
-                    value: formData.proveedor.ruc,
-                    label: `${formData.proveedor.ruc} - ${formData.proveedor.razonSocial}`,
+                    value: formData.proveedor.ruc || formData.proveedor.id || formData.proveedor.razonSocial,
+                    label: `${formData.proveedor.ruc || formData.proveedor.idFiscal || ""} - ${formData.proveedor.razonSocial}`.replace(/^- /, ""),
                     data: formData.proveedor,
                   }
                 : null
             }
             options={proveedores.map((p) => ({
-              value: p.ruc,
-              label: `${p.ruc} - ${p.razonSocial}`,
+              value: p.ruc || p.id,
+              label: `${p.ruc || p.idFiscal || ""} - ${p.razonSocial}${p.tipoProv === "No Domiciliado" && p.paisOrigen ? ` (${p.paisOrigen})` : ""}`.replace(/^- /, ""),
               data: p,
             }))}
             onChange={(op) =>

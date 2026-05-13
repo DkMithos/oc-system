@@ -31,7 +31,10 @@ const Proveedores = () => {
 
   const [proveedores, setProveedores] = useState([]);
   const [form, setForm] = useState({
+    tipoProv: "Domiciliado", // "Domiciliado" | "No Domiciliado"
     ruc: "",
+    idFiscal: "",           // Tax ID / EIN para no domiciliados
+    paisOrigen: "",         // País de origen para no domiciliados
     razonSocial: "",
     direccion: "",
     telefono: "",
@@ -46,6 +49,8 @@ const Proveedores = () => {
     sunatDepartamento: "",
     exoneradoIGV: false,
   });
+
+  const esNoDomiciliado = form.tipoProv === "No Domiciliado";
   const [editandoId, setEditandoId] = useState(null);
   const [cuenta, setCuenta] = useState({ nombre: "", cuenta: "", cci: "", moneda: "" });
 
@@ -130,13 +135,19 @@ const Proveedores = () => {
   };
 
   const guardar = async () => {
-    if (!form.ruc || !form.razonSocial) {
-      toast.info("El RUC y la razón social son obligatorios");
+    if (!form.razonSocial.trim()) {
+      toast.info("La razón social es obligatoria");
       return;
     }
-    if (!esRucValido(form.ruc)) {
-      toast.warning("RUC inválido. Verifica los 11 dígitos.");
-      return;
+    if (!esNoDomiciliado) {
+      if (!form.ruc) {
+        toast.info("El RUC es obligatorio para proveedores domiciliados");
+        return;
+      }
+      if (!esRucValido(form.ruc)) {
+        toast.warning("RUC inválido. Verifica los 11 dígitos.");
+        return;
+      }
     }
 
     try {
@@ -162,7 +173,10 @@ const Proveedores = () => {
 
   const limpiarFormulario = () => {
     setForm({
+      tipoProv: "Domiciliado",
       ruc: "",
+      idFiscal: "",
+      paisOrigen: "",
       razonSocial: "",
       direccion: "",
       telefono: "",
@@ -192,7 +206,7 @@ const Proveedores = () => {
   const proveedoresFiltrados = useMemo(
     () =>
       (proveedores || []).filter((p) =>
-        `${p.ruc} ${p.razonSocial}`.toLowerCase().includes(busqueda.toLowerCase())
+        `${p.ruc || ""} ${p.idFiscal || ""} ${p.razonSocial || ""} ${p.paisOrigen || ""}`.toLowerCase().includes(busqueda.toLowerCase())
       ),
     [proveedores, busqueda]
   );
@@ -210,7 +224,9 @@ const Proveedores = () => {
       {
         hoja: "Proveedores",
         data: proveedoresFiltrados.map((p) => ({
-          RUC: p.ruc, "Razón Social": p.razonSocial, Dirección: p.direccion,
+          Tipo: p.tipoProv || "Domiciliado",
+          RUC: p.ruc || "", "ID Fiscal": p.idFiscal || "", País: p.paisOrigen || "",
+          "Razón Social": p.razonSocial, Dirección: p.direccion,
           Teléfono: p.telefono, Email: p.email, Contacto: p.contacto,
           Estado: p.estado || "Activo",
           "Nº Cuentas": Array.isArray(p.bancos) ? p.bancos.length : 0,
@@ -231,12 +247,15 @@ const Proveedores = () => {
   };
 
   const proveedoresExportData = proveedoresFiltrados.map((p) => ({
-    ruc: p.ruc, razonSocial: p.razonSocial, direccion: p.direccion,
+    tipo: p.tipoProv || "Domiciliado",
+    ruc: p.ruc || "", idFiscal: p.idFiscal || "", pais: p.paisOrigen || "",
+    razonSocial: p.razonSocial, direccion: p.direccion,
     telefono: p.telefono, email: p.email, contacto: p.contacto,
     estado: p.estado || "Activo",
   }));
   const proveedoresExportHeaders = {
-    ruc: "RUC", razonSocial: "Razón Social", direccion: "Dirección",
+    tipo: "Tipo", ruc: "RUC", idFiscal: "ID Fiscal", pais: "País",
+    razonSocial: "Razón Social", direccion: "Dirección",
     telefono: "Teléfono", email: "Email", contacto: "Contacto", estado: "Estado",
   };
 
@@ -248,63 +267,124 @@ const Proveedores = () => {
       <h2 className="text-2xl font-bold mb-6">Gestión de Proveedores</h2>
 
       {/* Formulario */}
-      <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <input
-            type="text"
-            placeholder="RUC"
-            value={form.ruc}
-            onChange={handleRucChange}
-            onBlur={handleRucBlur}
-            inputMode="numeric"
-            pattern="\d{11}"
-            maxLength={11}
-            className="border p-2 rounded w-full"
-          />
-          <div className="h-5 mt-1 text-sm">
-            {buscandoRuc && <span className="text-gray-500">Consultando SUNAT…</span>}
-            {!buscandoRuc && errorSunat && (
-              <span className="text-red-600">{errorSunat}</span>
-            )}
-          </div>
+      <div className="bg-white p-6 rounded shadow mb-6 space-y-4">
 
-          {/* Badge de validación SUNAT */}
-          {!buscandoRuc && form.sunatEstado && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {form.sunatEstado === "ACTIVO" && form.sunatCondicion === "HABIDO" ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-300">
-                  ✓ Activo | Habido
-                </span>
-              ) : (
-                <>
-                  {form.sunatEstado !== "ACTIVO" && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
-                      ✗ BAJA
-                    </span>
-                  )}
-                  {form.sunatCondicion && form.sunatCondicion !== "HABIDO" && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
-                      ✗ No Habido
-                    </span>
-                  )}
-                </>
-              )}
-              {form.exoneradoIGV && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-300">
-                  Exonerado IGV (zona Amazónica)
-                </span>
-              )}
-            </div>
-          )}
+        {/* Toggle tipo proveedor */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          {["Domiciliado", "No Domiciliado"].map((tipo) => (
+            <button
+              key={tipo}
+              onClick={() => {
+                setForm((prev) => ({
+                  ...prev,
+                  tipoProv: tipo,
+                  ruc: tipo === "No Domiciliado" ? "" : prev.ruc,
+                  sunatEstado: tipo === "No Domiciliado" ? "" : prev.sunatEstado,
+                  sunatCondicion: tipo === "No Domiciliado" ? "" : prev.sunatCondicion,
+                  sunatDepartamento: tipo === "No Domiciliado" ? "" : prev.sunatDepartamento,
+                  exoneradoIGV: tipo === "No Domiciliado" ? false : prev.exoneradoIGV,
+                }));
+                setErrorSunat("");
+              }}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                form.tipoProv === tipo
+                  ? "bg-white text-[#004990] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tipo}
+            </button>
+          ))}
         </div>
 
-        <input
-          type="text"
-          placeholder="Razón Social"
-          value={form.razonSocial}
-          onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
-          className="border p-2 rounded"
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* RUC (solo domiciliado) o ID Fiscal + País (no domiciliado) */}
+        {!esNoDomiciliado ? (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">RUC *</label>
+            <input
+              type="text"
+              placeholder="RUC (11 dígitos)"
+              value={form.ruc}
+              onChange={handleRucChange}
+              onBlur={handleRucBlur}
+              inputMode="numeric"
+              pattern="\d{11}"
+              maxLength={11}
+              className="border p-2 rounded w-full"
+            />
+            <div className="h-5 mt-1 text-sm">
+              {buscandoRuc && <span className="text-gray-500">Consultando SUNAT…</span>}
+              {!buscandoRuc && errorSunat && (
+                <span className="text-red-600">{errorSunat}</span>
+              )}
+            </div>
+
+            {/* Badge de validación SUNAT */}
+            {!buscandoRuc && form.sunatEstado && (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {form.sunatEstado === "ACTIVO" && form.sunatCondicion === "HABIDO" ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-300">
+                    ✓ Activo | Habido
+                  </span>
+                ) : (
+                  <>
+                    {form.sunatEstado !== "ACTIVO" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                        ✗ BAJA
+                      </span>
+                    )}
+                    {form.sunatCondicion && form.sunatCondicion !== "HABIDO" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                        ✗ No Habido
+                      </span>
+                    )}
+                  </>
+                )}
+                {form.exoneradoIGV && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-300">
+                    Exonerado IGV (zona Amazónica)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tax ID / EIN (opcional)</label>
+              <input
+                type="text"
+                placeholder="Ej: EIN 12-3456789, VAT GB123456"
+                value={form.idFiscal}
+                onChange={(e) => setForm({ ...form, idFiscal: e.target.value })}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">País de origen</label>
+              <input
+                type="text"
+                placeholder="Ej: Estados Unidos, Singapur"
+                value={form.paisOrigen}
+                onChange={(e) => setForm({ ...form, paisOrigen: e.target.value })}
+                className="border p-2 rounded w-full"
+              />
+            </div>
+          </>
+        )}
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Razón Social *</label>
+          <input
+            type="text"
+            placeholder="Razón Social / Company Name"
+            value={form.razonSocial}
+            onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
+            className="border p-2 rounded w-full"
+          />
+        </div>
         <input
           type="text"
           placeholder="Dirección"
@@ -381,6 +461,7 @@ const Proveedores = () => {
             </button>
           )}
         </div>
+        </div>{/* cierre grid */}
       </div>
 
       {/* Filtro y export */}
@@ -417,7 +498,8 @@ const Proveedores = () => {
         <table className="w-full text-sm border">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2 text-left">RUC</th>
+              <th className="p-2 text-left">Tipo</th>
+              <th className="p-2 text-left">RUC / ID Fiscal</th>
               <th className="p-2 text-left">Razón Social</th>
               <th className="p-2 text-left">Contacto</th>
               <th className="p-2 text-left">Correo</th>
@@ -428,14 +510,28 @@ const Proveedores = () => {
           <tbody>
             {proveedoresPaginados.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-4 text-center text-gray-500">
+                <td colSpan="7" className="p-4 text-center text-gray-500">
                   No hay proveedores.
                 </td>
               </tr>
             ) : (
               proveedoresPaginados.map((p) => (
                 <tr key={p.id} className="border-t hover:bg-gray-50">
-                  <td className="p-2">{p.ruc}</td>
+                  <td className="p-2">
+                    {p.tipoProv === "No Domiciliado" ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                        Extranjero
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                        Nacional
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2 font-mono text-sm">
+                    {p.ruc || p.idFiscal || <span className="text-gray-300">—</span>}
+                    {p.paisOrigen && <span className="ml-1 text-xs text-gray-400">({p.paisOrigen})</span>}
+                  </td>
                   <td className="p-2">{p.razonSocial}</td>
                   <td className="p-2">{p.contacto}</td>
                   <td className="p-2">{p.email}</td>

@@ -1,6 +1,6 @@
 // src/firebase/proveedoresHelpers.js
 import { db } from "./config";
-import { collection, getDocs, setDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, setDoc, doc, updateDoc, addDoc } from "firebase/firestore";
 
 const PROV_COLLECTION = "proveedores";
 
@@ -9,12 +9,31 @@ export const obtenerProveedores = async () => {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
-// Crea/actualiza por RUC como ID
+/**
+ * Crea un proveedor.
+ * - Domiciliado: usa RUC como document ID (como siempre).
+ * - No domiciliado: genera un ID automático (no tiene RUC peruano).
+ */
 export const agregarProveedor = async (proveedor) => {
-  if (!proveedor?.ruc) throw new Error("RUC requerido");
-  const ref = doc(db, PROV_COLLECTION, proveedor.ruc);
-  await setDoc(ref, { ...proveedor, estado: proveedor.estado || "Activo" }, { merge: true });
-  return ref.id;
+  const esNoDomiciliado = proveedor.tipoProv === "No Domiciliado";
+
+  if (!esNoDomiciliado && !proveedor?.ruc) {
+    throw new Error("RUC requerido para proveedores domiciliados");
+  }
+
+  const payload = { ...proveedor, estado: proveedor.estado || "Activo" };
+
+  if (esNoDomiciliado) {
+    // No domiciliado: ID automático
+    const colRef = collection(db, PROV_COLLECTION);
+    const docRef = await addDoc(colRef, payload);
+    return docRef.id;
+  } else {
+    // Domiciliado: RUC como ID (behavior original)
+    const ref = doc(db, PROV_COLLECTION, proveedor.ruc);
+    await setDoc(ref, payload, { merge: true });
+    return ref.id;
+  }
 };
 
 export const actualizarProveedor = async (id, data) => {
