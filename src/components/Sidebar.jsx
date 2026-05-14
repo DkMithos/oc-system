@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx — Enterprise ERP Sidebar
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import {
   Home, ClipboardList, ShoppingCart, FileText, Users, Package,
@@ -103,6 +103,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const nombre = usuario?.nombre || email.split("@")[0];
 
   const [grupoAbierto, setGrupoAbierto] = useState("compras");
+  const { pathname } = useLocation();
 
   const toggle = (id) => setGrupoAbierto((prev) => prev === id ? "" : id);
   const onNav  = () => { if (isOpen) toggleSidebar?.(); };
@@ -187,6 +188,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             const itemsVisibles = grupo.items.filter((it) => puedeAcceder(rol, it.ruta));
             if (!itemsVisibles.length) return null;
 
+            // Verificar si algún item del grupo está activo
+            const grupoActivo = itemsVisibles.some((it) => pathname === it.ruta || pathname.startsWith(it.ruta + "/"));
+
             return (
               <div key={grupo.id}>
                 {/* Cabecera de grupo */}
@@ -199,6 +203,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   <span className="flex items-center gap-2.5">
                     <GrupoIcon size={15} className="flex-shrink-0 group-hover:text-amber-400 transition-colors" />
                     <span className="text-[13px] font-semibold uppercase tracking-wider">{grupo.label}</span>
+                    {grupoActivo && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                    )}
                   </span>
                   <ChevronDown
                     size={13}
