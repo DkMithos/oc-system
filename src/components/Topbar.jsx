@@ -254,9 +254,9 @@ const Topbar = ({ toggleSidebar }) => {
                     <button
                       onClick={() => { setDropdownOpen(false); cerrarSesion(); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600
-                                 hover:bg-red-50 transition-colors"
+                                 hover:bg-red-600 hover:text-white transition-colors group"
                     >
-                      <LogOut size={14} />
+                      <LogOut size={14} className="group-hover:text-white transition-colors" />
                       Cerrar sesión
                     </button>
                   </div>
