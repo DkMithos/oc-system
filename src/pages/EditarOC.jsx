@@ -72,14 +72,14 @@ const EditarOC = () => {
         navigate("/historial");
         return;
       }
-      if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
+      if (!usuario || !["comprador", "admin", "soporte"].includes(usuario.rol)) {
         toast.info("No tienes permiso para editar esta orden.");
         navigate("/");
         return;
       }
       // Solo el comprador original o admin puede editar
       const esCreador = oc.creadoPor === usuario.email || oc.comprador === usuario.email;
-      if (usuario.rol !== "admin" && !esCreador) {
+      if (!["admin", "soporte"].includes(usuario.rol) && !esCreador) {
         toast.info("Solo el comprador que creó esta orden puede editarla.");
         navigate("/historial");
         return;
@@ -243,17 +243,17 @@ const EditarOC = () => {
         <div className="col-span-2 md:col-span-3">
           <Select
             value={
-              formData.proveedor?.ruc
+              formData.proveedor?.razonSocial
                 ? {
-                    value: formData.proveedor.ruc,
-                    label: `${formData.proveedor.ruc} - ${formData.proveedor.razonSocial}`,
+                    value: formData.proveedor.ruc || formData.proveedor.id || formData.proveedor.razonSocial,
+                    label: `${formData.proveedor.ruc || formData.proveedor.idFiscal || ""} - ${formData.proveedor.razonSocial}`.replace(/^- /, ""),
                     data: formData.proveedor,
                   }
                 : null
             }
             options={proveedores.map((p) => ({
-              value: p.ruc,
-              label: `${p.ruc} - ${p.razonSocial}`,
+              value: p.ruc || p.id,
+              label: `${p.ruc || p.idFiscal || ""} - ${p.razonSocial}${p.tipoProv === "No Domiciliado" && p.paisOrigen ? ` (${p.paisOrigen})` : ""}`.replace(/^- /, ""),
               data: p,
             }))}
             onChange={(op) =>

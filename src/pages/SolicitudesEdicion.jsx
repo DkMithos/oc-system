@@ -6,6 +6,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { listarSolicitudesPendientesGlobal, resolverSolicitudEdicion, aprobarSolicitudEdicionAtomico } from "../firebase/solicitudesHelpers";
 import { actualizarOC } from "../firebase/firestoreHelpers";
+import { notificarUsuario } from "../firebase/notifs";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
 import { CheckCircle, XCircle, ExternalLink, RefreshCw, Clock } from "lucide-react";
@@ -48,6 +49,15 @@ const SolicitudesEdicion = () => {
         resueltoPorNombre: usuario.nombre || usuario.email,
         observacion: "",
       });
+      // Notificar al solicitante que su edición fue aprobada
+      if (sol.creadoPorEmail) {
+        notificarUsuario({
+          email: sol.creadoPorEmail,
+          title: `Edición aprobada: ${sol.numeroOC || sol.ocId}`,
+          body: `Tu solicitud de edición fue aprobada por ${usuario.nombre || usuario.email}. Ya puedes editar la orden.`,
+          ocId: sol.ocId,
+        }).catch(() => {});
+      }
       toast.success(`Solicitud aprobada — ${sol.numeroOC || sol.ocId} puede ser editada ✅`);
       await cargar();
     } catch (e) {

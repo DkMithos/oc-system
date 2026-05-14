@@ -178,18 +178,22 @@ service cloud.firestore {
      * Proveedores
      * ───────────────────────────── */
     function isValidProveedor(d) {
+      let esNoDom = 'tipoProv' in d && d.tipoProv == 'No Domiciliado';
       return
-        d.ruc is string &&
-        d.ruc.matches('^\\d{11}$') &&
         d.razonSocial is string &&
         d.razonSocial.size() > 0 &&
+        // Domiciliado: RUC 11 dígitos obligatorio
+        // No Domiciliado: RUC opcional, idFiscal y paisOrigen opcionales
+        (esNoDom || (d.ruc is string && d.ruc.matches('^\\d{11}$'))) &&
         (!('direccion' in d) || d.direccion is string) &&
         (!('telefono' in d) || d.telefono is string) &&
         (!('email' in d) || d.email is string) &&
         (!('contacto' in d) || d.contacto is string) &&
         (!('estado' in d) || (d.estado == 'Activo' || d.estado == 'Inactivo' || d.estado == 'Suspendido')) &&
         (!('motivoCambio' in d) || d.motivoCambio is string) &&
-        (!('bancos' in d) || d.bancos is list);
+        (!('bancos' in d) || d.bancos is list) &&
+        (!('idFiscal' in d) || d.idFiscal is string) &&
+        (!('paisOrigen' in d) || d.paisOrigen is string);
     }
 
     match /proveedores/{docId} {

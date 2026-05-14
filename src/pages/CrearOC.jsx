@@ -129,7 +129,7 @@ const CrearOC = () => {
         setProveedores(
           (prov || []).map((p) => ({
             value: p.id ?? p.ruc ?? p.email ?? p.razonSocial,
-            label: `${p.ruc || ""} ${p.razonSocial || p.nombre || ""}`.trim(),
+            label: `${p.ruc || p.idFiscal || ""} ${p.razonSocial || p.nombre || ""}${p.tipoProv === "No Domiciliado" && p.paisOrigen ? ` (${p.paisOrigen})` : ""}`.trim(),
             raw: p,
           }))
         );
