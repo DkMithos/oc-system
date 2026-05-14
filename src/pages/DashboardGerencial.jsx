@@ -111,7 +111,7 @@ export default function DashboardGerencial() {
           <select
             value={anio}
             onChange={(e) => setAnio(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black"
           >
             {[2024, 2025, 2026, 2027].map((a) => (
               <option key={a} value={a}>{a}</option>
@@ -289,7 +289,7 @@ export default function DashboardGerencial() {
                 <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fmtK} />
                 <YAxis type="category" dataKey="nombre" tick={{ fontSize: 10 }} width={110} />
                 <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />
-                <Bar dataKey="monto" name="Egreso" fill="#8B5CF6" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="monto" name="Egreso" fill="#000000" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -375,7 +375,7 @@ export default function DashboardGerencial() {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[80px]">
                         <div
-                          className="bg-[#004990] h-1.5 rounded-full"
+                          className="bg-black h-1.5 rounded-full"
                           style={{ width: `${Math.min(pctTotal, 100)}%` }}
                         />
                       </div>
@@ -404,7 +404,7 @@ function KpiCard({ label, valor, color = "text-gray-800", prefijo = "", formato,
     : fmtK(valor);
 
   return (
-    <div className={`bg-white border rounded-xl p-3 shadow-sm ${resaltado ? "border-[#004990] ring-1 ring-[#004990]/20" : "border-gray-200"}`}>
+    <div className={`bg-white border rounded-xl p-3 shadow-sm ${resaltado ? "border-black ring-1 ring-black/10" : "border-gray-200"}`}>
       <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">{label}</p>
       <p className={`mt-1 text-lg sm:text-xl font-bold font-mono ${color}`}>
         {prefijo}{display}
