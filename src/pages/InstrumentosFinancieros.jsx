@@ -53,7 +53,7 @@ function ModalCrear({ onClose, onCreado, email }) {
     }
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none";
+  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 focus:border-gray-400 outline-none";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
   return (
@@ -124,7 +124,7 @@ function ModalCrear({ onClose, onCreado, email }) {
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={guardando} className="px-4 py-2 text-sm bg-[#004990] text-white rounded-lg hover:bg-[#003670] disabled:opacity-50 flex items-center gap-1.5">
+            <button type="submit" disabled={guardando} className="px-4 py-2 text-sm bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1.5 transition-colors">
               {guardando ? "Guardando..." : <><Plus size={14} /> Crear</>}
             </button>
           </div>
@@ -162,7 +162,7 @@ function ModalMovimiento({ instrumento, tipo, onClose, onGuardado, email }) {
     }
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none";
+  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 focus:border-gray-400 outline-none";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -175,8 +175,8 @@ function ModalMovimiento({ instrumento, tipo, onClose, onGuardado, email }) {
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
           {esUso && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-              <span className="text-blue-700 font-medium">Saldo disponible:</span>{" "}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
+              <span className="text-gray-700 font-medium">Saldo disponible:</span>{" "}
               <span className="font-bold">{instrumento.moneda === "USD" ? "US$ " : "S/ "}{fmt(instrumento.saldo)}</span>
             </div>
           )}
@@ -271,11 +271,11 @@ export default function InstrumentosFinancieros() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={cargar} disabled={cargando} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+          <button onClick={cargar} disabled={cargando} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:border-gray-400 hover:text-black disabled:opacity-50 transition-colors">
             <RefreshCw size={14} className={cargando ? "animate-spin" : ""} /> Actualizar
           </button>
           {puedeEditar && (
-            <button onClick={() => setModalCrear(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#004990] text-white rounded-lg text-sm hover:bg-[#003670]">
+            <button onClick={() => setModalCrear(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold rounded-lg text-sm transition-colors">
               <Plus size={14} /> Nuevo
             </button>
           )}
@@ -316,11 +316,11 @@ export default function InstrumentosFinancieros() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
-        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none">
+        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-black/20 outline-none">
           <option value="">Todos los tipos</option>
           {TIPOS_INSTRUMENTO.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
         </select>
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none">
+        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-black/20 outline-none">
           <option value="">Todos los estados</option>
           <option value="activo">Activo</option>
           <option value="agotado">Agotado</option>
@@ -336,7 +336,7 @@ export default function InstrumentosFinancieros() {
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-400">No hay instrumentos financieros registrados</p>
             {puedeEditar && (
-              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-black underline hover:text-[#003670]">
+              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-black underline hover:font-semibold transition-all">
                 Crear el primero
               </button>
             )}
@@ -367,7 +367,7 @@ export default function InstrumentosFinancieros() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-gray-800">{inst.codigo}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
                           {tipoLabel}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ESTADOS_BADGE[inst.estado] || ESTADOS_BADGE.activo}`}>
