@@ -4,6 +4,7 @@ import Select from "react-select";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "react-toastify";
+import { ChevronDown } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import {
@@ -401,15 +402,18 @@ const CajaChica = () => {
         {/* Selector área + moneda */}
         <div className="flex items-center gap-2 flex-wrap">
           {puedeVerTodasAreas && (
-            <select
-              className="border rounded pl-2 pr-12 py-2 text-sm font-medium"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-            >
-              {areasOpciones.map((a) => (
-                <option key={a.id} value={a.id}>{a.label}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                className="appearance-none border rounded pl-3 pr-10 py-2 text-sm font-medium w-full cursor-pointer"
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+              >
+                {areasOpciones.map((a) => (
+                  <option key={a.id} value={a.id}>{a.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
           )}
           {/* Toggle Soles / Dólares */}
           <div className="flex rounded border overflow-hidden text-sm font-medium">
