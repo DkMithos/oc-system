@@ -135,7 +135,7 @@ const Topbar = ({ toggleSidebar }) => {
                 {/* Info (desktop) */}
                 <div className="hidden sm:block text-left">
                   <p className="text-xs font-semibold leading-none truncate max-w-[120px]">{nombre}</p>
-                  <p className="text-[10px] text-white/50 leading-none mt-0.5">{rolLabel}</p>
+                  <p className="text-[11px] text-white/50 leading-none mt-0.5">{rolLabel}</p>
                 </div>
                 <ChevronDown
                   size={13}
@@ -152,7 +152,7 @@ const Topbar = ({ toggleSidebar }) => {
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900 truncate">{nombre}</p>
                     <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>
-                    <span className="inline-block mt-1.5 text-[10px] bg-blue-900/10 text-blue-900
+                    <span className="inline-block mt-1.5 text-[11px] bg-blue-900/10 text-blue-900
                                      border border-blue-900/20 px-2 py-0.5 rounded-full
                                      uppercase tracking-wider font-semibold">
                       {rolLabel}
