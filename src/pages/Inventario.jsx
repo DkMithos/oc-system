@@ -192,7 +192,7 @@ const Inventario = () => {
           <button onClick={exportar} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-600 text-green-700 hover:bg-green-50 text-sm font-medium">
             <Download size={16} /> Exportar
           </button>
-          <button onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+          <button onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black text-sm font-semibold transition-colors">
             <Plus size={16} /> Nuevo ítem
           </button>
         </div>
@@ -255,14 +255,14 @@ const Inventario = () => {
             </div>
             <div className="flex items-center gap-2 pt-1">
               <input type="checkbox" id="activoCheck" checked={form.activo}
-                onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="w-4 h-4 accent-blue-600" />
+                onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="w-4 h-4 accent-[#f0c000]" />
               <label htmlFor="activoCheck" className="text-sm text-gray-700">Activo</label>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-5">
             <button onClick={() => setMostrarForm(false)} className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
             <button onClick={guardar} disabled={guardando}
-              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60">
+              className="px-5 py-2 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black text-sm font-semibold disabled:opacity-60 transition-colors">
               {guardando ? "Guardando..." : editandoId ? "Actualizar" : "Registrar"}
             </button>
           </div>
@@ -289,7 +289,7 @@ const Inventario = () => {
           </select>
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
             <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)}
-              className="w-4 h-4 accent-blue-600" />
+              className="w-4 h-4 accent-[#f0c000]" />
             Mostrar inactivos
           </label>
         </div>
@@ -333,7 +333,7 @@ const Inventario = () => {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => abrirEditar(item)} className="p-1.5 rounded hover:bg-blue-100 text-blue-600" title="Editar"><Pencil size={14} /></button>
+                    <button onClick={() => abrirEditar(item)} className="p-1.5 rounded hover:bg-gray-100 text-black transition-colors" title="Editar"><Pencil size={14} /></button>
                     {item.activo !== false && (
                       <button onClick={() => desactivar(item)} className="p-1.5 rounded hover:bg-red-100 text-red-500" title="Desactivar"><X size={14} /></button>
                     )}
