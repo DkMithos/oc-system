@@ -1,4 +1,4 @@
-// ✅ src/pages/reportes/DashboardGeneral.jsx
+﻿// ✅ src/pages/reportes/DashboardGeneral.jsx
 import React, { useEffect, useState } from "react";
 import { obtenerIndicadoresDashboardGeneral } from "../../firebase/reportesHelpers";
 
@@ -492,7 +492,7 @@ const DashboardGeneral = ({ filtros }) => {
                   <td className="px-2 py-1 align-middle">
                     {oc.fechaISO || "-"}
                   </td>
-                  <td className="px-2 py-1 align-middle font-medium text-blue-800">
+                  <td className="px-2 py-1 align-middle font-medium text-black">
                     {oc.numeroOC}
                   </td>
                   <td className="px-2 py-1 align-middle">

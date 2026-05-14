@@ -1,4 +1,4 @@
-// src/pages/SolicitudesEdicion.jsx
+﻿// src/pages/SolicitudesEdicion.jsx
 // [F-02] Módulo dedicado para aprobar/rechazar solicitudes de edición de OC.
 // Permite a roles aprobadores gestionar todas las solicitudes sin abrir cada OC.
 
@@ -87,7 +87,7 @@ const SolicitudesEdicion = () => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-[#004990]">Solicitudes de Edición</h2>
+          <h2 className="text-2xl font-bold text-black">Solicitudes de Edición</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             {pendientes.length} solicitud{pendientes.length !== 1 ? "es" : ""} pendiente{pendientes.length !== 1 ? "s" : ""}
           </p>
@@ -119,7 +119,7 @@ const SolicitudesEdicion = () => {
           >
             {label}
             {key === "pendiente" && pendientes.length > 0 && (
-              <span className="ml-1.5 bg-amber-400 text-[#004990] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              <span className="ml-1.5 bg-amber-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                 {pendientes.length}
               </span>
             )}
@@ -144,7 +144,7 @@ const SolicitudesEdicion = () => {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono font-bold text-[#004990] text-base">
+                  <span className="font-mono font-bold text-black text-base">
                     {sol.numeroOC || sol.ocId}
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${ESTADO_BADGE[sol.estado] || "bg-gray-100 text-gray-600"}`}>

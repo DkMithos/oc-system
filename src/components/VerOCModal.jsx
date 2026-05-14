@@ -1,4 +1,4 @@
-// ✅ src/components/VerOCModal.jsx (mismos criterios: 1 hoja, máx. 15 ítems, sin box de detracción)
+﻿// ✅ src/components/VerOCModal.jsx (mismos criterios: 1 hoja, máx. 15 ítems, sin box de detracción)
 import React, { useEffect, useMemo, useState } from "react";
 // PDF: imports dinámicos en exportarPDF() para forzar 1 sola página
 import { getDoc, doc } from "firebase/firestore";
@@ -159,22 +159,22 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
           <div className="flex items-start gap-3">
             <img src={Logo} alt="Logo Memphis" className="h-12" />
             <div>
-              <p className="font-bold text-[#004990]">Memphis Maquinarias S.A.C</p>
+              <p className="font-bold text-black">Memphis Maquinarias S.A.C</p>
               <p>RUC: 20603847424</p>
               <p>AV. Circunvalación el Golf N° 158 Of. 203, Surco, Lima</p>
               <p>Teléfono: (01) 7174012 — www.memphismaquinarias.com</p>
             </div>
           </div>
           <div className="text-right">
-            <h1 className="text-base font-extrabold text-[#004990] leading-tight">ORDEN</h1>
-            <p className="font-semibold text-blue-800">N° {ocLocal.numeroOC || ocLocal.id}</p>
+            <h1 className="text-base font-extrabold text-black leading-tight">ORDEN</h1>
+            <p className="font-semibold text-black">N° {ocLocal.numeroOC || ocLocal.id}</p>
             <p>Estado: <b>{ocLocal.estado || "—"}</b></p>
           </div>
         </div>
 
         {/* Datos generales */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">DATOS GENERALES</h3>
+          <h3 className="font-semibold text-black mb-1">DATOS GENERALES</h3>
           <div className="grid grid-cols-2 gap-2 border p-2 rounded">
             <div><b>Fecha de Emisión:</b> {ocLocal.fechaEmision || "—"}</div>
             {ocLocal.requerimiento && <div><b>N° Requerimiento:</b> {ocLocal.requerimiento}</div>}
@@ -188,7 +188,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         {/* Proveedor */}
         {ocLocal.tipoOrden !== "OI" && (
           <div className="mb-2">
-            <h3 className="font-semibold text-blue-900 mb-1">PROVEEDOR</h3>
+            <h3 className="font-semibold text-black mb-1">PROVEEDOR</h3>
             <div className="grid grid-cols-2 gap-2 border p-2 rounded">
               <div><b>Proveedor:</b> {ocLocal.proveedor?.razonSocial || "—"}</div>
               <div><b>RUC:</b> {ocLocal.proveedor?.ruc || "—"}</div>
@@ -224,7 +224,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
 
         {/* Detalle (máx. 15) */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">DETALLE</h3>
+          <h3 className="font-semibold text-black mb-1">DETALLE</h3>
           <div className="overflow-x-auto -mx-1">
           <table className="w-full border border-collapse" style={{ minWidth: "460px" }}>
             <thead className="bg-gray-200">
@@ -272,7 +272,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         <div className="mb-2 grid grid-cols-2 gap-2">
           <div />
           <div className="border rounded p-2">
-            <h4 className="font-semibold text-blue-900 mb-1">Resumen</h4>
+            <h4 className="font-semibold text-black mb-1">Resumen</h4>
             <div className="space-y-0.5 text-right">
               <div><b>Subtotal:</b> {formatearMoneda(subtotal, simbolo)}</div>
               <div><b>IGV (18%):</b> {formatearMoneda(igv, simbolo)}</div>
@@ -285,7 +285,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
 
         {/* Condiciones después del resumen */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">CONDICIONES</h3>
+          <h3 className="font-semibold text-black mb-1">CONDICIONES</h3>
           <div className="grid grid-cols-2 gap-2 border p-2 rounded">
             <div><b>Lugar de Entrega:</b> {ocLocal.lugarEntrega || "—"}</div>
             <div><b>Fecha máx. de Entrega:</b> {ocLocal.plazoEntrega || "—"}</div>
@@ -326,7 +326,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
         <div className="px-3 pt-2">
           <button
             onClick={toggleCotPanel}
-            className="w-full flex items-center justify-between px-3 py-2 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm font-semibold transition-colors border border-blue-200"
+            className="w-full flex items-center justify-between px-3 py-2 rounded bg-blue-50 hover:bg-blue-100 text-black text-sm font-semibold transition-colors border border-blue-200"
           >
             <span>📎 Ver cotización vinculada {ocLocal.cotizacion ? `— ${ocLocal.cotizacion}` : ""}</span>
             <span>{cotPanelAbierto ? "▲" : "▼"}</span>
@@ -355,7 +355,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
                   </div>
                   {cotizacion.archivoUrl && (
                     <div className="mt-2 border-t pt-2">
-                      <p className="font-semibold text-blue-900 mb-1 text-xs">Documento adjunto:</p>
+                      <p className="font-semibold text-black mb-1 text-xs">Documento adjunto:</p>
                       {/\.(pdf)$/i.test(cotizacion.archivoUrl) ? (
                         <iframe
                           src={cotizacion.archivoUrl}

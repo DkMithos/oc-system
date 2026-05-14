@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
 import {
   obtenerTodasOC,
@@ -145,13 +145,13 @@ const Dashboard = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-[#004990]">Dashboard de Indicadores</h2>
+      <h2 className="text-2xl font-bold text-black">Dashboard de Indicadores</h2>
 
       {/* ── FILA 1: KPIs principales ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded shadow p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Total OCs</p>
-          <p className="text-3xl font-bold text-[#004990] mt-1">{totalOCs}</p>
+          <p className="text-3xl font-bold text-black mt-1">{totalOCs}</p>
         </div>
         <div className="bg-white rounded shadow p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Monto Aprobado</p>
@@ -242,7 +242,7 @@ const Dashboard = () => {
               .map(([estado, count]) => (
                 <li key={estado} className="flex justify-between py-1.5">
                   <span className="text-gray-700">{estado}</span>
-                  <span className="font-bold text-[#004990]">{count}</span>
+                  <span className="font-bold text-black">{count}</span>
                 </li>
               ))}
             {Object.keys(estados).length === 0 && (

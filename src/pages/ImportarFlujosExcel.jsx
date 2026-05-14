@@ -1,4 +1,4 @@
-// src/pages/ImportarFlujosExcel.jsx
+﻿// src/pages/ImportarFlujosExcel.jsx
 // Importacion masiva de flujos financieros desde Excel.
 // Soporta dos esquemas: Estandar (Admin/Conta/TI) y Operaciones (CDC/Proyectos).
 // Permite elegir la hoja del archivo Excel a importar.
@@ -173,7 +173,7 @@ export default function ImportarFlujosExcel() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#004990]">Importar Flujos Financieros</h1>
+        <h1 className="text-2xl font-bold text-black">Importar Flujos Financieros</h1>
         <p className="text-sm text-gray-500 mt-0.5">Carga masiva desde archivos Excel (.xlsx / .xls)</p>
       </div>
 
@@ -189,7 +189,7 @@ export default function ImportarFlujosExcel() {
               className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                 esquema === e.id
                   ? "bg-[#004990] text-white border-[#004990]"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-[#004990] hover:text-[#004990]"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-[#004990] hover:text-black"
               }`}
             >
               {e.label}
@@ -216,7 +216,7 @@ export default function ImportarFlujosExcel() {
         {cargando ? (
           <p className="text-sm text-gray-500">Procesando archivo...</p>
         ) : nombreArchivo ? (
-          <p className="text-sm text-[#004990] font-semibold">{nombreArchivo}</p>
+          <p className="text-sm text-black font-semibold">{nombreArchivo}</p>
         ) : (
           <>
             <p className="text-sm font-medium text-gray-600">Arrastra tu archivo aqui o haz clic para seleccionar</p>

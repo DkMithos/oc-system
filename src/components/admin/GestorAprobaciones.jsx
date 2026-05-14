@@ -1,4 +1,4 @@
-// src/components/admin/GestorAprobaciones.jsx
+﻿// src/components/admin/GestorAprobaciones.jsx
 // Panel para configurar el flujo de aprobaciones desde Admin.
 // Lee/escribe en Firestore: configuracion/aprobaciones
 
@@ -98,7 +98,7 @@ const GestorAprobaciones = () => {
       </div>
 
       {/* Info banner */}
-      <div className="flex gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-5 text-xs text-blue-800">
+      <div className="flex gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-5 text-xs text-black">
         <Info size={14} className="flex-shrink-0 mt-0.5" />
         <div>
           <p className="font-semibold mb-0.5">Regla activa:</p>

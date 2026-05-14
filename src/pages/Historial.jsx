@@ -1,4 +1,4 @@
-// ✅ src/pages/Historial.jsx
+﻿// ✅ src/pages/Historial.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import ExportMenu from "../components/ExportMenu";
@@ -76,7 +76,7 @@ const CardOC = ({ oc, onVer, seleccionable, seleccionada, onToggle }) => (
       )}
       <div className="flex-1 flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="font-bold text-[#004990] text-base font-mono leading-tight truncate">
+          <span className="font-bold text-black text-base font-mono leading-tight truncate">
             {oc.numeroOC || oc.numero || "—"}
           </span>
           {oc.tieneSolicitudEdicion && (
@@ -110,7 +110,7 @@ const CardOC = ({ oc, onVer, seleccionable, seleccionada, onToggle }) => (
     <div className="flex items-center justify-between">
       <span className="text-xs text-gray-400">{oc.fechaEmision || "—"}</span>
       <button
-        className="text-sm text-[#004990] font-semibold bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+        className="text-sm text-black font-semibold bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors"
         onClick={onVer}
       >
         Ver →
@@ -344,7 +344,7 @@ const Historial = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-2 text-[#004990]">Historial de Órdenes</h2>
+      <h2 className="text-2xl font-bold mb-2 text-black">Historial de Órdenes</h2>
 
       {isVistaPendientesGerencia && (
         <div className="mb-4 p-3 rounded bg-amber-50 text-amber-700 border border-amber-200">
@@ -358,7 +358,7 @@ const Historial = () => {
           <span className="font-semibold">{seleccionados.size} seleccionada{seleccionados.size !== 1 ? "s" : ""}</span>
           <button
             onClick={() => setLoteAbierto(true)}
-            className="bg-white text-[#004990] font-bold px-4 py-1.5 rounded-lg hover:bg-blue-50 text-sm"
+            className="bg-white text-black font-bold px-4 py-1.5 rounded-lg hover:bg-blue-50 text-sm"
           >
             Firmar seleccionadas
           </button>
@@ -648,7 +648,7 @@ const Historial = () => {
                     className={`px-3 py-1 border rounded text-sm ${
                       p === paginaActual
                         ? "bg-[#004990] text-white border-[#004990]"
-                        : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"
+                        : "bg-white text-black border-[#004990] hover:bg-blue-50"
                     }`}
                   >
                     {p}
@@ -670,7 +670,7 @@ const Historial = () => {
               <button
                 onClick={cargarMas}
                 disabled={cargandoMas}
-                className="px-5 py-2 border border-[#004990] text-[#004990] rounded hover:bg-[#004990] hover:text-white text-sm transition-colors disabled:opacity-50"
+                className="px-5 py-2 border border-[#004990] text-black rounded hover:bg-[#004990] hover:text-white text-sm transition-colors disabled:opacity-50"
               >
                 {cargandoMas ? "Cargando…" : `Cargar más (${ordenes.length} cargadas)`}
               </button>

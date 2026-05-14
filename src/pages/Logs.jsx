@@ -1,4 +1,4 @@
-// src/pages/Logs.jsx — Fase 7: Paginación + filtros de fecha
+﻿// src/pages/Logs.jsx — Fase 7: Paginación + filtros de fecha
 import React, { useEffect, useState, useCallback } from "react";
 import { obtenerLogsPaginados } from "../firebase/firestoreHelpers";
 import { exportarLogsAExcel } from "../utils/exportarLogsAExcel";
@@ -73,7 +73,7 @@ const Logs = () => {
     <div className="p-4 md:p-6 max-w-[1200px] mx-auto space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-[#004990]">Bitácora del Sistema</h2>
+          <h2 className="text-2xl font-bold text-black">Bitácora del Sistema</h2>
           <p className="text-sm text-gray-500 mt-0.5">Registro de acciones del sistema</p>
         </div>
         <div className="flex gap-2">

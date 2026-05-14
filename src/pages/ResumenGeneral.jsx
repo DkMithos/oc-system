@@ -1,4 +1,4 @@
-// src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
+﻿// src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
 import React, { useEffect, useMemo, useState } from "react";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
@@ -76,14 +76,14 @@ const ResumenGeneral = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4 text-[#004990]">Resumen General</h2>
+      <h2 className="text-2xl font-bold mb-4 text-black">Resumen General</h2>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KPICard label="Total OCs"  value={ocs.length} />
         <KPICard label="Aprobadas"  value={aprobadas}  color="text-green-700" />
         <KPICard label="Con pago"   value={pagadas}    color="text-blue-700" />
-        <KPICard label="Monto total" value={formatearMoneda(totalMonto, "Soles")} color="text-[#004990]" />
+        <KPICard label="Monto total" value={formatearMoneda(totalMonto, "Soles")} color="text-black" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -146,7 +146,7 @@ const ResumenGeneral = () => {
             {pendientesFirma.map((oc) => (
               <li
                 key={oc.id}
-                className="py-1.5 flex justify-between items-center cursor-pointer hover:text-[#004990]"
+                className="py-1.5 flex justify-between items-center cursor-pointer hover:text-black"
                 onClick={() => navigate(`/ver?id=${oc.id}`)}
               >
                 <span>

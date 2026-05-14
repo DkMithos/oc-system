@@ -1,4 +1,4 @@
-// ✅ src/pages/Indicadores.jsx
+﻿// ✅ src/pages/Indicadores.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
@@ -301,7 +301,7 @@ const Indicadores = () => {
 const Indicador = ({ titulo, valor }) => (
   <div className="bg-white shadow p-4 rounded">
     <p className="text-sm text-gray-500">{titulo}</p>
-    <p className="text-xl font-bold text-blue-800">{valor}</p>
+    <p className="text-xl font-bold text-black">{valor}</p>
   </div>
 );
 

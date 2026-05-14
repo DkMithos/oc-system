@@ -1,4 +1,4 @@
-// src/pages/Home.jsx
+﻿// src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
@@ -88,7 +88,7 @@ const BADGE = {
   "Pendiente de Gerencia General":     "bg-red-100 text-red-700",
   "Aprobada": "bg-green-100 text-green-800",
   "Rechazada": "bg-red-100 text-red-700",
-  "Pagado":   "bg-blue-100 text-blue-800",
+  "Pagado":   "bg-blue-100 text-black",
 };
 const badgeClass = (estado) => BADGE[estado] || "bg-gray-100 text-gray-600";
 
@@ -172,7 +172,7 @@ const Home = () => {
 
       {/* Saludo */}
       <div>
-        <h1 className="text-2xl font-bold text-[#004990]">
+        <h1 className="text-2xl font-bold text-black">
           Bienvenido, {usuario?.nombre || usuario?.email?.split("@")[0]}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -315,7 +315,7 @@ const Home = () => {
           </h2>
           <button
             onClick={() => navigate("/historial")}
-            className="text-xs text-[#004990] underline"
+            className="text-xs text-black underline"
           >
             Ver todas
           </button>
@@ -363,7 +363,7 @@ const Home = () => {
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => navigate(`/ver?id=${oc.id}`)}
-                        className="text-xs text-[#004990] underline"
+                        className="text-xs text-black underline"
                       >
                         Ver
                       </button>

@@ -1,4 +1,4 @@
-// ✅ src/pages/VerOC.jsx
+﻿// ✅ src/pages/VerOC.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -167,22 +167,22 @@ const VerOC = () => {
           <div className="flex items-start gap-3">
             <img src={Logo} alt="Logo Memphis" className="h-12" />
             <div>
-              <p className="font-bold text-[#004990]">Memphis Maquinarias S.A.C</p>
+              <p className="font-bold text-black">Memphis Maquinarias S.A.C</p>
               <p>RUC: 20603847424</p>
               <p>AV. Circunvalación el Golf N° 158 Of. 203, Surco, Lima</p>
               <p>Teléfono: (01) 7174012 — www.memphismaquinarias.com</p>
             </div>
           </div>
           <div className="text-right">
-            <h1 className="text-base font-extrabold text-[#004990] leading-tight">ORDEN</h1>
-            <p className="font-semibold text-blue-800">N° {oc.numeroOC || oc.id}</p>
+            <h1 className="text-base font-extrabold text-black leading-tight">ORDEN</h1>
+            <p className="font-semibold text-black">N° {oc.numeroOC || oc.id}</p>
             <p>Estado: <b>{oc.estado || "—"}</b></p>
           </div>
         </div>
 
         {/* DATOS GENERALES */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">DATOS GENERALES</h3>
+          <h3 className="font-semibold text-black mb-1">DATOS GENERALES</h3>
           <div className="grid grid-cols-2 gap-2 border p-2 rounded">
             <div><b>Fecha de Emisión:</b> {oc.fechaEmision || "—"}</div>
             {oc.requerimiento && <div><b>N° Requerimiento:</b> {oc.requerimiento}</div>}
@@ -194,7 +194,7 @@ const VerOC = () => {
         {/* PROVEEDOR */}
         {oc.tipoOrden !== "OI" && (
           <div className="mb-2">
-            <h3 className="font-semibold text-blue-900 mb-1">PROVEEDOR</h3>
+            <h3 className="font-semibold text-black mb-1">PROVEEDOR</h3>
             <div className="grid grid-cols-2 gap-2 border p-2 rounded">
               <div><b>Proveedor:</b> {oc.proveedor?.razonSocial || "—"}</div>
               <div><b>RUC:</b> {oc.proveedor?.ruc || "—"}</div>
@@ -219,7 +219,7 @@ const VerOC = () => {
 
         {/* DETALLE */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">DETALLE</h3>
+          <h3 className="font-semibold text-black mb-1">DETALLE</h3>
           <table className="w-full border border-collapse" style={{ tableLayout: "fixed" }}>
             <thead className="bg-gray-200">
               <tr>
@@ -268,7 +268,7 @@ const VerOC = () => {
         <div className="mb-2 grid grid-cols-2 gap-2">
           <div />
           <div className="border rounded p-2">
-            <h4 className="font-semibold text-blue-900 mb-1">Resumen</h4>
+            <h4 className="font-semibold text-black mb-1">Resumen</h4>
             <div className="space-y-0.5 text-right">
               <div><b>Subtotal:</b> {formatearMoneda(subtotal, simbolo)}</div>
               <div><b>IGV (18%):</b> {formatearMoneda(igv, simbolo)}</div>
@@ -281,7 +281,7 @@ const VerOC = () => {
 
         {/* CONDICIONES */}
         <div className="mb-2">
-          <h3 className="font-semibold text-blue-900 mb-1">CONDICIONES</h3>
+          <h3 className="font-semibold text-black mb-1">CONDICIONES</h3>
           <div className="grid grid-cols-2 gap-2 border p-2 rounded">
             <div><b>Lugar de Entrega:</b> {oc.lugarEntrega || "—"}</div>
             <div><b>Fecha máx. de Entrega:</b> {oc.plazoEntrega || "—"}</div>
@@ -293,7 +293,7 @@ const VerOC = () => {
         {/* OBLIGACIONES TRIBUTARIAS */}
         {(oc?.detraccion?.aplica || oc?.retencion?.aplica) && (
           <div className="mb-2">
-            <h3 className="font-semibold text-blue-900 mb-1">OBLIGACIONES TRIBUTARIAS (SUNAT)</h3>
+            <h3 className="font-semibold text-black mb-1">OBLIGACIONES TRIBUTARIAS (SUNAT)</h3>
             <div className="grid grid-cols-2 gap-2 border p-2 rounded text-[8px]">
               {oc?.detraccion?.aplica && (
                 <div className="col-span-2 sm:col-span-1">
@@ -343,7 +343,7 @@ const VerOC = () => {
 
       {/* TIMELINE DE APROBACIÓN */}
       <div className="mt-4 max-w-[794px] mx-auto bg-white border rounded p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">Flujo de Aprobación</h3>
+        <h3 className="text-sm font-semibold text-black mb-3">Flujo de Aprobación</h3>
         <div className="flex items-center gap-0">
           {etapas.map((etapa, i) => {
             const completado = estadoIdx > i || oc?.estado === "Aprobada";

@@ -1,4 +1,4 @@
-// src/pages/CompromisosActivos.jsx
+﻿// src/pages/CompromisosActivos.jsx
 // Fase 5d: Panel de compromisos de pago activos.
 // Muestra promesas de pago con fechas límite, estado de cumplimiento y alertas.
 
@@ -97,7 +97,7 @@ export default function CompromisosActivos() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Compromisos de Pago</h1>
+          <h1 className="text-2xl font-bold text-black">Compromisos de Pago</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Seguimiento de promesas de pago asignadas en Mesa de Pagos
           </p>
@@ -119,7 +119,7 @@ export default function CompromisosActivos() {
             <Calendar size={14} className="text-gray-400" />
             <p className="text-[10px] text-gray-500 uppercase font-medium">Activos</p>
           </div>
-          <p className="text-xl font-bold text-[#004990]">{totalCompromisos}</p>
+          <p className="text-xl font-bold text-black">{totalCompromisos}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-1">

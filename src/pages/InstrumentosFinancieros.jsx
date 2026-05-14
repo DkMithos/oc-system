@@ -1,4 +1,4 @@
-// src/pages/InstrumentosFinancieros.jsx
+﻿// src/pages/InstrumentosFinancieros.jsx
 // Fase 6: Gestión de instrumentos financieros (CIPRL, cartas fianza, etc.)
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -60,7 +60,7 @@ function ModalCrear({ onClose, onCreado, email }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#004990]">Nuevo Instrumento Financiero</h2>
+          <h2 className="text-lg font-bold text-black">Nuevo Instrumento Financiero</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
@@ -168,7 +168,7 @@ function ModalMovimiento({ instrumento, tipo, onClose, onGuardado, email }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#004990]">
+          <h2 className="text-lg font-bold text-black">
             {esUso ? "Registrar Uso" : "Registrar Abono"} — {instrumento.codigo}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={20} /></button>
@@ -265,7 +265,7 @@ export default function InstrumentosFinancieros() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Instrumentos Financieros</h1>
+          <h1 className="text-2xl font-bold text-black">Instrumentos Financieros</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             CIPRL, cartas fianza y otros instrumentos con saldo
           </p>
@@ -289,7 +289,7 @@ export default function InstrumentosFinancieros() {
             <FileText size={14} className="text-gray-400" />
             <p className="text-[10px] text-gray-500 uppercase font-medium">Instrumentos Activos</p>
           </div>
-          <p className="text-xl font-bold text-[#004990]">{activos.length}</p>
+          <p className="text-xl font-bold text-black">{activos.length}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
@@ -336,7 +336,7 @@ export default function InstrumentosFinancieros() {
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-400">No hay instrumentos financieros registrados</p>
             {puedeEditar && (
-              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-[#004990] underline hover:text-[#003670]">
+              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-black underline hover:text-[#003670]">
                 Crear el primero
               </button>
             )}

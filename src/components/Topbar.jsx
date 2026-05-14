@@ -1,4 +1,4 @@
-// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
+﻿// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
 import { Menu, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
@@ -195,7 +195,7 @@ const Topbar = ({ toggleSidebar }) => {
               >
                 {/* Avatar */}
                 <div className="w-7 h-7 rounded-full bg-[#f0c000] flex items-center justify-center
-                                text-[#012b5a] font-bold text-xs flex-shrink-0">
+                                text-black font-bold text-xs flex-shrink-0">
                   {nombre.charAt(0).toUpperCase()}
                 </div>
                 {/* Info (desktop) */}
@@ -218,7 +218,7 @@ const Topbar = ({ toggleSidebar }) => {
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900 truncate">{nombre}</p>
                     <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>
-                    <span className="inline-block mt-1.5 text-[11px] bg-blue-900/10 text-blue-900
+                    <span className="inline-block mt-1.5 text-[11px] bg-blue-900/10 text-black
                                      border border-blue-900/20 px-2 py-0.5 rounded-full
                                      uppercase tracking-wider font-semibold">
                       {rolLabel}

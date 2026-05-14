@@ -1,4 +1,4 @@
-// src/components/Sidebar.jsx — Enterprise ERP Sidebar
+﻿// src/components/Sidebar.jsx — Enterprise ERP Sidebar
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import {
@@ -146,7 +146,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* ── Perfil ─────────────────────────────── */}
         <div className="px-4 py-3 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-[#f0c000] flex items-center justify-center text-blue-900 font-bold text-sm flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#f0c000] flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
               {nombre.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">

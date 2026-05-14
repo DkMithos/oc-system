@@ -1,4 +1,4 @@
-// src/pages/CajaChica.jsx
+﻿// src/pages/CajaChica.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Select from "react-select";
 import { saveAs } from "file-saver";
@@ -394,7 +394,7 @@ const CajaChica = () => {
       {/* ── Encabezado ── */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-[#004990]">Control de Caja Chica</h2>
+          <h2 className="text-2xl font-bold text-black">Control de Caja Chica</h2>
           <p className="text-xs text-gray-500 mt-0.5">Rol: <b>{usuario?.rol || "—"}</b></p>
         </div>
 
@@ -433,7 +433,7 @@ const CajaChica = () => {
         <div className="inline-flex items-center gap-3 bg-gradient-to-r from-[#004990]/5 to-[#004990]/10 border border-[#004990]/20 rounded-xl px-5 py-3">
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-500 uppercase tracking-widest leading-none mb-1">N° de Caja</span>
-            <span className="font-mono font-bold text-[#004990] text-xl tracking-wide leading-none">
+            <span className="font-mono font-bold text-black text-xl tracking-wide leading-none">
               {estadoCaja?.codigoCaja
                 ? estadoCaja.codigoCaja
                 : nextNumero
@@ -464,7 +464,7 @@ const CajaChica = () => {
           { label: "Saldo Inicial",   value: kpis.saldoInicial, extra: estadoCaja?.aperturaFecha ? `Apertura: ${estadoCaja.aperturaFecha}` : "Sin apertura" },
           { label: "Ingresos",        value: kpis.ingresos,     color: "text-green-700" },
           { label: "Egresos",         value: kpis.egresos,      color: "text-red-700" },
-          { label: "Saldo Actual",    value: kpis.saldoActual,  color: kpis.saldoActual >= 0 ? "text-[#004990]" : "text-red-700",
+          { label: "Saldo Actual",    value: kpis.saldoActual,  color: kpis.saldoActual >= 0 ? "text-black" : "text-red-700",
             extra: !loadingEstado && estadoCaja?.abierta === false && estadoCaja?.cierreFecha ? `Cerrada: ${estadoCaja.cierreFecha}` : undefined },
         ].map(({ label, value, color = "text-gray-800", extra }) => (
           <div key={label} className="bg-white rounded-xl shadow p-4 border">

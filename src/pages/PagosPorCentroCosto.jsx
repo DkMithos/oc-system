@@ -1,4 +1,4 @@
-// src/pages/PagosPorCentroCosto.jsx
+﻿// src/pages/PagosPorCentroCosto.jsx
 // [F-01] Módulo de pagos agrupados por centro de costo.
 // Muestra órdenes pagadas y pendientes de pago, con resumen financiero por CC.
 
@@ -128,7 +128,7 @@ const PagosPorCentroCosto = () => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-[#004990]">Pagos por Centro de Costo</h2>
+          <h2 className="text-2xl font-bold text-black">Pagos por Centro de Costo</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             {ordenesFiltradas.length} orden{ordenesFiltradas.length !== 1 ? "es" : ""} — valores convertidos a Soles para resumen
           </p>
@@ -203,7 +203,7 @@ const PagosPorCentroCosto = () => {
                   onClick={() => setCcExpandido(abierto ? null : cc)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-[#004990] font-bold text-base truncate">{cc}</span>
+                    <span className="text-black font-bold text-base truncate">{cc}</span>
                     <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">
                       {grupo.ocs.length} orden{grupo.ocs.length !== 1 ? "es" : ""}
                     </span>
@@ -253,7 +253,7 @@ const PagosPorCentroCosto = () => {
                           const moneda = oc.monedaSeleccionada || "Soles";
                           return (
                             <tr key={oc.id} className="border-t hover:bg-gray-50 transition-colors">
-                              <td className="px-3 py-2 font-mono font-semibold text-[#004990]">{oc.numero || oc.numeroOC}</td>
+                              <td className="px-3 py-2 font-mono font-semibold text-black">{oc.numero || oc.numeroOC}</td>
                               <td className="px-3 py-2">{oc.tipoOrden || "OC"}</td>
                               <td className="px-3 py-2 max-w-[160px] truncate">{oc.proveedor?.razonSocial || "—"}</td>
                               <td className="px-3 py-2">{moneda}</td>
@@ -268,7 +268,7 @@ const PagosPorCentroCosto = () => {
                               <td className="px-3 py-2 whitespace-nowrap text-gray-400">{oc.fechaEmision || "—"}</td>
                               <td className="px-3 py-2">
                                 <button
-                                  className="text-[#004990] hover:underline font-semibold"
+                                  className="text-black hover:underline font-semibold"
                                   onClick={() => navigate(`/ver?id=${oc.id}`)}
                                 >
                                   Ver →

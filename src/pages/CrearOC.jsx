@@ -1,4 +1,4 @@
-// ✅ src/pages/CrearOC.jsx
+﻿// ✅ src/pages/CrearOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -538,7 +538,7 @@ const CrearOC = () => {
               {alertaDuplicado.ocs.map((oc) => (
                 <div key={oc.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-mono font-bold text-[#004990]">{oc.numeroOC || oc.id}</span>
+                    <span className="font-mono font-bold text-black">{oc.numeroOC || oc.id}</span>
                     <span className="text-gray-500 ml-2 text-xs">{oc.proveedor?.razonSocial || "—"}</span>
                   </div>
                   <span className="text-xs text-gray-400 whitespace-nowrap">{oc.fechaEmision || "—"}</span>

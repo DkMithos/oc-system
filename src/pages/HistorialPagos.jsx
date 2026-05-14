@@ -1,4 +1,4 @@
-// src/pages/HistorialPagos.jsx
+﻿// src/pages/HistorialPagos.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCsPagadas, obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
@@ -240,7 +240,7 @@ const HistorialPagos = () => {
                 className={`px-3 py-1 border rounded text-sm ${
                   p === paginaActual
                     ? "bg-[#004990] text-white border-[#004990]"
-                    : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"
+                    : "bg-white text-black border-[#004990] hover:bg-blue-50"
                 }`}
               >{p}</button>
             ));

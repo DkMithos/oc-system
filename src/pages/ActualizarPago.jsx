@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { doc, getDoc, addDoc, collection } from "firebase/firestore";
 import { db, storage } from "../firebase/config";
@@ -82,7 +82,7 @@ const ActualizarPago = () => {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h2 className="text-2xl font-bold text-[#004990] mb-4">Registrar Factura - Orden #{ocId}</h2>
+      <h2 className="text-2xl font-bold text-black mb-4">Registrar Factura - Orden #{ocId}</h2>
       <div className="bg-white p-6 rounded shadow space-y-4">
         <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial}</p>
         <p><strong>Moneda:</strong> {orden.monedaSeleccionada || "PEN"}</p>

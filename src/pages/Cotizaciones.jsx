@@ -1,4 +1,4 @@
-// ✅ src/pages/Cotizaciones.jsx (editable)
+﻿// ✅ src/pages/Cotizaciones.jsx (editable)
 import React, { useEffect, useMemo, useState } from "react";
 import {
   obtenerCotizaciones,
@@ -748,7 +748,7 @@ const Cotizaciones = () => {
             if (end - start < win - 1) start = Math.max(1, end - win + 1);
             return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
               <button key={p} onClick={() => setPaginaActual(p)}
-                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"}`}>
+                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-black border-[#004990] hover:bg-blue-50"}`}>
                 {p}
               </button>
             ));

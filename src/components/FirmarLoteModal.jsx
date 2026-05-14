@@ -1,4 +1,4 @@
-// src/components/FirmarLoteModal.jsx
+﻿// src/components/FirmarLoteModal.jsx
 // Modal para aprobar o rechazar múltiples OCs a la vez.
 import React, { useEffect, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
@@ -157,7 +157,7 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
     return (
       <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-3">
         <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
-          <h3 className="text-lg font-bold mb-3 text-[#004990]">Firma masiva completada</h3>
+          <h3 className="text-lg font-bold mb-3 text-black">Firma masiva completada</h3>
           <p className="text-green-700 font-semibold">{ok} orden{ok !== 1 ? "es" : ""} procesada{ok !== 1 ? "s" : ""} correctamente ✅</p>
           {fail > 0 && <p className="text-red-600 mt-1">{fail} con error ❌</p>}
           <ul className="mt-3 text-sm space-y-1 max-h-48 overflow-y-auto">
@@ -184,7 +184,7 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
     <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-3">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="font-bold text-lg text-[#004990]">Firma masiva ({ocsFirmables.length} órdenes)</h3>
+          <h3 className="font-bold text-lg text-black">Firma masiva ({ocsFirmables.length} órdenes)</h3>
           <button onClick={onClose} className="px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200 font-medium">
             Cancelar
           </button>
@@ -213,7 +213,7 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
               return (
                 <div key={oc.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-mono font-bold text-[#004990]">{oc.numeroOC}</span>
+                    <span className="font-mono font-bold text-black">{oc.numeroOC}</span>
                     <span className="text-gray-500 ml-2 text-xs">{oc.proveedor?.razonSocial || "—"}</span>
                   </div>
                   <span className="font-semibold text-right whitespace-nowrap">{formatearMoneda(total, simbolo)}</span>

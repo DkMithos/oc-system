@@ -25,9 +25,9 @@
   --border:    #dde3ee;
 
   /* Text */
-  --text-primary:   #1a2540;
-  --text-secondary: #4b5f82;
-  --text-muted:     #8a9bbf;
+  --text-primary:   #000000;
+  --text-secondary: #4b5563;
+  --text-muted:     #9ca3af;
 
   /* Status */
   --success: #16a34a;

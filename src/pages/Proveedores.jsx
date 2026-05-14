@@ -1,4 +1,4 @@
-// ✅ src/pages/Proveedores.jsx
+﻿// ✅ src/pages/Proveedores.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { PageLoader } from "../components/ui/Skeleton";
@@ -442,7 +442,7 @@ const Proveedores = () => {
                   <td className="p-2">{p.estado || "Activo"}</td>
                   <td className="p-2">
                     <button
-                      className="text-blue-600 hover:text-blue-800"
+                      className="text-blue-600 hover:text-black"
                       title="Editar"
                       onClick={() => cargarParaEditar(p)}
                     >

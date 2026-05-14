@@ -1,4 +1,4 @@
-// src/pages/SalaPagos.jsx
+﻿// src/pages/SalaPagos.jsx
 // Fase 5c: Vista proyectable para reunión semanal de Mesa de Pagos.
 // Muestra transacciones pendientes priorizadas, permite asignar compromisos,
 // registrar decisiones y gestionar la sesión de pago.
@@ -202,7 +202,7 @@ export default function SalaPagos() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Mesa de Pagos</h1>
+          <h1 className="text-2xl font-bold text-black">Mesa de Pagos</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Triage semanal — Priorización de pagos pendientes
             {sesionActiva && (
@@ -243,7 +243,7 @@ export default function SalaPagos() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={DollarSign} label="Total Pendiente" valor={`S/ ${fmt(kpis.totalPendiente)}`} sub={`${kpis.cantPendiente} transacciones`} color="text-[#004990]" />
+        <KpiCard icon={DollarSign} label="Total Pendiente" valor={`S/ ${fmt(kpis.totalPendiente)}`} sub={`${kpis.cantPendiente} transacciones`} color="text-black" />
         <KpiCard icon={AlertTriangle} label="Monto Vencido" valor={`S/ ${fmt(kpis.montoVencido)}`} sub={`${kpis.cantVencidas} vencidas`} color="text-red-600" />
         <KpiCard icon={Calendar} label="Con Compromiso" valor={kpis.cantCompromisos} sub="pendientes de cumplir" color="text-amber-600" />
         <KpiCard icon={AlertTriangle} label="Presión Critica" valor={kpis.cantCriticas} sub="requieren atención" color="text-red-700" />

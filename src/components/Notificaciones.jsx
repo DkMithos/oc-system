@@ -1,4 +1,4 @@
-// src/components/Notificaciones.jsx
+﻿// src/components/Notificaciones.jsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { onMessageListener } from "../firebase/fcm";
@@ -219,7 +219,7 @@ const Notificaciones = () => {
           aria-label="Panel de notificaciones"
         >
           <div className="flex items-center justify-between p-2 border-b">
-            <div className="font-semibold text-blue-900">Notificaciones</div>
+            <div className="font-semibold text-black">Notificaciones</div>
             <div className="flex items-center gap-2">
               <button
                 className="text-xs text-blue-600 underline"

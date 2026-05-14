@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
@@ -376,17 +376,17 @@ const RegistrarPago = () => {
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header + tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="text-2xl font-bold text-[#004990]">Registrar pago</h2>
+        <h2 className="text-2xl font-bold text-black">Registrar pago</h2>
         <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
           <button
             onClick={() => setModo("individual")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "individual" ? "bg-white shadow text-[#004990]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "individual" ? "bg-white shadow text-black" : "text-gray-500 hover:text-gray-700"}`}
           >
             <span className="flex items-center gap-1.5"><FileText size={14} />Individual</span>
           </button>
           <button
             onClick={() => setModo("masivo")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "masivo" ? "bg-white shadow text-[#004990]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "masivo" ? "bg-white shadow text-black" : "text-gray-500 hover:text-gray-700"}`}
           >
             <span className="flex items-center gap-1.5"><Layers size={14} />Carga masiva</span>
           </button>
@@ -433,7 +433,7 @@ const RegistrarPago = () => {
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="font-semibold text-sm text-[#004990]">{oc.numeroOC || oc.numero}</span>
+                            <span className="font-semibold text-sm text-black">{oc.numeroOC || oc.numero}</span>
                             <span className="text-gray-600 text-sm ml-2">{oc.proveedor?.razonSocial || "—"}</span>
                           </div>
                           <div className="text-right">
@@ -454,7 +454,7 @@ const RegistrarPago = () => {
               <div className="mt-4 border rounded-lg overflow-hidden">
                 <div className="bg-[#004990]/5 px-4 py-2 border-b flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-[#004990]">{sel.numeroOC || sel.numero}</span>
+                    <span className="font-bold text-black">{sel.numeroOC || sel.numero}</span>
                     <span className="text-gray-600 ml-2 text-sm">{sel.proveedor?.razonSocial}</span>
                     {sel.proveedor?.ruc && <span className="text-gray-400 text-xs ml-2">RUC {sel.proveedor.ruc}</span>}
                   </div>
@@ -517,7 +517,7 @@ const RegistrarPago = () => {
           {sel && (
             <div className="bg-white rounded shadow p-4">
               <h3 className="font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                <FileText size={16} className="text-[#004990]" />
+                <FileText size={16} className="text-black" />
                 Datos del comprobante y pago
               </h3>
               <div className="grid md:grid-cols-2 gap-3 mb-3">
@@ -563,7 +563,7 @@ const RegistrarPago = () => {
                 </div>
               </div>
               <div className="mb-4">
-                <label className="inline-flex items-center gap-2 text-sm text-[#004990] underline cursor-pointer">
+                <label className="inline-flex items-center gap-2 text-sm text-black underline cursor-pointer">
                   <Paperclip size={14} />
                   {form.archivo ? form.archivo.name : "Adjuntar comprobante (PDF/JPG/PNG)"}
                   <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setForm({ ...form, archivo: e.target.files[0] || null })} />
@@ -595,7 +595,7 @@ const RegistrarPago = () => {
           {/* Instrucciones + plantilla */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="font-semibold text-blue-800 mb-1 flex items-center gap-2"><Upload size={15} />Carga masiva de pagos</p>
+              <p className="font-semibold text-black mb-1 flex items-center gap-2"><Upload size={15} />Carga masiva de pagos</p>
               <p className="text-sm text-blue-700">Sube un Excel con múltiples pagos. Las columnas requeridas son:</p>
               <ul className="mt-1 text-xs text-blue-600 list-disc list-inside">
                 <li><b>N° OC</b>, <b>N° Comprobante</b>, <b>Fecha (YYYY-MM-DD)</b>, <b>Monto</b></li>
@@ -669,7 +669,7 @@ const RegistrarPago = () => {
                       {filasMasivas.map((f, i) => (
                         <tr key={i} className={`border-t ${f.valido ? "hover:bg-gray-50" : "bg-red-50"}`}>
                           <td className="px-3 py-1.5 text-gray-400">{f.fila}</td>
-                          <td className="px-3 py-1.5 font-mono font-semibold text-[#004990]">{f.nroOC}</td>
+                          <td className="px-3 py-1.5 font-mono font-semibold text-black">{f.nroOC}</td>
                           <td className="px-3 py-1.5">{f.tipoComprobante} {f.nroComprobante}</td>
                           <td className="px-3 py-1.5 whitespace-nowrap">{f.fecha}</td>
                           <td className="px-3 py-1.5 font-mono">{f.monto > 0 ? f.monto.toFixed(2) : "—"}</td>
@@ -715,7 +715,7 @@ const RegistrarPago = () => {
                 </p>
                 <button
                   onClick={limpiarMasivo}
-                  className="text-xs text-[#004990] font-medium hover:underline"
+                  className="text-xs text-black font-medium hover:underline"
                 >
                   Cargar otro archivo
                 </button>
@@ -732,7 +732,7 @@ const RegistrarPago = () => {
                   <tbody>
                     {resultadosMasivos.map((r, i) => (
                       <tr key={i} className={`border-t ${r.exito ? "bg-green-50/40" : "bg-red-50"}`}>
-                        <td className="px-3 py-1.5 font-mono font-semibold text-[#004990]">{r.nroOC}</td>
+                        <td className="px-3 py-1.5 font-mono font-semibold text-black">{r.nroOC}</td>
                         <td className="px-3 py-1.5">{r.tipoComprobante} {r.nroComprobante}</td>
                         <td className="px-3 py-1.5 font-mono">{r.monto.toFixed(2)}</td>
                         <td className="px-3 py-1.5">

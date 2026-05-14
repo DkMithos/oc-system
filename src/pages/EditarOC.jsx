@@ -1,4 +1,4 @@
-// ✅ src/pages/EditarOC.jsx
+﻿// ✅ src/pages/EditarOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
@@ -214,14 +214,14 @@ const EditarOC = () => {
         <div className="flex gap-4 items-start">
           <img src={Logo} alt="Logo Memphis" className="h-14" />
           <div className="text-xs leading-tight">
-            <p className="font-bold text-[#004990]">Memphis Maquinarias S.A.C</p>
+            <p className="font-bold text-black">Memphis Maquinarias S.A.C</p>
             <p>RUC: 20603847424</p>
             <p>AV. Circunvalación el Golf N° 158 Of. 203, Surco, Lima</p>
             <p>Teléfono: (01) 7174012</p>
             <p>www.memphismaquinarias.com</p>
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-[#004990]">Editar OC</h2>
+        <h2 className="text-2xl font-bold text-black">Editar OC</h2>
       </div>
 
       {/* Datos generales + proveedor */}
@@ -364,7 +364,7 @@ const EditarOC = () => {
 
       {/* Opciones tributarias */}
       <div className="bg-[#f4f4f4] p-6 rounded shadow mt-6 space-y-4">
-        <h3 className="font-semibold text-[#004990]">Opciones Tributarias</h3>
+        <h3 className="font-semibold text-black">Opciones Tributarias</h3>
 
         {/* IGV */}
         <label className="flex items-center gap-2 cursor-pointer">

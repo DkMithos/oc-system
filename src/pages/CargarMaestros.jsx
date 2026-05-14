@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   cargarCentrosCostoDesdeExcel,
   cargarCondicionesPagoDesdeExcel,
@@ -40,7 +40,7 @@ const CargarMaestros = () => {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 text-[#004990]">
+      <h2 className="text-2xl font-bold mb-4 text-black">
         Cargar Datos Maestros
       </h2>
 

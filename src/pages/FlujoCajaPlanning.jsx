@@ -1,4 +1,4 @@
-// src/pages/FlujoCajaPlanning.jsx
+﻿// src/pages/FlujoCajaPlanning.jsx
 // Vista mensual de planificación de pagos — reemplaza el "Flujo GM" del Excel.
 // Muestra transacciones por mes de vencimiento, con semáforo de urgencia,
 // acciones rápidas (cambiar estado, postergar) y resumen por área.
@@ -226,7 +226,7 @@ export default function FlujoCajaPlanning() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Planificación de Pagos</h1>
+          <h1 className="text-2xl font-bold text-black">Planificación de Pagos</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Vista mensual · {transDelMes.length} ítem{transDelMes.length !== 1 ? "s" : ""} en {formatMes(mesActual)}
           </p>
@@ -235,7 +235,7 @@ export default function FlujoCajaPlanning() {
         <div className="flex items-center gap-2">
           <button onClick={() => setMesActual((m) => addMonths(m, -1))}
             className="w-8 h-8 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-600 text-lg font-bold">‹</button>
-          <span className="font-semibold text-[#004990] text-sm min-w-[90px] text-center">
+          <span className="font-semibold text-black text-sm min-w-[90px] text-center">
             {formatMes(mesActual)}
           </span>
           <button onClick={() => setMesActual((m) => addMonths(m, 1))}
@@ -297,7 +297,7 @@ export default function FlujoCajaPlanning() {
               onClick={() => setAreaTab(area.id)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 areaTab === area.id
-                  ? "border-[#004990] text-[#004990]"
+                  ? "border-[#004990] text-black"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}>
               {area.label}
@@ -460,7 +460,7 @@ export default function FlujoCajaPlanning() {
                     <td className="px-3 py-2">
                       {t.oc_numero ? (
                         <button onClick={() => navigate(`/ver?id=${t.oc_id || ""}`)}
-                          className="text-[#004990] hover:underline font-mono text-[10px]">
+                          className="text-black hover:underline font-mono text-[10px]">
                           {t.oc_numero}
                         </button>
                       ) : "—"}

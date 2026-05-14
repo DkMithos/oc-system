@@ -1,4 +1,4 @@
-// src/pages/FlujosFinancieros.jsx
+﻿// src/pages/FlujosFinancieros.jsx
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { TIPO_TRANSACCION, corregirTransaccionesInconsistentes } from "../firebase/finanzasHelpers";
@@ -281,7 +281,7 @@ function FlujosFinancieros() {
               onClick={() => { setAreaTab(area.id); setPaginaTrans(1); }}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 areaTab === area.id
-                  ? "border-[#004990] text-[#004990]"
+                  ? "border-[#004990] text-black"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
@@ -534,7 +534,7 @@ function FlujosFinancieros() {
             if (end - start < win - 1) start = Math.max(1, end - win + 1);
             return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
               <button key={p} onClick={() => setPaginaTrans(p)}
-                className={`px-3 py-1 border rounded text-sm ${p === paginaTrans ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"}`}>
+                className={`px-3 py-1 border rounded text-sm ${p === paginaTrans ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-black border-[#004990] hover:bg-blue-50"}`}>
                 {p}
               </button>
             ));

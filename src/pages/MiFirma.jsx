@@ -1,4 +1,4 @@
-// ✅ src/pages/MiFirma.jsx
+﻿// ✅ src/pages/MiFirma.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useUsuario } from "../context/UsuarioContext";
@@ -104,7 +104,7 @@ const MiFirma = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-[#004990] mb-2">Mi Firma</h2>
+      <h2 className="text-2xl font-bold text-black mb-2">Mi Firma</h2>
       <p className="text-gray-600 mb-4">
         Registra tu firma para aprobar/rechazar órdenes. Puedes subir una imagen o dibujarla.
       </p>
