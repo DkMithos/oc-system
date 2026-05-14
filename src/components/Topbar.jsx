@@ -231,9 +231,9 @@ const Topbar = ({ toggleSidebar }) => {
                       to="/mi-firma"
                       onClick={() => setDropdownOpen(false)}
                       className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700
-                                 hover:bg-gray-50 transition-colors"
+                                 hover:bg-black hover:text-white transition-colors group"
                     >
-                      <User size={14} className="text-gray-400" />
+                      <User size={14} className="text-gray-400 group-hover:text-white transition-colors" />
                       Mi Firma
                     </Link>
                     {rol === "admin" && (
@@ -241,9 +241,9 @@ const Topbar = ({ toggleSidebar }) => {
                         to="/admin"
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700
-                                   hover:bg-gray-50 transition-colors"
+                                   hover:bg-black hover:text-white transition-colors group"
                       >
-                        <Settings size={14} className="text-gray-400" />
+                        <Settings size={14} className="text-gray-400 group-hover:text-white transition-colors" />
                         Panel Admin
                       </Link>
                     )}
