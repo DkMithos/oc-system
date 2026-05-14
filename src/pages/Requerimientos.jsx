@@ -624,7 +624,7 @@ const Requerimientos = () => {
             <button
               key={i}
               onClick={() => setPagina(i + 1)}
-              className={`px-3 py-1 rounded border text-sm ${pagina === i + 1 ? "bg-[#004990] text-white" : "hover:bg-gray-100"}`}
+              className={`px-3 py-1 rounded border text-sm ${pagina === i + 1 ? "bg-black text-white border-black" : "border-black hover:bg-gray-100"}`}
             >
               {i + 1}
             </button>

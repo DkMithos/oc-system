@@ -755,7 +755,7 @@ const CajaChica = () => {
                 disabled={pagina === 1}
                 className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">{s}</button>
             ))}
-            <span className="px-3 py-1 rounded border bg-[#004990] text-white">{pagina}</span>
+            <span className="px-3 py-1 rounded border bg-black text-white border-black">{pagina}</span>
             {["›", "»"].map((s, i) => (
               <button key={s} onClick={() => setPagina(i === 0 ? (p) => Math.min(totalPaginas, p + 1) : totalPaginas)}
                 disabled={pagina === totalPaginas}

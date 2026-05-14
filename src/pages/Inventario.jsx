@@ -354,7 +354,7 @@ const Inventario = () => {
               <button key={l} onClick={() => setPagina(Math.max(1,p))} disabled={pagina===1}
                 className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">{l}</button>
             ))}
-            <span className="px-3 py-1 rounded border bg-blue-600 text-white">{pagina}</span>
+            <span className="px-3 py-1 rounded border bg-black text-white border-black">{pagina}</span>
             {[["›",pagina+1],["»",totalPaginas]].map(([l,p]) => (
               <button key={l} onClick={() => setPagina(Math.min(totalPaginas,p))} disabled={pagina===totalPaginas}
                 className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">{l}</button>
