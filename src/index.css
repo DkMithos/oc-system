@@ -4,20 +4,20 @@
 
 /* ──────────────────────────────────────────────────────────────
    DESIGN TOKENS — Memphis ERP Enterprise
-   Paleta: azul marino corporativo + ámbar + grises neutros
+   Paleta: Negro corporativo + amarillo primario + blancos
    ────────────────────────────────────────────────────────────── */
 :root {
   /* Brand */
-  --brand-900: #012b5a;
-  --brand-800: #014080;
-  --brand-700: #01579b;
-  --brand-600: #0277bd;
-  --brand-100: #e3f2fd;
-  --brand-50:  #f0f7ff;
+  --brand-900: #1a1a1a;
+  --brand-800: #2a2a2a;
+  --brand-700: #3a3a3a;
+  --brand-600: #4a4a4a;
+  --brand-100: #f5f5f5;
+  --brand-50:  #fafafa;
 
   /* Accent */
-  --accent:    #f59e0b;
-  --accent-lt: #fef3c7;
+  --accent:    #f0c000;
+  --accent-lt: #fff8d6;
 
   /* Surface */
   --surface:   #f4f6fa;
@@ -36,13 +36,13 @@
   --info:    #0284c7;
 
   /* Sidebar */
-  --sidebar-bg:     var(--brand-900);
+  --sidebar-bg:     #1a1a1a;
   --sidebar-w:      256px;
-  --sidebar-active: var(--accent);
+  --sidebar-active: #f0c000;
 
   /* Topbar */
   --topbar-h:  56px;
-  --topbar-bg: var(--brand-900);
+  --topbar-bg: #1a1a1a;
 
   /* Transitions */
   --t-fast:  150ms ease;
@@ -56,7 +56,7 @@ html { font-size: 15px; }
 
 body {
   margin: 0;
-  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--surface);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;

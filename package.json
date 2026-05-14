@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@fontsource/roboto": "^5.2.6",
     "date-fns": "^4.1.0",
     "file-saver": "^2.0.5",

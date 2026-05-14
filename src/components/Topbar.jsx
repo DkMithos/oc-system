@@ -122,7 +122,7 @@ const Topbar = ({ toggleSidebar }) => {
   }, []);
 
   return (
-    <header className="bg-[#012b5a] text-white sticky top-0 z-30 border-b border-white/10">
+    <header className="bg-[#1a1a1a] text-white sticky top-0 z-30 border-b border-white/10">
       <div className="flex items-center justify-between h-14 px-4 gap-4">
 
         {/* ── Izquierda ─────────────────────────────── */}
@@ -194,7 +194,7 @@ const Topbar = ({ toggleSidebar }) => {
                            hover:bg-white/10 transition-colors"
               >
                 {/* Avatar */}
-                <div className="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center
+                <div className="w-7 h-7 rounded-full bg-[#f0c000] flex items-center justify-center
                                 text-[#012b5a] font-bold text-xs flex-shrink-0">
                   {nombre.charAt(0).toUpperCase()}
                 </div>

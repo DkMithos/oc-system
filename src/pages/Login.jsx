@@ -49,7 +49,7 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[#004990] px-4">
+    <div className="h-screen flex items-center justify-center bg-[#1a1a1a] px-4">
       <form
         onSubmit={handleLogin}
         className="bg-white shadow-xl p-8 rounded-lg w-full max-w-md border border-gray-200"
@@ -74,7 +74,7 @@ const Login = () => {
           placeholder="Correo electrónico"
           value={email}
           onChange={(e) => { setEmail(e.target.value); setError(""); }}
-          className="w-full p-2 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+          className="w-full p-2 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-[#f0c000]"
           required
         />
         <div className="relative mb-4">
@@ -83,7 +83,7 @@ const Login = () => {
             placeholder="Contraseña"
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError(""); }}
-            className="w-full p-2 pr-10 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+            className="w-full p-2 pr-10 border rounded focus:outline-none focus:ring-2 focus:ring-[#f0c000]"
             required
           />
           <button
@@ -99,12 +99,12 @@ const Login = () => {
         <button
           type="submit"
           disabled={cargando}
-          className="bg-[#fbc102] hover:bg-yellow-400 text-[#004990] font-semibold py-2 rounded w-full transition-all
+          className="bg-[#f0c000] hover:bg-yellow-400 text-[#1a1a1a] font-semibold py-2 rounded w-full transition-all
                      disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {cargando ? (
             <>
-              <svg className="animate-spin h-4 w-4 text-[#004990]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4 text-[#1a1a1a]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
