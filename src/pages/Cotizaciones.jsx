@@ -419,6 +419,7 @@ const Cotizaciones = () => {
                 name="moneda"
                 checked={form.moneda === "Soles"}
                 onChange={() => setForm((f) => ({ ...f, moneda: "Soles" }))}
+                className="accent-[#f0c000]"
               />
               <span>Soles</span>
             </label>
@@ -428,6 +429,7 @@ const Cotizaciones = () => {
                 name="moneda"
                 checked={form.moneda === "Dólares"}
                 onChange={() => setForm((f) => ({ ...f, moneda: "Dólares" }))}
+                className="accent-[#f0c000]"
               />
               <span>Dólares</span>
             </label>
