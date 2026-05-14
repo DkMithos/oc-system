@@ -670,7 +670,7 @@ const Historial = () => {
               <button
                 onClick={cargarMas}
                 disabled={cargandoMas}
-                className="px-5 py-2 border border-blue-600 text-black rounded hover:bg-black hover:text-white text-sm transition-colors disabled:opacity-50"
+                className="px-5 py-2 border border-black text-black rounded hover:bg-black hover:text-white text-sm transition-colors disabled:opacity-50"
               >
                 {cargandoMas ? "Cargando…" : `Cargar más (${ordenes.length} cargadas)`}
               </button>
