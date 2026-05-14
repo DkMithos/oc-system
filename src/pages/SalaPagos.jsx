@@ -48,6 +48,23 @@ const IMPORTANCIA_OPTIONS = [
 const fmt = (n) =>
   new Intl.NumberFormat("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
+// ── Datos demo para preview ──────────────────────────────────────
+const DEMO_TRANSACCIONES = [
+  { id: "demo-1", proveedor_cliente_nombre: "Ferreyros S.A.", categoriaNombre: "Maquinaria y Equipos", area: "operaciones", documento_tipo: "FAC", documento_numero: "F001-00234", monto_total_pen: 45800, moneda: "PEN", presion: "critica", prioridad_score: 78, vencido: true, diasVencido: 12, compromiso_fecha: "2026-05-20", mesa_discutido: false, fechaISO: "2026-04-30", programado_fechaISO: "2026-04-30" },
+  { id: "demo-2", proveedor_cliente_nombre: "Komatsu Mitsui Maquinarias", categoriaNombre: "Repuestos y Mantenimiento", area: "operaciones", documento_tipo: "FAC", documento_numero: "F001-00189", monto_total_pen: 28500, moneda: "PEN", presion: "alta", prioridad_score: 52, vencido: false, diasVencido: 0, compromiso_fecha: "2026-05-18", mesa_discutido: true, fechaISO: "2026-05-05", programado_fechaISO: "2026-05-18" },
+  { id: "demo-3", proveedor_cliente_nombre: "Suministros del Norte E.I.R.L.", categoriaNombre: "Materiales de Oficina", area: "administracion", documento_tipo: "BOL", documento_numero: "B001-00056", monto_total_pen: 3200, moneda: "PEN", presion: "media", prioridad_score: 25, vencido: false, diasVencido: 0, compromiso_fecha: "", mesa_discutido: false, fechaISO: "2026-05-08", programado_fechaISO: "" },
+  { id: "demo-4", proveedor_cliente_nombre: "Tecniplus SAC", categoriaNombre: "Servicios TI", area: "ti", documento_tipo: "FAC", documento_numero: "F002-00412", monto_total_pen: 12600, moneda: "PEN", presion: "baja", prioridad_score: 10, vencido: false, diasVencido: 0, compromiso_fecha: "", mesa_discutido: false, fechaISO: "2026-05-10", programado_fechaISO: "" },
+];
+const DEMO_SESION_ACTIVA = { id: "demo-sesion-1", titulo: "Mesa de Pagos — 14 May 2026", estado: "activa", transaccionesDiscutidas: ["demo-2"], creadoEn: null };
+const DEMO_SESIONES = [
+  { id: "demo-sesion-1", titulo: "Mesa de Pagos — 14 May 2026", estado: "activa", transaccionesDiscutidas: ["demo-2"], creadoEn: null },
+  { id: "demo-sesion-0", titulo: "Mesa de Pagos — 07 May 2026", estado: "finalizada", transaccionesDiscutidas: ["demo-1", "demo-3"], creadoEn: null },
+];
+const DEMO_CIPRLS = [
+  { id: "ciprl-1", codigo: "CIPRL-2026-001", saldo: 85000 },
+  { id: "ciprl-2", codigo: "CIPRL-2026-002", saldo: 32500 },
+];
+
 // ── Componente principal ──
 export default function SalaPagos() {
   const { usuario, cargando: authLoading } = useUsuario();
@@ -61,6 +78,7 @@ export default function SalaPagos() {
   const [decision, setDecision] = useState({});
   const [instrumentosCIPRL, setInstrumentosCIPRL] = useState([]);
   const [aplicandoCIPRL, setAplicandoCIPRL] = useState(null);
+  const [esDemo, setEsDemo] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -70,12 +88,21 @@ export default function SalaPagos() {
         obtenerSesionesPago(5),
         obtenerInstrumentosConSaldo("ciprl").catch(() => []),
       ]);
-      setTransacciones(txs);
-      setSesiones(sess);
-      setInstrumentosCIPRL(ciprlList);
-      // Si hay una sesión activa, setearla
-      const activa = sess.find((s) => s.estado === "activa");
-      if (activa) setSesionActiva(activa);
+      // [DEMO] Si no hay datos reales, mostrar datos simulados para preview
+      if (txs.length === 0) {
+        setTransacciones(DEMO_TRANSACCIONES);
+        setSesiones(DEMO_SESIONES);
+        setSesionActiva(DEMO_SESION_ACTIVA);
+        setInstrumentosCIPRL(DEMO_CIPRLS);
+        setEsDemo(true);
+      } else {
+        setTransacciones(txs);
+        setSesiones(sess);
+        setInstrumentosCIPRL(ciprlList);
+        const activa = sess.find((s) => s.estado === "activa");
+        if (activa) setSesionActiva(activa);
+        setEsDemo(false);
+      }
     } catch (e) {
       console.error("Error cargando mesa de pagos:", e);
     } finally {
@@ -226,7 +253,7 @@ export default function SalaPagos() {
           {!sesionActiva ? (
             <button
               onClick={iniciarSesion}
-              className="flex items-center gap-1.5 bg-[#004990] text-white text-xs px-3 py-2 rounded-lg hover:bg-[#003670] transition-colors"
+              className="flex items-center gap-1.5 bg-[#f0c000] hover:bg-[#d4a800] text-black text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
             >
               <Play size={12} /> Iniciar Sesión
             </button>
@@ -240,6 +267,13 @@ export default function SalaPagos() {
           )}
         </div>
       </div>
+
+      {/* Banner demo */}
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center -mt-2">
+          Vista previa con datos de ejemplo — no hay transacciones reales pendientes
+        </p>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -272,7 +306,7 @@ export default function SalaPagos() {
                 const monto = Number(t.monto_total_pen ?? t.monto_total ?? 0);
 
                 return (
-                  <div key={t.id} className={`${t.vencido ? "bg-red-50/40" : ""} ${isExpanded ? "bg-blue-50/30" : ""}`}>
+                  <div key={t.id} className={`${t.vencido ? "bg-red-50/40" : ""} ${isExpanded ? "bg-gray-50/60" : ""}`}>
                     {/* Fila principal */}
                     <div
                       className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -302,7 +336,7 @@ export default function SalaPagos() {
                             </span>
                           )}
                           {t.mesa_discutido && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-600">
                               Discutido
                             </span>
                           )}
@@ -389,13 +423,13 @@ export default function SalaPagos() {
 
                         {/* CIPRL disponible */}
                         {instrumentosCIPRL.length > 0 && (
-                          <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <p className="text-[10px] text-indigo-600 uppercase font-semibold mb-2">Aplicar CIPRL</p>
+                          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p className="text-[10px] text-gray-600 uppercase font-semibold mb-2">Aplicar CIPRL</p>
                             <div className="flex flex-wrap items-end gap-2">
                               <select
                                 value={decision[t.id]?.ciprl_instrumento || ""}
                                 onChange={(e) => updateDecision(t.id, "ciprl_instrumento", e.target.value)}
-                                className="flex-1 min-w-[140px] border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white"
+                                className="flex-1 min-w-[140px] border border-gray-200 rounded px-2 py-1.5 text-xs bg-white"
                               >
                                 <option value="">Seleccionar CIPRL...</option>
                                 {instrumentosCIPRL.map((c) => (
@@ -411,7 +445,7 @@ export default function SalaPagos() {
                                 placeholder="Monto"
                                 value={decision[t.id]?.ciprl_monto || ""}
                                 onChange={(e) => updateDecision(t.id, "ciprl_monto", e.target.value)}
-                                className="w-28 border border-indigo-200 rounded px-2 py-1.5 text-xs"
+                                className="w-28 border border-gray-200 rounded px-2 py-1.5 text-xs"
                               />
                               <button
                                 onClick={() => aplicarCIPRL(
@@ -421,7 +455,7 @@ export default function SalaPagos() {
                                   `Pago ${t.proveedor_cliente_nombre || ""} - ${t.documento_numero || ""}`
                                 )}
                                 disabled={aplicandoCIPRL === t.id || !decision[t.id]?.ciprl_instrumento}
-                                className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 disabled:opacity-50"
+                                className="px-3 py-1.5 bg-black text-white text-xs rounded hover:bg-gray-800 disabled:opacity-50 transition-colors"
                               >
                                 {aplicandoCIPRL === t.id ? "Aplicando..." : "Aplicar"}
                               </button>
@@ -433,7 +467,7 @@ export default function SalaPagos() {
                           <button
                             onClick={() => guardarDecision(t.id)}
                             disabled={!sesionActiva}
-                            className="px-4 py-1.5 bg-[#004990] text-white text-xs rounded-lg hover:bg-[#003670] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-1.5 bg-[#f0c000] hover:bg-[#d4a800] text-black text-xs font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {sesionActiva ? "Guardar Decisión" : "Inicie sesión primero"}
                           </button>
