@@ -1,5 +1,5 @@
 // src/layout/Layout.jsx
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import Sidebar from "../components/Sidebar";
@@ -42,6 +42,7 @@ const Layout = () => {
   }, [usuario?.email]);
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+  const location = useLocation();
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -57,7 +58,10 @@ const Layout = () => {
           />
         )}
 
-        <div className="flex-1 min-w-0 overflow-x-hidden p-3 sm:p-4">
+        <div
+          key={location.pathname}
+          className="flex-1 min-w-0 overflow-x-hidden p-3 sm:p-4 animate-fadeInUp"
+        >
           <Outlet />
         </div>
       </div>
