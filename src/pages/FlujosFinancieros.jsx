@@ -215,7 +215,7 @@ function FlujosFinancieros() {
             <button
               type="button"
               onClick={handleNuevoClick}
-              className="inline-flex items-center px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-medium text-white shadow-sm"
+              className="inline-flex items-center px-3 py-1.5 rounded bg-[#f0c000] hover:bg-[#d4a800] text-xs sm:text-sm font-semibold text-black shadow-sm transition-colors"
             >
               + Nueva transacción
             </button>
@@ -281,7 +281,7 @@ function FlujosFinancieros() {
               onClick={() => { setAreaTab(area.id); setPaginaTrans(1); }}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 areaTab === area.id
-                  ? "border-[#004990] text-black"
+                  ? "border-black text-black"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
@@ -321,7 +321,7 @@ function FlujosFinancieros() {
                   aplicarPeriodo(dias);
                 }
               }}
-              className="px-2.5 py-1 rounded text-xs border border-gray-300 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+              className="px-2.5 py-1 rounded text-xs border border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-gray-400 hover:text-black transition-colors"
             >
               {label}
             </button>
@@ -336,7 +336,7 @@ function FlujosFinancieros() {
               name="fechaDesde"
               value={filtros.fechaDesde}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-black"
             />
           </div>
           <div className="flex flex-col">
@@ -346,7 +346,7 @@ function FlujosFinancieros() {
               name="fechaHasta"
               value={filtros.fechaHasta}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-black"
             />
           </div>
 
@@ -356,7 +356,7 @@ function FlujosFinancieros() {
               name="tipo"
               value={filtros.tipo}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-black"
             >
               <option value="">Todos</option>
               <option value={TIPO_TRANSACCION.INGRESO}>Ingresos</option>
@@ -370,7 +370,7 @@ function FlujosFinancieros() {
               name="estado"
               value={filtros.estado}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-black"
             >
               <option value="">Todos</option>
               {catalogos.estados.map((e) => (
@@ -390,7 +390,7 @@ function FlujosFinancieros() {
               name="categoriaId"
               value={filtros.categoriaId}
               onChange={handleFiltroChange}
-              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-black"
             >
               <option value="">Todas</option>
               {catalogos.categorias.map((c) => (
@@ -406,7 +406,7 @@ function FlujosFinancieros() {
           <button
             type="button"
             onClick={handleBuscarClick}
-            className="inline-flex items-center px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white"
+            className="inline-flex items-center px-3 py-1.5 rounded bg-black hover:bg-gray-800 text-xs sm:text-sm font-medium text-white transition-colors"
           >
             {cargando ? "Buscando..." : "Aplicar filtros"}
           </button>
@@ -437,7 +437,7 @@ function FlujosFinancieros() {
               value={busquedaTabla}
               onChange={(e) => { setBusquedaTabla(e.target.value); setPaginaTrans(1); }}
               placeholder="Buscar proveedor, CC, OC, doc…"
-              className="pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
+              className="pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black w-56"
             />
           </div>
           {cargandoCatalogos && <span className="text-xs text-gray-400">Cargando catálogos…</span>}
@@ -510,7 +510,7 @@ function FlujosFinancieros() {
                   <button
                     type="button"
                     onClick={() => handleEditarClick(t)}
-                    className="text-blue-600 hover:text-blue-500 text-xs font-medium"
+                    className="text-black underline text-xs hover:font-semibold transition-all"
                   >
                     Ver / Editar
                   </button>
@@ -534,7 +534,7 @@ function FlujosFinancieros() {
             if (end - start < win - 1) start = Math.max(1, end - win + 1);
             return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
               <button key={p} onClick={() => setPaginaTrans(p)}
-                className={`px-3 py-1 border rounded text-sm ${p === paginaTrans ? "bg-black text-[#f0c000] border-black" : "bg-white text-black border-black hover:bg-gray-100"}`}>
+                className={`px-3 py-1 border rounded text-sm ${p === paginaTrans ? "bg-black text-white border-black" : "bg-white text-black border-black hover:bg-gray-100"}`}>
                 {p}
               </button>
             ));
