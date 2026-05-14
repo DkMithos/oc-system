@@ -123,7 +123,7 @@ const SolicitudesEdicion = () => {
             onClick={() => setFiltroEstado(key)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               filtroEstado === key
-                ? "bg-[#004990] text-white"
+                ? "bg-black text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
