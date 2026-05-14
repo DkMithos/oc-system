@@ -206,7 +206,7 @@ const Dashboard = () => {
               <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#f0c000" stroke="#000000" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#f0c000" stroke="#000000" strokeWidth={1} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
