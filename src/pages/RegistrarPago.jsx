@@ -404,7 +404,7 @@ const RegistrarPago = () => {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   ref={busquedaRef}
-                  className="border rounded pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#004990]/30"
+                  className="border rounded pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
                   placeholder="N° OC, proveedor o RUC…"
                   value={busqueda}
                   onChange={(e) => { setBusqueda(e.target.value); setMostrarLista(true); if (!e.target.value) setSel(null); }}
@@ -428,7 +428,7 @@ const RegistrarPago = () => {
                     return (
                       <button
                         key={oc.id}
-                        className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b last:border-0 transition-colors"
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 border-b last:border-0 transition-colors"
                         onClick={() => seleccionar(oc)}
                       >
                         <div className="flex items-center justify-between">
@@ -452,7 +452,7 @@ const RegistrarPago = () => {
 
             {sel && (
               <div className="mt-4 border rounded-lg overflow-hidden">
-                <div className="bg-[#004990]/5 px-4 py-2 border-b flex items-center justify-between">
+                <div className="bg-gray-50 px-4 py-2 border-b flex items-center justify-between">
                   <div>
                     <span className="font-bold text-black">{sel.numeroOC || sel.numero}</span>
                     <span className="text-gray-600 ml-2 text-sm">{sel.proveedor?.razonSocial}</span>
@@ -470,9 +470,9 @@ const RegistrarPago = () => {
                         <p className="text-xs text-gray-500">Total OC</p>
                         <p className="font-bold text-sm text-gray-800">{formatearMoneda(totalOC, moneda)}</p>
                       </div>
-                      <div className="bg-blue-50 rounded p-2 text-center">
-                        <p className="text-xs text-blue-500">Pagado</p>
-                        <p className="font-bold text-sm text-blue-700">{formatearMoneda(montoPagadoPrev, moneda)}</p>
+                      <div className="bg-gray-50 rounded p-2 text-center">
+                        <p className="text-xs text-gray-500">Pagado</p>
+                        <p className="font-bold text-sm text-gray-800">{formatearMoneda(montoPagadoPrev, moneda)}</p>
                       </div>
                       <div className="bg-amber-50 rounded p-2 text-center">
                         <p className="text-xs text-amber-500">Saldo</p>
@@ -580,7 +580,7 @@ const RegistrarPago = () => {
               )}
               <div className="flex justify-end gap-3">
                 <button onClick={limpiar} className="px-4 py-2 rounded border text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className={`px-5 py-2 rounded text-white text-sm font-medium transition-colors ${guardando ? "bg-green-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
+                <button onClick={guardar} disabled={guardando} className={`px-5 py-2 rounded text-sm font-semibold transition-colors ${guardando ? "bg-[#f0c000]/60 text-black cursor-not-allowed" : "bg-[#f0c000] hover:bg-[#d4a800] text-black"}`}>
                   {guardando ? "Guardando…" : "Registrar pago"}
                 </button>
               </div>
@@ -593,18 +593,18 @@ const RegistrarPago = () => {
       {modo === "masivo" && (
         <div className="space-y-5">
           {/* Instrucciones + plantilla */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-wrap items-start justify-between gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="font-semibold text-black mb-1 flex items-center gap-2"><Upload size={15} />Carga masiva de pagos</p>
-              <p className="text-sm text-blue-700">Sube un Excel con múltiples pagos. Las columnas requeridas son:</p>
-              <ul className="mt-1 text-xs text-blue-600 list-disc list-inside">
+              <p className="text-sm text-gray-700">Sube un Excel con múltiples pagos. Las columnas requeridas son:</p>
+              <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
                 <li><b>N° OC</b>, <b>N° Comprobante</b>, <b>Fecha (YYYY-MM-DD)</b>, <b>Monto</b></li>
                 <li>Opcionales: Tipo Comprobante, Tipo Pago, Tipo de Cambio (solo USD), Observaciones</li>
               </ul>
             </div>
             <button
               onClick={descargarPlantilla}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-black text-black rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shrink-0"
             >
               <Download size={14} />
               Descargar plantilla
@@ -641,7 +641,7 @@ const RegistrarPago = () => {
                   { label: "Total filas", valor: statsFilas.total, color: "text-gray-800" },
                   { label: "Válidas", valor: statsFilas.validas, color: "text-green-700" },
                   { label: "Con errores", valor: statsFilas.invalidas, color: statsFilas.invalidas > 0 ? "text-red-600" : "text-gray-400" },
-                  { label: "Monto total", valor: `S/ ${statsFilas.montoTotal.toFixed(2)}`, color: "text-blue-700", raw: true },
+                  { label: "Monto total", valor: `S/ ${statsFilas.montoTotal.toFixed(2)}`, color: "text-black", raw: true },
                 ].map(({ label, valor, color, raw }) => (
                   <div key={label} className="bg-white border rounded-xl p-3 text-center shadow-sm">
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -693,7 +693,7 @@ const RegistrarPago = () => {
                 <button
                   onClick={procesarPagosMasivos}
                   disabled={procesandoMasivo || statsFilas.validas === 0}
-                  className={`px-5 py-2 rounded text-white text-sm font-medium transition-colors flex items-center gap-2 ${procesandoMasivo || statsFilas.validas === 0 ? "bg-green-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                  className={`px-5 py-2 rounded text-sm font-semibold transition-colors flex items-center gap-2 ${procesandoMasivo || statsFilas.validas === 0 ? "bg-[#f0c000]/60 text-black cursor-not-allowed" : "bg-[#f0c000] hover:bg-[#d4a800] text-black"}`}
                 >
                   {procesandoMasivo ? (
                     <><Clock size={14} className="animate-spin" />Procesando…</>
