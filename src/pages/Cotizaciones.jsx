@@ -511,7 +511,7 @@ const Cotizaciones = () => {
           </div>
           <button
             onClick={agregarItem}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded flex items-center gap-2"
+            className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 py-2 rounded flex items-center gap-2 transition-colors"
             title="Agregar ítem"
             type="button"
           >
@@ -748,7 +748,7 @@ const Cotizaciones = () => {
             if (end - start < win - 1) start = Math.max(1, end - win + 1);
             return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
               <button key={p} onClick={() => setPaginaActual(p)}
-                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-black text-[#f0c000] border-black" : "bg-white text-black border-black hover:bg-gray-100"}`}>
+                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-black text-white border-black" : "bg-white text-black border-black hover:bg-gray-100"}`}>
                 {p}
               </button>
             ));
