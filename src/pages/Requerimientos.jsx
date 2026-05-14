@@ -445,7 +445,7 @@ const Requerimientos = () => {
                     <td className="p-2 border text-center">
                       <button
                         onClick={agregarItem}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                        className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 py-1 rounded transition-colors"
                       >
                         <PlusCircle size={18} />
                       </button>
@@ -469,7 +469,7 @@ const Requerimientos = () => {
             <button
               onClick={guardar}
               disabled={guardando}
-              className="text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {guardando ? "Guardando..." : "Guardar"}
             </button>
