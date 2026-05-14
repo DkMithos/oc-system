@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import logo from "../assets/Logo_Login.png";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -76,14 +77,25 @@ const Login = () => {
           className="w-full p-2 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
           required
         />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => { setPassword(e.target.value); setError(""); }}
-          className="w-full p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
-          required
-        />
+        <div className="relative mb-4">
+          <input
+            type={mostrarPassword ? "text" : "password"}
+            placeholder="Contraseña"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(""); }}
+            className="w-full p-2 pr-10 border rounded focus:outline-none focus:ring-2 focus:ring-[#fbc102]"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setMostrarPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            tabIndex={-1}
+            aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+          >
+            {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
         <button
           type="submit"
           disabled={cargando}
