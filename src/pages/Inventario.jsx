@@ -311,7 +311,7 @@ const Inventario = () => {
             )}
             {!cargando && itemsPagina.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                No se encontraron ítems. {!mostrarForm && <button onClick={abrirNuevo} className="text-black underline ml-1 hover:text-[#f0c000] transition-colors">Agregar uno</button>}
+                No se encontraron ítems. {!mostrarForm && <button onClick={abrirNuevo} className="text-black underline ml-1 hover:font-semibold transition-all">Agregar uno</button>}
               </td></tr>
             )}
             {!cargando && itemsPagina.map((item, idx) => (
