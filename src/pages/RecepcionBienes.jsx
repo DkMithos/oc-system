@@ -226,8 +226,8 @@ const RecepcionBienes = () => {
                     onClick={() => seleccionarOC(oc)}
                     className={`w-full text-left p-3 rounded-lg border transition-all ${
                       activa
-                        ? "border-blue-400 bg-blue-50 shadow-sm"
-                        : "border-gray-200 hover:border-blue-200 hover:bg-blue-50"
+                        ? "border-black bg-[#f0c000]/10 shadow-sm"
+                        : "border-gray-200 hover:border-gray-400 hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -352,7 +352,7 @@ const RecepcionBienes = () => {
                                   updateItemRec(idx, "cantidadRecibida", val ? it.cantidadOrdenada : 0);
                                 }
                               }}
-                              className={`w-4 h-4 ${esServicio ? "accent-blue-600 w-5 h-5" : "accent-green-600"}`}
+                              className={`w-4 h-4 accent-[#f0c000] ${esServicio ? "w-5 h-5" : ""}`}
                             />
                           </td>
                           <td className="px-3 py-2">
