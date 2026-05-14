@@ -647,7 +647,7 @@ const Historial = () => {
                     onClick={() => setPaginaActual(p)}
                     className={`px-3 py-1 border rounded text-sm ${
                       p === paginaActual
-                        ? "bg-black text-[#f0c000] border-black"
+                        ? "bg-black text-white border-black"
                         : "bg-white text-black border-black hover:bg-gray-100"
                     }`}
                   >
@@ -670,7 +670,7 @@ const Historial = () => {
               <button
                 onClick={cargarMas}
                 disabled={cargandoMas}
-                className="px-5 py-2 border border-[#004990] text-black rounded hover:bg-[#004990] hover:text-white text-sm transition-colors disabled:opacity-50"
+                className="px-5 py-2 border border-blue-600 text-black rounded hover:bg-black hover:text-white text-sm transition-colors disabled:opacity-50"
               >
                 {cargandoMas ? "Cargando…" : `Cargar más (${ordenes.length} cargadas)`}
               </button>
