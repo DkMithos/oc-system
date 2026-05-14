@@ -288,7 +288,7 @@ const Proveedores = () => {
               }}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 form.tipoProv === tipo
-                  ? "bg-white text-[#004990] shadow-sm"
+                  ? "bg-white text-black shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -448,7 +448,7 @@ const Proveedores = () => {
         <div className="col-span-2 flex gap-4 mt-4">
           <button
             onClick={guardar}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-2 rounded transition-colors"
           >
             {editandoId ? "Actualizar" : "Agregar"}
           </button>
@@ -538,7 +538,7 @@ const Proveedores = () => {
                   <td className="p-2">{p.estado || "Activo"}</td>
                   <td className="p-2">
                     <button
-                      className="text-blue-600 hover:text-black"
+                      className="text-black hover:text-[#f0c000] transition-colors"
                       title="Editar"
                       onClick={() => cargarParaEditar(p)}
                     >
