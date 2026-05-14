@@ -156,14 +156,14 @@ export default function CompromisosActivos() {
             onClick={() => setFiltro(key)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               filtro === key
-                ? "bg-[#004990] text-white"
+                ? "bg-black text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
             {label}
             {count > 0 && (
               <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                filtro === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"
+                filtro === key ? "bg-white/30 text-white" : "bg-gray-200 text-gray-600"
               }`}>
                 {count}
               </span>
@@ -194,14 +194,14 @@ export default function CompromisosActivos() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   {/* Indicador */}
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    c.vencido ? "bg-red-100" : c.proximoVencer ? "bg-amber-100" : "bg-blue-50"
+                    c.vencido ? "bg-red-100" : c.proximoVencer ? "bg-amber-100" : "bg-gray-50"
                   }`}>
                     {c.vencido ? (
                       <AlertTriangle size={18} className="text-red-600" />
                     ) : c.proximoVencer ? (
                       <Clock size={18} className="text-amber-600" />
                     ) : (
-                      <Calendar size={18} className="text-blue-500" />
+                      <Calendar size={18} className="text-gray-400" />
                     )}
                   </div>
 
@@ -222,7 +222,7 @@ export default function CompromisosActivos() {
                         </span>
                       )}
                       {!c.vencido && !c.proximoVencer && c.diasRestantes != null && (
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-600">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-100 text-gray-600">
                           En {c.diasRestantes}d
                         </span>
                       )}
@@ -235,7 +235,7 @@ export default function CompromisosActivos() {
                       {c.categoriaNombre || "Sin categoría"} · {c.area || "—"}
                       {c.documento_tipo && ` · ${c.documento_tipo} ${c.documento_numero || ""}`}
                       {c.mesa_decision && (
-                        <span className="ml-2 text-blue-600">Mesa: {c.mesa_decision}</span>
+                        <span className="ml-2 text-gray-600">Mesa: {c.mesa_decision}</span>
                       )}
                     </p>
                   </div>
