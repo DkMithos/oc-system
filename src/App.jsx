@@ -14,16 +14,7 @@ function App() {
 
   return (
     <>
-      <ToastContainer
-        position="top-right"
-        autoClose={4000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
+      <ToastContainer />
       {usuario?.rol ? (
         <AppRoutes userRole={usuario.rol} />
       ) : (

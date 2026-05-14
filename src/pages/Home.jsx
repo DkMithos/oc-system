@@ -1,7 +1,6 @@
 // src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
 import { usePendientes } from "../context/PendientesContext";
 import { obtenerOCsRecientes } from "../firebase/firestoreHelpers";
@@ -435,40 +434,6 @@ const Home = () => {
           Abrir ticket
         </button>
       </div>
-
-      {/* ── SIMULACIÓN DE TOASTS (solo para revisión — se elimina antes del deploy) ── */}
-      <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-5">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          🧪 Simulación de notificaciones — Solo visible en borrador
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => toast.success("Orden de compra creada correctamente")}
-            className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            ✅ Éxito
-          </button>
-          <button
-            onClick={() => toast.error("Error al guardar. Intenta nuevamente")}
-            className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            ❌ Error
-          </button>
-          <button
-            onClick={() => toast.warning("Esta OC supera el umbral de aprobación")}
-            className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            ⚠️ Advertencia
-          </button>
-          <button
-            onClick={() => toast.info("Pago registrado y enviado a Finanzas")}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            ℹ️ Información
-          </button>
-        </div>
-      </div>
-
     </div>
   );
 };
