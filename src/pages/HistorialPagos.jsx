@@ -209,7 +209,7 @@ const HistorialPagos = () => {
                     {o.tipoCambio ? Number(o.tipoCambio).toFixed(3) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="p-2">
-                    <button className="text-blue-700 underline text-xs" onClick={() => verFacturas(o)}>
+                    <button className="text-black underline text-xs hover:font-semibold transition-all" onClick={() => verFacturas(o)}>
                       Ver adjuntos
                     </button>
                   </td>
@@ -239,7 +239,7 @@ const HistorialPagos = () => {
                 onClick={() => setPaginaActual(p)}
                 className={`px-3 py-1 border rounded text-sm ${
                   p === paginaActual
-                    ? "bg-black text-[#f0c000] border-black"
+                    ? "bg-black text-white border-black"
                     : "bg-white text-black border-black hover:bg-gray-100"
                 }`}
               >{p}</button>
@@ -290,7 +290,7 @@ const HistorialPagos = () => {
                     <td className="p-2">{f.tipoPago || "—"}</td>
                     <td className="p-2">
                       {f.urlAdjunto ? (
-                        <a href={f.urlAdjunto} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                        <a href={f.urlAdjunto} target="_blank" rel="noreferrer" className="text-black underline hover:font-semibold transition-all">
                           Ver archivo
                         </a>
                       ) : <span className="text-gray-400">Sin adjunto</span>}
