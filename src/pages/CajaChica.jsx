@@ -402,7 +402,7 @@ const CajaChica = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {puedeVerTodasAreas && (
             <select
-              className="border rounded px-3 py-2 text-sm font-medium"
+              className="border rounded pl-3 pr-8 py-2 text-sm font-medium"
               value={area}
               onChange={(e) => setArea(e.target.value)}
             >
