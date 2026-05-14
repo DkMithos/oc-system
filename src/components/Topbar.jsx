@@ -122,7 +122,7 @@ const Topbar = ({ toggleSidebar }) => {
   }, []);
 
   return (
-    <header className="bg-[#1a1a1a] text-white sticky top-0 z-30 border-b border-white/10">
+    <header className="bg-[#000000] text-white sticky top-0 z-30 border-b border-white/10">
       <div className="flex items-center justify-between h-14 px-4 gap-4">
 
         {/* ── Izquierda ─────────────────────────────── */}

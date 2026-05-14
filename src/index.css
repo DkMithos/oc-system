@@ -8,7 +8,7 @@
    ────────────────────────────────────────────────────────────── */
 :root {
   /* Brand */
-  --brand-900: #1a1a1a;
+  --brand-900: #000000;
   --brand-800: #2a2a2a;
   --brand-700: #3a3a3a;
   --brand-600: #4a4a4a;
@@ -36,13 +36,13 @@
   --info:    #0284c7;
 
   /* Sidebar */
-  --sidebar-bg:     #1a1a1a;
+  --sidebar-bg:     #000000;
   --sidebar-w:      256px;
   --sidebar-active: #f0c000;
 
   /* Topbar */
   --topbar-h:  56px;
-  --topbar-bg: #1a1a1a;
+  --topbar-bg: #000000;
 
   /* Transitions */
   --t-fast:  150ms ease;

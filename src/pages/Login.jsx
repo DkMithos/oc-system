@@ -49,7 +49,7 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[#1a1a1a] px-4">
+    <div className="h-screen flex items-center justify-center bg-[#000000] px-4">
       <form
         onSubmit={handleLogin}
         className="bg-white shadow-xl p-8 rounded-lg w-full max-w-md border border-gray-200"
@@ -99,12 +99,12 @@ const Login = () => {
         <button
           type="submit"
           disabled={cargando}
-          className="bg-[#f0c000] hover:bg-yellow-400 text-[#1a1a1a] font-semibold py-2 rounded w-full transition-all
+          className="bg-[#f0c000] hover:bg-yellow-400 text-[#000000] font-semibold py-2 rounded w-full transition-all
                      disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {cargando ? (
             <>
-              <svg className="animate-spin h-4 w-4 text-[#1a1a1a]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4 text-[#000000]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>

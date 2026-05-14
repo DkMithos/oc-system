@@ -8,7 +8,7 @@ export default {
     extend: {
       colors: {
         memphisYellow: "#f0c000",
-        memphisBlack:  "#1a1a1a",
+        memphisBlack:  "#000000",
         memphisGray:   "#5f5f5f",
       },
       fontFamily: {

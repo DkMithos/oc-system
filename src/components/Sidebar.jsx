@@ -120,7 +120,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       <aside className={`
         fixed top-0 left-0 h-screen z-40 flex flex-col
-        w-64 bg-[#1a1a1a] text-white
+        w-64 bg-[#000000] text-white
         transform transition-transform duration-250
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
         shadow-2xl
@@ -171,7 +171,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold
                transition-all duration-150 mb-1
                ${isActive
-                 ? "bg-[#f0c000] text-[#1a1a1a] shadow-sm"
+                 ? "bg-[#f0c000] text-[#000000] shadow-sm"
                  : "text-white/80 hover:text-white hover:bg-white/8"
                }`
             }
@@ -227,7 +227,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                             `flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px]
                              transition-all duration-150
                              ${isActive
-                               ? "bg-[#f0c000] text-[#1a1a1a] font-semibold shadow-sm"
+                               ? "bg-[#f0c000] text-[#000000] font-semibold shadow-sm"
                                : "text-white/65 hover:text-white hover:bg-white/8"
                              }`
                           }
