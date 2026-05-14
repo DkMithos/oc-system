@@ -412,27 +412,15 @@ const Cotizaciones = () => {
         {/* Moneda */}
         <div className="md:col-span-2">
           <label className="text-sm text-gray-600 mb-1 block">Moneda</label>
-          <div className="flex gap-3">
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="moneda"
-                checked={form.moneda === "Soles"}
-                onChange={() => setForm((f) => ({ ...f, moneda: "Soles" }))}
-                className="accent-[#f0c000]"
-              />
-              <span>Soles</span>
-            </label>
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="moneda"
-                checked={form.moneda === "Dólares"}
-                onChange={() => setForm((f) => ({ ...f, moneda: "Dólares" }))}
-                className="accent-[#f0c000]"
-              />
-              <span>Dólares</span>
-            </label>
+          <div className="flex gap-4">
+            {["Soles", "Dólares"].map((m) => (
+              <label key={m} className="inline-flex items-center gap-2 cursor-pointer" onClick={() => setForm((f) => ({ ...f, moneda: m }))}>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${form.moneda === m ? "border-[#f0c000]" : "border-gray-400"}`}>
+                  {form.moneda === m && <div className="w-2 h-2 rounded-full bg-[#f0c000]" />}
+                </div>
+                <span className="text-sm">{m}</span>
+              </label>
+            ))}
           </div>
         </div>
 
