@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import Logo from "../assets/Logo_OC.png";
+import Logo from "../assets/logo-memphis.svg";
 import { useUsuario } from "../context/UsuarioContext";
 import { cargarConfigIGV, IGV_TASA_DEFAULT } from "../utils/igv";
 import { calcularDetraccion, calcularRetencion } from "../utils/detracciones";
