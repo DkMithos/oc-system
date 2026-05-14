@@ -105,7 +105,7 @@ export default function CompromisosActivos() {
         <button
           onClick={cargar}
           disabled={cargando}
-          className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:border-gray-400 hover:text-black disabled:opacity-50 transition-colors"
         >
           <RefreshCw size={14} className={cargando ? "animate-spin" : ""} />
           Actualizar
