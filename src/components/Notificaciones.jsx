@@ -199,12 +199,12 @@ const Notificaciones = () => {
       <audio src={SONIDO} ref={audioRef} preload="auto" />
 
       <button
-        className="relative p-2 rounded-full hover:bg-blue-100"
+        className="relative p-2 rounded-full hover:bg-[#f0c000] transition-colors group"
         onClick={() => setAbierto((v) => !v)}
         title="Ver notificaciones"
         aria-label="Notificaciones"
       >
-        <Bell size={22} className="text-white" />
+        <Bell size={22} className="text-white group-hover:text-black transition-colors" />
         {noLeidas > 0 && (
           <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full">
             {noLeidas > 99 ? "99+" : noLeidas}
