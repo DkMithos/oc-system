@@ -418,7 +418,7 @@ const CajaChica = () => {
                 key={m.id}
                 onClick={() => setMonedaId(m.id)}
                 className={`px-4 py-2 transition-colors ${monedaId === m.id
-                  ? "bg-[#004990] text-white"
+                  ? "bg-black text-white"
                   : "bg-white text-gray-600 hover:bg-gray-50"}`}
               >
                 {m.simbolo} {m.label}
@@ -430,7 +430,7 @@ const CajaChica = () => {
 
       {/* ── Badge código de caja (siempre visible) ── */}
       {!loadingEstado && (
-        <div className="inline-flex items-center gap-3 bg-gradient-to-r from-[#004990]/5 to-[#004990]/10 border border-[#004990]/20 rounded-xl px-5 py-3">
+        <div className="inline-flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-500 uppercase tracking-widest leading-none mb-1">N° de Caja</span>
             <span className="font-mono font-bold text-black text-xl tracking-wide leading-none">
@@ -441,7 +441,7 @@ const CajaChica = () => {
                   : "—"}
             </span>
           </div>
-          <div className="w-px h-8 bg-[#004990]/15" />
+          <div className="w-px h-8 bg-gray-300" />
           {estadoCaja?.abierta ? (
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -504,7 +504,7 @@ const CajaChica = () => {
                   <input type="number" className="border rounded p-2 w-40 text-right text-sm"
                     value={saldoInicialInput} onChange={(e) => setSaldoInicialInput(e.target.value)} placeholder="0.00" />
                 </div>
-                <button onClick={onAbrirCaja} className="h-9 px-4 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm">
+                <button onClick={onAbrirCaja} className="h-9 px-4 rounded bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold text-sm transition-colors">
                   Abrir caja
                 </button>
               </>
@@ -607,7 +607,7 @@ const CajaChica = () => {
           </div>
           <div className="flex items-end justify-end">
             <button onClick={onGuardar}
-              className="w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-sm font-medium">
+              className="w-full lg:w-auto bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-5 py-2 rounded text-sm transition-colors">
               Guardar
             </button>
           </div>
@@ -687,7 +687,7 @@ const CajaChica = () => {
               <button onClick={() => setFiltros({ tipo: "", tipoDocumentoId: "", centroCostoId: "", fechaDesde: "", fechaHasta: "", minMonto: "", maxMonto: "", creadoPorEmail: "" })}
                 className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-sm">Limpiar</button>
               <button onClick={() => setOpenFilters(false)}
-                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm">Aplicar</button>
+                className="px-3 py-1.5 rounded bg-black hover:bg-gray-800 text-white text-sm transition-colors">Aplicar</button>
             </div>
           </div>
         </Popover>
@@ -733,7 +733,7 @@ const CajaChica = () => {
                 <td className="p-2 border max-w-xs truncate" title={m.descripcion}>{m.descripcion}</td>
                 <td className="p-2 border text-center">
                   {m.archivoUrl
-                    ? <a href={m.archivoUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">Ver</a>
+                    ? <a href={m.archivoUrl} target="_blank" rel="noreferrer" className="text-black underline hover:font-semibold transition-all">Ver</a>
                     : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="p-2 border text-xs text-gray-500">{m.creadoPorEmail}</td>
