@@ -72,14 +72,14 @@ const EditarOC = () => {
         navigate("/historial");
         return;
       }
-      if (!usuario || !["comprador", "admin"].includes(usuario.rol)) {
+      if (!usuario || !["comprador", "admin", "soporte"].includes(usuario.rol)) {
         toast.info("No tienes permiso para editar esta orden.");
         navigate("/");
         return;
       }
       // Solo el comprador original o admin puede editar
       const esCreador = oc.creadoPor === usuario.email || oc.comprador === usuario.email;
-      if (usuario.rol !== "admin" && !esCreador) {
+      if (!["admin", "soporte"].includes(usuario.rol) && !esCreador) {
         toast.info("Solo el comprador que creó esta orden puede editarla.");
         navigate("/historial");
         return;

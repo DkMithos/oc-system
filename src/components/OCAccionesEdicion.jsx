@@ -6,7 +6,8 @@ import SolicitarEdicionModal from "./SolicitarEdicionModal";
 import { listarSolicitudesEdicion, resolverSolicitudEdicion } from "../firebase/solicitudesHelpers";
 import { actualizarOC } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
-import { isApprovalRole } from "../utils/aprobaciones";
+import { isApprovalRole, ROLES } from "../utils/aprobaciones";
+import { notificarUsuario } from "../firebase/notifs";
 
 const OCAccionesEdicion = ({ oc, onRefetch }) => {
   const { usuario } = useUsuario();
@@ -16,7 +17,10 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
 
   const rol = String(usuario?.rol || "").toLowerCase();
   const esComprador = rol === "comprador";
-  const puedeAprobar = isApprovalRole(rol) && rol !== "comprador";
+  const esAdmin = rol === ROLES.ADMIN || rol === ROLES.SOPORTE;
+  const puedeSolicitar = esComprador || esAdmin;
+  const puedeAprobar = isApprovalRole(rol) || esAdmin;
+  const puedeEditar = esComprador || esAdmin;
 
   const recargar = async () => {
     const list = await listarSolicitudesEdicion(oc.id);
@@ -52,6 +56,15 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
           },
         ],
       });
+      // Notificar al solicitante que su edición fue aprobada
+      if (s.creadoPorEmail) {
+        notificarUsuario({
+          email: s.creadoPorEmail,
+          title: `Edición aprobada: ${s.numeroOC || oc.numeroOC || oc.id}`,
+          body: `Tu solicitud de edición fue aprobada por ${usuario.nombre || usuario.email}. Ya puedes editar la orden.`,
+          ocId: oc.id,
+        }).catch(() => {});
+      }
       toast.success("Solicitud aprobada — el comprador ya puede editar la orden ✅");
       await recargar();
       onRefetch && onRefetch({ permiteEdicion: true });
@@ -106,7 +119,7 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
       <div className="flex items-center justify-between">
         <h4 className="font-semibold">Solicitudes de edición</h4>
 
-        {esComprador && !oc.permiteEdicion && (
+        {puedeSolicitar && !oc.permiteEdicion && (
           <button
             className="px-3 py-1.5 rounded bg-amber-500 text-white hover:bg-amber-600"
             onClick={() => setModalOpen(true)}
@@ -115,7 +128,7 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
           </button>
         )}
 
-        {esComprador && oc.permiteEdicion && (
+        {puedeEditar && oc.permiteEdicion && (
           <button
             onClick={() => navigate(`/editar?id=${oc.id}`)}
             className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 font-semibold text-sm"

@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { crearSolicitudEdicion } from "../firebase/solicitudesHelpers";
 import { actualizarOC } from "../firebase/firestoreHelpers";
 import { useUsuario } from "../context/UsuarioContext";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { notificarRol } from "../firebase/notifs";
 
 const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
   const { usuario } = useUsuario();
@@ -24,18 +24,16 @@ const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
       });
       // Marcar en la OC que tiene solicitud pendiente (para badge en Historial)
       await actualizarOC(oc.id, { tieneSolicitudEdicion: true }).catch(() => {});
-      // Notificar a operaciones
-      try {
-        const fn = httpsCallable(getFunctions(undefined, "us-central1"), "enviarNotificacionRol");
-        await fn({
-          toRole: "operaciones",
-          payload: {
-            title: `Solicitud de edición: ${numeroOC}`,
-            body: `${usuario.nombre || usuario.email} solicita editar la OC ${numeroOC}. Motivo: ${motivo}`,
-            ocId: oc.id,
-          },
-        });
-      } catch {}
+      // Notificar a los roles que pueden aprobar la solicitud
+      const titulo = `Solicitud de edición: ${numeroOC}`;
+      const cuerpo = `${usuario.nombre || usuario.email} solicita editar la OC ${numeroOC}. Motivo: ${motivo}`;
+      const notifData = { title: titulo, body: cuerpo, ocId: oc.id };
+      await Promise.allSettled([
+        notificarRol({ rol: "operaciones", ...notifData }),
+        notificarRol({ rol: "gerencia general", ...notifData }),
+        notificarRol({ rol: "gerencia", ...notifData }),
+        notificarRol({ rol: "admin", ...notifData }),
+      ]);
       onSubmitted && onSubmitted();
       onClose();
       toast.success("Solicitud enviada ✅");
