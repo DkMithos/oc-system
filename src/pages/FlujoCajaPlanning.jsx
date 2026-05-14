@@ -348,7 +348,7 @@ export default function FlujoCajaPlanning() {
             <button key={o.id} type="button" onClick={() => setOrdenar(o.id)}
               className={`px-2.5 py-1 rounded text-xs border transition-colors ${
                 ordenar === o.id
-                  ? "bg-[#004990] text-white border-[#004990]"
+                  ? "bg-black text-[#f0c000] border-black"
                   : "bg-white text-gray-600 border-gray-300 hover:border-[#004990]"
               }`}>
               {o.label}

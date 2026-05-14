@@ -614,7 +614,7 @@ const RegistrarPago = () => {
           {/* Drop / select area */}
           {!resultadosMasivos && (
             <div
-              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#004990] hover:bg-blue-50/30 transition-colors"
+              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-black hover:bg-gray-100/30 transition-colors"
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onArchivoMasivo(f); }}

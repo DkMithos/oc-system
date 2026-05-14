@@ -123,13 +123,13 @@ const MiFirma = () => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setTab("subir")}
-          className={`px-3 py-1 rounded border ${tab === "subir" ? "bg-[#004990] text-white border-[#004990]" : "bg-white"}`}
+          className={`px-3 py-1 rounded border ${tab === "subir" ? "bg-black text-[#f0c000] border-black" : "bg-white"}`}
         >
           Subir imagen
         </button>
         <button
           onClick={() => setTab("dibujar")}
-          className={`px-3 py-1 rounded border ${tab === "dibujar" ? "bg-[#004990] text-white border-[#004990]" : "bg-white"}`}
+          className={`px-3 py-1 rounded border ${tab === "dibujar" ? "bg-black text-[#f0c000] border-black" : "bg-white"}`}
         >
           Dibujar
         </button>

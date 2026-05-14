@@ -188,7 +188,7 @@ export default function ImportarFlujosExcel() {
               onClick={() => handleEsquemaCambio(e.id)}
               className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                 esquema === e.id
-                  ? "bg-[#004990] text-white border-[#004990]"
+                  ? "bg-black text-[#f0c000] border-black"
                   : "bg-white text-gray-600 border-gray-300 hover:border-[#004990] hover:text-black"
               }`}
             >
@@ -208,7 +208,7 @@ export default function ImportarFlujosExcel() {
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors select-none ${
-          drag ? "border-[#004990] bg-blue-50" : "border-gray-300 bg-gray-50 hover:border-[#004990] hover:bg-blue-50/30"
+          drag ? "border-[#004990] bg-blue-50" : "border-gray-300 bg-gray-50 hover:border-black hover:bg-gray-100/30"
         }`}
       >
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
@@ -239,7 +239,7 @@ export default function ImportarFlujosExcel() {
                 onClick={() => handleCambiarHoja(h.name)}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                   hojaSeleccionada === h.name
-                    ? "bg-[#004990] text-white border-[#004990]"
+                    ? "bg-black text-[#f0c000] border-black"
                     : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
                 }`}
               >

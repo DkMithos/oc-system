@@ -647,8 +647,8 @@ const Historial = () => {
                     onClick={() => setPaginaActual(p)}
                     className={`px-3 py-1 border rounded text-sm ${
                       p === paginaActual
-                        ? "bg-[#004990] text-white border-[#004990]"
-                        : "bg-white text-black border-[#004990] hover:bg-blue-50"
+                        ? "bg-black text-[#f0c000] border-black"
+                        : "bg-white text-black border-black hover:bg-gray-100"
                     }`}
                   >
                     {p}
