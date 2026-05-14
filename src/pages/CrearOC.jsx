@@ -917,7 +917,7 @@ const CrearOC = () => {
 
         <div className="flex gap-2">
           <button type="submit" disabled={guardando}
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
+            className="px-4 py-2 rounded bg-black text-white hover:bg-[#f0c000] hover:text-black disabled:opacity-60 transition-colors">
             {guardando ? "Guardando..." : "Generar Orden"}
           </button>
           <button type="button" className="px-4 py-2 rounded border" onClick={() => navigate(-1)}>
