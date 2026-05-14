@@ -415,7 +415,7 @@ const Cotizaciones = () => {
           <div className="flex gap-4">
             {["Soles", "Dólares"].map((m) => (
               <label key={m} className="inline-flex items-center gap-2 cursor-pointer" onClick={() => setForm((f) => ({ ...f, moneda: m }))}>
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${form.moneda === m ? "border-[#f0c000]" : "border-gray-400"}`}>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${form.moneda === m ? "border-black" : "border-gray-400"}`}>
                   {form.moneda === m && <div className="w-2 h-2 rounded-full bg-[#f0c000]" />}
                 </div>
                 <span className="text-sm">{m}</span>
