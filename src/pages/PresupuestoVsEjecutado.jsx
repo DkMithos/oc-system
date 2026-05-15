@@ -14,6 +14,7 @@ import {
 } from "../firebase/presupuestoHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 
 // ── Constantes ──────────────────────────────────────────
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -177,7 +178,10 @@ export default function PresupuestoVsEjecutado() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Presupuesto vs Ejecutado</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Presupuesto vs Ejecutado</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Comparativo de presupuesto asignado contra gasto real — {anio}
           </p>
@@ -195,7 +199,7 @@ export default function PresupuestoVsEjecutado() {
           {puedeEditar && !editando && (
             <button
               onClick={iniciarEdicion}
-              className="bg-[#004990] text-white text-xs px-3 py-1.5 rounded hover:bg-[#003670] transition-colors"
+              className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
             >
               {data?.tienePresupuesto ? "Editar Presupuesto" : "Cargar Presupuesto"}
             </button>
@@ -255,7 +259,7 @@ export default function PresupuestoVsEjecutado() {
               <button
                 onClick={guardarPresupuesto}
                 disabled={guardando}
-                className="text-xs px-3 py-1 rounded bg-[#004990] text-white hover:bg-[#003670] disabled:opacity-50"
+                className="text-xs px-3 py-1 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold disabled:opacity-50 transition-colors"
               >
                 {guardando ? "Guardando..." : "Guardar"}
               </button>

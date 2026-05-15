@@ -18,6 +18,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
 import { useNavigate } from "react-router-dom";
 import EditCotizacionModal from "../components/EditCotizacionModal";
+import BackButton from "../components/ui/BackButton";
 
 const UNIDADES = [
   "UND","CJ","PAQ","PAR","JGO","PZA","KIT",
@@ -349,7 +350,10 @@ const Cotizaciones = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Registro de Cotizaciones</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Registro de Cotizaciones</h2>
+      </div>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">

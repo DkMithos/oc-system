@@ -84,7 +84,7 @@ const GestorAprobaciones = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <Settings2 size={16} className="text-[--brand-700]" />
+          <Settings2 size={16} className="text-black" />
           <h3 className="section-title mb-0">Flujo de Aprobaciones</h3>
         </div>
         <button
@@ -98,7 +98,7 @@ const GestorAprobaciones = () => {
       </div>
 
       {/* Info banner */}
-      <div className="flex gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-5 text-xs text-black">
+      <div className="flex gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-5 text-xs text-black">
         <Info size={14} className="flex-shrink-0 mt-0.5" />
         <div>
           <p className="font-semibold mb-0.5">Regla activa:</p>

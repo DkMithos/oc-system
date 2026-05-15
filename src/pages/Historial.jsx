@@ -1,6 +1,7 @@
 ﻿// ✅ src/pages/Historial.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
+import BackButton from "../components/ui/BackButton";
 import ExportMenu from "../components/ExportMenu";
 
 import { obtenerOCsPaginadas, obtenerOCsConFiltros } from "../firebase/firestoreHelpers";
@@ -344,7 +345,10 @@ const Historial = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-2 text-black">Historial de Órdenes</h2>
+      <div className="flex items-center gap-2 mb-2">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Historial de Órdenes</h2>
+      </div>
 
       {isVistaPendientesGerencia && (
         <div className="mb-4 p-3 rounded bg-amber-50 text-amber-700 border border-amber-200">
@@ -354,7 +358,7 @@ const Historial = () => {
 
       {/* Barra flotante de firma masiva */}
       {puedeFireMasiva && seleccionados.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#004990] text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-black text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
           <span className="font-semibold">{seleccionados.size} seleccionada{seleccionados.size !== 1 ? "s" : ""}</span>
           <button
             onClick={() => setLoteAbierto(true)}

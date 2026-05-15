@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 import { toast } from "react-toastify";
 import {
   obtenerCompromisosActivos,
@@ -97,7 +98,10 @@ export default function CompromisosActivos() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Compromisos de Pago</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Compromisos de Pago</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Seguimiento de promesas de pago asignadas en Mesa de Pagos
           </p>

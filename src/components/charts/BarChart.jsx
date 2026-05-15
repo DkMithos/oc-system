@@ -14,11 +14,22 @@ import { MEMPHIS_COLORS, formatNumber } from "./chartsTheme";
 const MemphisBarChart = ({
   data,
   xKey = "nombre",
-  yKey = "total",
+  yKey,
+  dataKey, // alias de yKey
   layout = "vertical", // "vertical" (barras horizontales) | "horizontal"
   height = 220,
+  emptyMessage,
 }) => {
+  const barKey = yKey || dataKey || "total";
   const isVertical = layout === "vertical";
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-10 text-xs text-gray-400">
+        {emptyMessage || "No hay datos disponibles."}
+      </div>
+    );
+  }
 
   return (
     <div className="h-56">
@@ -66,9 +77,9 @@ const MemphisBarChart = ({
             }
           />
           <Bar
-            dataKey={yKey}
+            dataKey={barKey}
             radius={[4, 4, 4, 4]}
-            fill={MEMPHIS_COLORS.primary}
+            fill="#f0c000"
           />
         </RBarChart>
       </ResponsiveContainer>

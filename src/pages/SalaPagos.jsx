@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
+import BackButton from "../components/ui/BackButton";
 import {
   obtenerTransaccionesMesaPagos,
   crearSesionPago,
@@ -229,7 +230,10 @@ export default function SalaPagos() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Mesa de Pagos</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Mesa de Pagos</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Triage semanal — Priorización de pagos pendientes
             {sesionActiva && (

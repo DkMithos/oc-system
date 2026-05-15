@@ -12,6 +12,7 @@ import {
   importarTransacciones,
 } from "../firebase/importHelpers";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 const ESQUEMAS = [
   { id: "administracion", label: "Admin",        descripcion: "Flujo de Administracion" },
@@ -173,7 +174,10 @@ export default function ImportarFlujosExcel() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-black">Importar Flujos Financieros</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-2xl font-bold text-black">Importar Flujos Financieros</h1>
+        </div>
         <p className="text-sm text-gray-500 mt-0.5">Carga masiva desde archivos Excel (.xlsx / .xls)</p>
       </div>
 
@@ -188,12 +192,12 @@ export default function ImportarFlujosExcel() {
               onClick={() => handleEsquemaCambio(e.id)}
               className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                 esquema === e.id
-                  ? "bg-black text-[#f0c000] border-black"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-[#004990] hover:text-black"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-black hover:text-black"
               }`}
             >
               {e.label}
-              <span className={`ml-1.5 text-[10px] ${esquema === e.id ? "text-blue-200" : "text-gray-400"}`}>
+              <span className={`ml-1.5 text-[10px] ${esquema === e.id ? "text-white/60" : "text-gray-400"}`}>
                 {e.descripcion}
               </span>
             </button>
@@ -208,7 +212,7 @@ export default function ImportarFlujosExcel() {
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors select-none ${
-          drag ? "border-[#004990] bg-blue-50" : "border-gray-300 bg-gray-50 hover:border-black hover:bg-gray-100/30"
+          drag ? "border-black bg-gray-50" : "border-gray-300 bg-gray-50 hover:border-black hover:bg-gray-100/30"
         }`}
       >
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
@@ -239,12 +243,12 @@ export default function ImportarFlujosExcel() {
                 onClick={() => handleCambiarHoja(h.name)}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                   hojaSeleccionada === h.name
-                    ? "bg-black text-[#f0c000] border-black"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-black"
                 }`}
               >
                 {h.name}
-                <span className={`ml-1 text-[10px] ${hojaSeleccionada === h.name ? "text-blue-200" : "text-gray-400"}`}>
+                <span className={`ml-1 text-[10px] ${hojaSeleccionada === h.name ? "text-white/60" : "text-gray-400"}`}>
                   ({h.filas} filas)
                 </span>
               </button>
@@ -286,7 +290,7 @@ export default function ImportarFlujosExcel() {
               type="button"
               onClick={handleImportar}
               disabled={importando || !stats.validas}
-              className="ml-auto px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ml-auto px-5 py-2 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {importando ? "Importando..." : `Importar ${stats.validas} transacciones a ${esquema}`}
             </button>

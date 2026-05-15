@@ -188,7 +188,7 @@ const ItemTable = ({ items, setItems, moneda = "Soles" }) => {
       <div className="mt-4 text-right">
         <button
           onClick={addItem}
-          className="bg-[#003865] text-white px-4 py-2 rounded hover:bg-[#002b4c]"
+          className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-2 rounded-lg transition-colors"
         >
           + Agregar ítem
         </button>

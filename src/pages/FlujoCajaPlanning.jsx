@@ -5,6 +5,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../components/ui/BackButton";
 import {
   obtenerTransaccionesPlaneadas,
   patchTransaccionFinanciera,
@@ -226,7 +227,10 @@ export default function FlujoCajaPlanning() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Planificación de Pagos</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Planificación de Pagos</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Vista mensual · {transDelMes.length} ítem{transDelMes.length !== 1 ? "s" : ""} en {formatMes(mesActual)}
           </p>

@@ -11,6 +11,7 @@ import {
 import TicketChat from "../components/TicketChat";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
+import BackButton from "../components/ui/BackButton";
 
 // 🏷️ Categorías y regla de prioridad automática
 const CATEGORIAS = [
@@ -133,17 +134,20 @@ const Tickets = () => {
       {/* Columna izquierda: crear y listado */}
       <div className="lg:col-span-1 space-y-6">
         <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-3">Nuevo Ticket</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <BackButton />
+            <h2 className="text-lg font-bold">Nuevo Ticket</h2>
+          </div>
           <div className="space-y-2">
             <input
-              className="border rounded px-2 py-1 w-full"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
               placeholder="Asunto"
               value={form.asunto}
               onChange={(e) => setForm({ ...form, asunto: e.target.value })}
             />
 
             <select
-              className="border rounded px-2 py-1 w-full"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
               value={form.categoria}
               onChange={(e) => setForm({ ...form, categoria: e.target.value })}
             >
@@ -155,7 +159,7 @@ const Tickets = () => {
             </select>
 
             <textarea
-              className="border rounded px-2 py-1 w-full"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
               rows={4}
               placeholder="Describe el problema o solicitud"
               value={form.descripcion}
@@ -163,7 +167,7 @@ const Tickets = () => {
             />
 
             <label className="text-sm flex items-center gap-2 cursor-pointer">
-              <span className="underline">Adjuntar archivo</span>
+              <span className="text-black underline hover:font-semibold transition-all">Adjuntar archivo</span>
               <input
                 type="file"
                 className="hidden"
@@ -179,8 +183,8 @@ const Tickets = () => {
             <button
               onClick={crear}
               disabled={guardando}
-              className={`px-4 py-2 rounded w-full text-white ${
-                guardando ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+              className={`px-4 py-2 rounded-lg w-full font-semibold transition-colors ${
+                guardando ? "bg-[#f0c000]/60 text-black cursor-not-allowed" : "bg-[#f0c000] hover:bg-[#d4a800] text-black"
               }`}
             >
               {guardando ? "Creando…" : "Crear ticket"}
@@ -203,7 +207,7 @@ const Tickets = () => {
                   key={t.id}
                   onClick={() => setSeleccionado(t)}
                   className={`w-full text-left p-2 rounded border hover:bg-gray-50 ${
-                    seleccionado?.id === t.id ? "border-blue-500" : "border-gray-200"
+                    seleccionado?.id === t.id ? "border-black" : "border-gray-200"
                   }`}
                 >
                   <div className="font-semibold text-sm">{t.asunto}</div>
@@ -265,7 +269,7 @@ const Tickets = () => {
                   {seleccionado.adjuntos.map((a, i) => (
                     <li key={`${a.url}-${i}`}>
                       <a
-                        className="text-blue-700 underline"
+                        className="text-black underline hover:font-semibold transition-all"
                         href={a.url}
                         target="_blank"
                         rel="noreferrer"

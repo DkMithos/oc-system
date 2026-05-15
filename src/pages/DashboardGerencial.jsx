@@ -12,6 +12,7 @@ import { obtenerIndicadoresGerencial } from "../firebase/reportesHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { useNavigate } from "react-router-dom";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 
 // ── Constantes ─────────────────────────────────────────────────
 const AREAS_META = {
@@ -103,7 +104,10 @@ export default function DashboardGerencial() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black">Dashboard Gerencial</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Dashboard Gerencial</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">Resumen ejecutivo de flujos financieros — {anio}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -289,7 +293,7 @@ export default function DashboardGerencial() {
                 <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fmtK} />
                 <YAxis type="category" dataKey="nombre" tick={{ fontSize: 10 }} width={110} />
                 <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />
-                <Bar dataKey="monto" name="Egreso" fill="#000000" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="monto" name="Egreso" fill="#f0c000" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}

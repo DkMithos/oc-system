@@ -20,6 +20,7 @@ import {
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
 import { obtenerRequerimientosPorRol } from "../firebase/requerimientosHelpers";
+import BackButton from "../components/ui/BackButton";
 
 const selectStyles = {
   control: (base) => ({
@@ -506,8 +507,9 @@ const CrearOC = () => {
   return (
     <div className="p-4 max-w-6xl mx-auto">
       <div className="flex items-center gap-4 mb-4">
-        <img src={Logo} alt="Memphis" className="h-10" />
+        <BackButton />
         <h1 className="text-xl font-semibold">Generar Orden</h1>
+        <img src={Logo} alt="Memphis" className="h-10 ml-auto" />
       </div>
 
       {error && (

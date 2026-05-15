@@ -52,7 +52,7 @@ const TicketChat = ({ ticketId, usuario }) => {
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
-        <button className="bg-blue-600 text-white px-3 rounded hover:bg-blue-700">Enviar</button>
+        <button className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 rounded-lg transition-colors">Enviar</button>
       </form>
     </div>
   );

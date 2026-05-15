@@ -1,5 +1,6 @@
 ﻿// ✅ src/pages/EditarOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
+import BackButton from "../components/ui/BackButton";
 import { useNavigate, useLocation } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
 import {
@@ -221,7 +222,10 @@ const EditarOC = () => {
             <p>www.memphismaquinarias.com</p>
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-black">Editar OC</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="text-2xl font-bold text-black">Editar OC</h2>
+        </div>
       </div>
 
       {/* Datos generales + proveedor */}
@@ -454,7 +458,7 @@ const EditarOC = () => {
       <div className="mt-6 text-center">
         <button
           onClick={handleActualizarOC}
-          className="bg-[#004990] text-white px-6 py-2 rounded hover:bg-[#003066] transition-all"
+          className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           Actualizar Orden de Compra
         </button>

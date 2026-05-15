@@ -6,6 +6,7 @@ import { useUsuario } from "../context/UsuarioContext";
 import TransaccionFormModal from "../components/TransaccionFormModal";
 import useCatalogosFinanzas from "../hooks/useCatalogosFinanzas";
 import useTransacciones from "../hooks/useTransacciones";
+import BackButton from "../components/ui/BackButton";
 
 // ── Area tabs ─────────────────────────────────────────────────
 const AREAS_CONFIG = [
@@ -198,9 +199,12 @@ function FlujosFinancieros() {
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">
-          Flujos financieros
-        </h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">
+            Flujos financieros
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           {transaccionesFiltradas.length > 0 && (
             <button

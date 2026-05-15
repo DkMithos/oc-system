@@ -406,7 +406,7 @@ const VerOCModal = ({ oc, onClose, onUpdated }) => {
             </button>
           )}
           {puedeExportar && (
-            <button onClick={exportarPDF} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+            <button onClick={exportarPDF} className="bg-black hover:bg-gray-800 text-white px-3 py-1 rounded-lg transition-colors">
               Exportar PDF
             </button>
           )}

@@ -6,6 +6,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
 import { scheduleCredit, scheduleCash, firstFridayOnOrAfter } from "../utils/fechas";
+import BackButton from "../components/ui/BackButton";
 
 const ActualizarPago = () => {
   const { usuario, cargando: loading } = useUsuario();
@@ -82,7 +83,10 @@ const ActualizarPago = () => {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h2 className="text-2xl font-bold text-black mb-4">Registrar Factura - Orden #{ocId}</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Registrar Factura - Orden #{ocId}</h2>
+      </div>
       <div className="bg-white p-6 rounded shadow space-y-4">
         <p><strong>Proveedor:</strong> {orden.proveedor?.razonSocial}</p>
         <p><strong>Moneda:</strong> {orden.monedaSeleccionada || "PEN"}</p>

@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 import {
   obtenerTodasOC,
   obtenerTodosMovimientosCaja,
@@ -150,7 +151,10 @@ const Dashboard = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-black">Dashboard de Indicadores</h2>
+      <div className="flex items-center gap-2">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Dashboard de Indicadores</h2>
+      </div>
 
       {/* ── FILA 1: KPIs principales ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -211,7 +215,7 @@ const Dashboard = () => {
               <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#f0c000" stroke="#000000" strokeWidth={1} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#f0c000" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -11,6 +11,7 @@ import {
   Search, X, FileText, CreditCard, DollarSign, CheckCircle,
   Clock, Paperclip, Upload, Download, AlertCircle, Layers,
 } from "lucide-react";
+import BackButton from "../components/ui/BackButton";
 
 const TIPOS_PAGO = ["Transferencia bancaria", "Cheque", "Efectivo", "Depósito", "Otro"];
 const TIPOS_COMPROBANTE = ["Factura", "Boleta", "Recibo", "Nota de débito", "Otro"];
@@ -376,7 +377,10 @@ const RegistrarPago = () => {
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header + tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="text-2xl font-bold text-black">Registrar pago</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="text-2xl font-bold text-black">Registrar pago</h2>
+        </div>
         <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
           <button
             onClick={() => setModo("individual")}

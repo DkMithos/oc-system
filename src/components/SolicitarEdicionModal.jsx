@@ -63,7 +63,7 @@ const SolicitarEdicionModal = ({ oc, onClose, onSubmitted }) => {
             Cancelar
           </button>
           <button
-            className="px-3 py-1.5 rounded bg-[#004990] text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold disabled:opacity-50 transition-colors"
             onClick={handleSubmit}
             disabled={guardando}
           >

@@ -8,6 +8,7 @@ import { formatearMoneda } from "../utils/formatearMoneda";
 import Logo from "../assets/logo-navbar.png";
 import { useUsuario } from "../context/UsuarioContext";
 import { ocPendingForRole, etapasRequeridas, obtenerConfigAprobaciones } from "../utils/aprobaciones";
+import BackButton from "../components/ui/BackButton";
 
 const up = (s = "") => s.toUpperCase();
 const findDetraccion = (bancos = []) => {
@@ -157,6 +158,10 @@ const VerOC = () => {
 
   return (
     <div className="p-3 md:p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <BackButton />
+        <h2 className="text-xl font-bold text-black">Ver Orden de Compra</h2>
+      </div>
       <div
         id="contenido-oc"
         className="max-w-[794px] mx-auto bg-white text-black"
@@ -407,7 +412,7 @@ const VerOC = () => {
         {puedeExportar && (
           <button
             onClick={exportarPDF}
-            className="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700"
+            className="bg-black hover:bg-gray-800 text-white px-3 py-2 rounded-lg transition-colors"
           >
             Exportar PDF
           </button>

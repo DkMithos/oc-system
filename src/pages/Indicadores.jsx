@@ -19,6 +19,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 // Paleta simple
 const colores = [
@@ -230,7 +231,10 @@ const Indicadores = () => {
   // ─────────────────────────────────────────────────────────────
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">📊 Indicadores del Sistema</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">📊 Indicadores del Sistema</h2>
+      </div>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-4 mb-6">

@@ -109,7 +109,7 @@ const OCAccionesEdicion = ({ oc, onRefetch }) => {
     if (idx < stepEstado) return "bg-green-500 text-white";
     if (idx === stepEstado) {
       if (ultimaSol?.estado === "rechazada") return "bg-red-500 text-white";
-      return "bg-[#004990] text-white";
+      return "bg-black text-white";
     }
     return oc.permiteEdicion && idx === 2 ? "bg-green-500 text-white" : "bg-gray-200 text-gray-400";
   };

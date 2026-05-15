@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { ChevronDown } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import BackButton from "../components/ui/BackButton";
 import {
   AREAS_CAJA,
   MONEDAS_CAJA,
@@ -395,7 +396,10 @@ const CajaChica = () => {
       {/* ── Encabezado ── */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-black">Control de Caja Chica</h2>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h2 className="text-2xl font-bold text-black">Control de Caja Chica</h2>
+          </div>
           <p className="text-xs text-gray-500 mt-0.5">Rol: <b>{usuario?.rol || "—"}</b></p>
         </div>
 

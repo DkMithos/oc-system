@@ -4,6 +4,7 @@ import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCsPagadas, obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import ExportMenu from "../components/ExportMenu";
+import BackButton from "../components/ui/BackButton";
 
 const normaliza = (v) => String(v || "").toLowerCase();
 
@@ -99,7 +100,10 @@ const HistorialPagos = () => {
   return (
     <div className="p-6">
       <div className="page-header">
-        <h2 className="page-title">Historial de Pagos</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="page-title">Historial de Pagos</h2>
+        </div>
         <ExportMenu
           data={filtradas.map(flattenPago)}
           nombre={`historial-pagos-${new Date().toISOString().slice(0,10)}`}

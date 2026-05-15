@@ -13,6 +13,7 @@ import CuentaBancariaForm from "../components/CuentaBancariaForm";
 import { exportExcelMultiHoja, exportCSV, exportPDF } from "../utils/exportUtils";
 import ExportMenu from "../components/ExportMenu";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 const esRucValido = (raw) => {
   const ruc = (raw || "").replace(/\D/g, "");
@@ -264,7 +265,10 @@ const Proveedores = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Gestión de Proveedores</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Gestión de Proveedores</h2>
+      </div>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 space-y-4">

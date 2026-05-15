@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { ClipboardCheck, CheckCircle, AlertCircle, Clock, ChevronRight, X } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCsPorEstado } from "../firebase/firestoreHelpers";
+import BackButton from "../components/ui/BackButton";
 import { crearRecepcion, obtenerRecepcionesPorOC } from "../firebase/recepcionHelpers";
 
 // ── helpers ──────────────────────────────────────────────────
@@ -190,7 +191,10 @@ const RecepcionBienes = () => {
       <div className="flex items-center gap-3">
         <div className="bg-green-100 p-2 rounded-lg"><ClipboardCheck className="text-green-600" size={24} /></div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Recepción de Bienes y Servicios</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-gray-900">Recepción de Bienes y Servicios</h1>
+          </div>
           <p className="text-sm text-gray-500">Confirma la recepción de órdenes aprobadas</p>
         </div>
       </div>

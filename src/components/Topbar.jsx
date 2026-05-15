@@ -1,6 +1,6 @@
 ﻿// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
-import { Menu, ChevronDown, LogOut, User, Settings } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Menu, ChevronDown, LogOut, User, Settings, Home } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import logo from "../assets/logo-navbar.png";
 
@@ -100,7 +100,9 @@ const buildCrumbs = (pathname) => {
 const Topbar = ({ toggleSidebar }) => {
   const { usuario, cerrarSesion } = useUsuario();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const isHome = location.pathname === "/";
   const dropdownRef = useRef(null);
 
   const rol    = String(usuario?.rol || "").toLowerCase();
@@ -140,6 +142,18 @@ const Topbar = ({ toggleSidebar }) => {
           <Link to="/" className="hidden md:flex items-center gap-2 flex-shrink-0">
             <img src={logo} alt="Memphis" className="h-7 w-auto" />
           </Link>
+
+          {/* Botón Home — visible en cualquier página menos el Home */}
+          {!isHome && (
+            <Link
+              to="/"
+              className="hidden md:flex p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+              aria-label="Ir al inicio"
+              title="Ir al inicio"
+            >
+              <Home size={16} />
+            </Link>
+          )}
 
           {/* Separador */}
           <div className="hidden md:block w-px h-6 bg-white/20 flex-shrink-0" />

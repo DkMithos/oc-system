@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { Package, Plus, Pencil, X, Download, Search } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import BackButton from "../components/ui/BackButton";
 import {
   escucharItemsInventario,
   agregarItemInventario,
@@ -184,7 +185,10 @@ const Inventario = () => {
         <div className="flex items-center gap-3">
           <div className="bg-blue-100 p-2 rounded-lg"><Package className="text-blue-600" size={24} /></div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+            <div className="flex items-center gap-2">
+              <BackButton />
+              <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+            </div>
             <p className="text-sm text-gray-500">Gestión de ítems estandarizados por centro de costo</p>
           </div>
         </div>

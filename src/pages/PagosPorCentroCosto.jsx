@@ -8,6 +8,7 @@ import { obtenerOCsPorEstadoPago } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import ExportMenu from "../components/ExportMenu";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 const ESTADO_BADGE = {
   "Pendiente de Comprador":            "bg-gray-100 text-gray-600",
@@ -128,7 +129,10 @@ const PagosPorCentroCosto = () => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-black">Pagos por Centro de Costo</h2>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h2 className="text-2xl font-bold text-black">Pagos por Centro de Costo</h2>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             {ordenesFiltradas.length} orden{ordenesFiltradas.length !== 1 ? "es" : ""} — valores convertidos a Soles para resumen
           </p>

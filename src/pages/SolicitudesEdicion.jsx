@@ -10,6 +10,7 @@ import { notificarUsuario } from "../firebase/notifs";
 import { useUsuario } from "../context/UsuarioContext";
 import { toast } from "react-toastify";
 import { CheckCircle, XCircle, ExternalLink, RefreshCw, Clock } from "lucide-react";
+import BackButton from "../components/ui/BackButton";
 
 const ESTADO_BADGE = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -97,7 +98,10 @@ const SolicitudesEdicion = () => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-black">Solicitudes de Edición</h2>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h2 className="text-2xl font-bold text-black">Solicitudes de Edición</h2>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             {pendientes.length} solicitud{pendientes.length !== 1 ? "es" : ""} pendiente{pendientes.length !== 1 ? "s" : ""}
           </p>

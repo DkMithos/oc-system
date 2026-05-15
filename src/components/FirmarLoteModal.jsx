@@ -171,7 +171,7 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
           </ul>
           <button
             onClick={onClose}
-            className="mt-4 w-full bg-[#004990] text-white py-2 rounded-lg font-semibold hover:bg-[#003570]"
+            className="mt-4 w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-semibold transition-colors"
           >
             Cerrar
           </button>
@@ -191,12 +191,12 @@ const FirmarLoteModal = ({ ocs, onClose, onDone }) => {
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
             <b>Tu firma:</b>{" "}
             {cargandoFirma ? "cargando…" : miFirma ? "lista ✅" : (
               <span className="text-red-600">
                 no registrada ❌{" "}
-                <button className="text-blue-700 underline ml-1" onClick={() => (window.location.href = "/mi-firma")}>
+                <button className="text-black underline hover:font-semibold transition-all ml-1" onClick={() => (window.location.href = "/mi-firma")}>
                   Configurar
                 </button>
               </span>

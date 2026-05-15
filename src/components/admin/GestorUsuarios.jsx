@@ -121,7 +121,7 @@ const GestorUsuarios = ({
   return (
     <section className="bg-white p-6 rounded shadow">
       <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-        <ShieldCheck className="text-blue-700" size={18} />
+        <ShieldCheck className="text-black" size={18} />
         Gestión de usuarios
       </h3>
 
@@ -132,13 +132,13 @@ const GestorUsuarios = ({
           placeholder="Correo (ej: usuario@empresa.com)"
           value={nuevo.email}
           onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })}
-          className="border p-2 rounded"
+          className="border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
           required
         />
         <select
           value={nuevo.rol}
           onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}
-          className="border p-2 rounded"
+          className="border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
           required
         >
           <option value="">Selecciona rol</option>
@@ -151,14 +151,14 @@ const GestorUsuarios = ({
           placeholder="Contraseña temporal (mín. 6 car.)"
           value={nuevo.password}
           onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })}
-          className="border p-2 rounded"
+          className="border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
           required
           autoComplete="new-password"
         />
         <button
           type="submit"
           disabled={creando}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded flex items-center justify-center gap-2"
+          className="bg-[#f0c000] hover:bg-[#d4a800] disabled:opacity-50 text-black font-semibold px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
         >
           <UserRoundPlus size={18} />
           {creando ? "Creando…" : "Agregar"}
@@ -177,7 +177,7 @@ const GestorUsuarios = ({
           placeholder="Buscar por email, rol o estado…"
           value={busqueda}
           onChange={(e) => { setBusqueda(e.target.value); setPagina(1); }}
-          className="border px-3 py-2 rounded w-full md:w-1/2"
+          className="border border-gray-300 px-3 py-2 rounded-lg w-full md:w-1/2 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
         />
       </div>
 
@@ -205,7 +205,7 @@ const GestorUsuarios = ({
                     <select
                       value={u.rol}
                       onChange={(e) => handleCambioRol(u.email, e.target.value)}
-                      className="border p-1 rounded"
+                      className="border border-gray-300 p-1 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black/20"
                     >
                       {roles.map((r) => (
                         <option key={r} value={r}>{r}</option>

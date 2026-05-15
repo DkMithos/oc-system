@@ -1,5 +1,6 @@
 ﻿// ✅ src/pages/Requerimientos.jsx (tabla de ítems con encabezados)
 import React, { useState, useEffect, useMemo } from "react";
+import BackButton from "../components/ui/BackButton";
 import { PageLoader } from "../components/ui/Skeleton";
 import {
   agregarRequerimiento,
@@ -269,7 +270,10 @@ const Requerimientos = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Requerimientos de Compra</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Requerimientos de Compra</h2>
+      </div>
 
       {/* Card del formulario — solo para roles que pueden crear */}
       {puedeCrear && <div className="bg-white p-6 rounded shadow mb-6">
@@ -562,7 +566,7 @@ const Requerimientos = () => {
                         <button
                           onClick={() => cambiarEstado(r, "En Proceso")}
                           disabled={cambiandoEstado === r.id}
-                          className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                          className="text-xs px-2 py-1 rounded-lg bg-black hover:bg-gray-800 text-white disabled:opacity-50 transition-colors"
                         >
                           En Proceso
                         </button>

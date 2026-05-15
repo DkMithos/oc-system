@@ -1,5 +1,6 @@
 ﻿// ✅ src/pages/MiFirma.jsx
 import React, { useEffect, useRef, useState } from "react";
+import BackButton from "../components/ui/BackButton";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useUsuario } from "../context/UsuarioContext";
 import {
@@ -104,7 +105,10 @@ const MiFirma = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-black mb-2">Mi Firma</h2>
+      <div className="flex items-center gap-2 mb-2">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Mi Firma</h2>
+      </div>
       <p className="text-gray-600 mb-4">
         Registra tu firma para aprobar/rechazar órdenes. Puedes subir una imagen o dibujarla.
       </p>
@@ -123,13 +127,13 @@ const MiFirma = () => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setTab("subir")}
-          className={`px-3 py-1 rounded border ${tab === "subir" ? "bg-black text-[#f0c000] border-black" : "bg-white"}`}
+          className={`px-3 py-1 rounded border ${tab === "subir" ? "bg-black text-white border-black" : "bg-white"}`}
         >
           Subir imagen
         </button>
         <button
           onClick={() => setTab("dibujar")}
-          className={`px-3 py-1 rounded border ${tab === "dibujar" ? "bg-black text-[#f0c000] border-black" : "bg-white"}`}
+          className={`px-3 py-1 rounded border ${tab === "dibujar" ? "bg-black text-white border-black" : "bg-white"}`}
         >
           Dibujar
         </button>
@@ -182,7 +186,7 @@ const MiFirma = () => {
             <button
               disabled={saving}
               onClick={guardarCanvas}
-              className="px-3 py-1 rounded bg-[#004990] text-white disabled:opacity-60"
+              className="px-3 py-1 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold disabled:opacity-60 transition-colors"
             >
               {saving ? "Guardando…" : "Guardar firma"}
             </button>

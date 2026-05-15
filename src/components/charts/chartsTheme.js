@@ -2,8 +2,8 @@
 
 // Paleta corporativa Memphis
 export const MEMPHIS_COLORS = {
-  primary: "#004990", // azul Memphis
-  secondary: "#FFC800", // amarillo Memphis
+  primary: "#000000",   // negro Memphis
+  secondary: "#000000", // negro (el amarillo #f0c000 no tiene contraste como texto sobre blanco)
   success: "#2EB67D",
   danger: "#E03E3E",
   neutral: "#6B7280",
@@ -11,8 +11,8 @@ export const MEMPHIS_COLORS = {
 };
 
 export const SERIES_COLORS = [
-  MEMPHIS_COLORS.primary,
-  MEMPHIS_COLORS.secondary,
+  "#000000",   // negro (serie principal)
+  "#f0c000",   // amarillo Memphis (como relleno de gráficos sí tiene contraste)
   MEMPHIS_COLORS.success,
   MEMPHIS_COLORS.danger,
   MEMPHIS_COLORS.neutral,
