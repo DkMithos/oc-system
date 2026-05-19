@@ -16,11 +16,32 @@ const parseFecha = (v) => {
   return null;
 };
 
+const DEMO_REQS = [
+  { id:"r1", estado:"Pendiente", solicitanteNombre:"J. García", prioridad:"Alta", creadoEn:"2026-05-10" },
+  { id:"r2", estado:"Aprobado", solicitanteNombre:"R. López", prioridad:"Normal", creadoEn:"2026-05-08" },
+  { id:"r3", estado:"Pendiente", solicitanteNombre:"A. Torres", prioridad:"Alta", creadoEn:"2026-05-06" },
+  { id:"r4", estado:"En proceso", solicitanteNombre:"M. Quispe", prioridad:"Baja", creadoEn:"2026-05-04" },
+  { id:"r5", estado:"Aprobado", solicitanteNombre:"J. García", prioridad:"Normal", creadoEn:"2026-04-28" },
+  { id:"r6", estado:"Rechazado", solicitanteNombre:"C. Flores", prioridad:"Normal", creadoEn:"2026-04-22" },
+  { id:"r7", estado:"Pendiente", solicitanteNombre:"R. López", prioridad:"Alta", creadoEn:"2026-04-18" },
+  { id:"r8", estado:"En proceso", solicitanteNombre:"A. Torres", prioridad:"Normal", creadoEn:"2026-04-12" },
+];
+const DEMO_COTS = [
+  { id:"c1", estado:"Aprobada", proveedorNombre:"Ferreyros S.A.", creadoEn:"2026-05-11" },
+  { id:"c2", estado:"Pendiente", proveedorNombre:"Komatsu Mitsui", creadoEn:"2026-05-09" },
+  { id:"c3", estado:"Aprobada", proveedorNombre:"Epiroc Perú", creadoEn:"2026-05-07" },
+  { id:"c4", estado:"Rechazada", proveedorNombre:"SKF del Perú", creadoEn:"2026-05-03" },
+  { id:"c5", estado:"Pendiente", proveedorNombre:"Ferreyros S.A.", creadoEn:"2026-04-29" },
+  { id:"c6", estado:"Aprobada", proveedorNombre:"Suministros Técnicos", creadoEn:"2026-04-24" },
+  { id:"c7", estado:"Pendiente", proveedorNombre:"Komatsu Mitsui", creadoEn:"2026-04-20" },
+];
+
 const DashboardReqsCotizaciones = ({ filtros }) => {
   const [reqs, setReqs] = useState([]);
   const [cotizaciones, setCotizaciones] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [esDemo, setEsDemo] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -33,8 +54,15 @@ const DashboardReqsCotizaciones = ({ filtros }) => {
           obtenerCotizaciones(),
         ]);
         if (!activo) return;
-        setReqs(r || []);
-        setCotizaciones(c || []);
+        if ((!r || r.length === 0) || (!c || c.length === 0)) {
+          setReqs(DEMO_REQS);
+          setCotizaciones(DEMO_COTS);
+          setEsDemo(true);
+        } else {
+          setReqs(r || []);
+          setCotizaciones(c || []);
+          setEsDemo(false);
+        }
       } catch (e) {
         console.error("Error cargando DashboardReqsCotizaciones:", e);
         if (activo) setError("No se pudieron cargar los datos de requerimientos/cotizaciones.");
@@ -131,6 +159,11 @@ const DashboardReqsCotizaciones = ({ filtros }) => {
 
   return (
     <div className="space-y-4">
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center">
+          Vista previa con datos de ejemplo — no hay requerimientos ni cotizaciones registrados.
+        </p>
+      )}
       <div>
         <h2 className="text-lg font-semibold text-gray-800">Requerimientos y Cotizaciones</h2>
         <p className="text-xs text-gray-500 mt-1">Estado actual de solicitudes internas de compra y cotizaciones de proveedores.</p>

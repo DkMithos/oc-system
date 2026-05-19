@@ -1,5 +1,6 @@
-// ✅ src/pages/Requerimientos.jsx (tabla de ítems con encabezados)
+﻿// ✅ src/pages/Requerimientos.jsx (tabla de ítems con encabezados)
 import React, { useState, useEffect, useMemo } from "react";
+import BackButton from "../components/ui/BackButton";
 import { PageLoader } from "../components/ui/Skeleton";
 import {
   agregarRequerimiento,
@@ -34,7 +35,7 @@ const selectStyles = {
 
 const ESTADO_BADGE = {
   "Pendiente de Operaciones": "bg-amber-100 text-amber-800",
-  "En Proceso":               "bg-blue-100 text-blue-800",
+  "En Proceso":               "bg-blue-100 text-black",
   "Completado":               "bg-green-100 text-green-800",
   "Rechazado":                "bg-red-100 text-red-800",
   "Cancelado":                "bg-gray-100 text-gray-600",
@@ -269,7 +270,10 @@ const Requerimientos = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Requerimientos de Compra</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Requerimientos de Compra</h2>
+      </div>
 
       {/* Card del formulario — solo para roles que pueden crear */}
       {puedeCrear && <div className="bg-white p-6 rounded shadow mb-6">
@@ -445,7 +449,7 @@ const Requerimientos = () => {
                     <td className="p-2 border text-center">
                       <button
                         onClick={agregarItem}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                        className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 py-1 rounded transition-colors"
                       >
                         <PlusCircle size={18} />
                       </button>
@@ -469,7 +473,7 @@ const Requerimientos = () => {
             <button
               onClick={guardar}
               disabled={guardando}
-              className="text-sm bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-sm bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {guardando ? "Guardando..." : "Guardar"}
             </button>
@@ -562,7 +566,7 @@ const Requerimientos = () => {
                         <button
                           onClick={() => cambiarEstado(r, "En Proceso")}
                           disabled={cambiandoEstado === r.id}
-                          className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                          className="text-xs px-2 py-1 rounded-lg bg-black hover:bg-gray-800 text-white disabled:opacity-50 transition-colors"
                         >
                           En Proceso
                         </button>
@@ -624,7 +628,7 @@ const Requerimientos = () => {
             <button
               key={i}
               onClick={() => setPagina(i + 1)}
-              className={`px-3 py-1 rounded border text-sm ${pagina === i + 1 ? "bg-[#004990] text-white" : "hover:bg-gray-100"}`}
+              className={`px-3 py-1 rounded border text-sm ${pagina === i + 1 ? "bg-black text-white border-black" : "border-black hover:bg-gray-100"}`}
             >
               {i + 1}
             </button>

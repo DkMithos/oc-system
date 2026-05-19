@@ -1,5 +1,6 @@
 // ✅ src/pages/reportes/CentroExportaciones.jsx
 import React, { useState } from "react";
+import BackButton from "../../components/ui/BackButton";
 import { collection, getDocs } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { db } from "../../firebase/config";
@@ -232,9 +233,12 @@ const CentroExportaciones = () => {
     <div className="space-y-4">
       {/* Encabezado */}
       <div>
-        <h1 className="text-2xl font-semibold text-gray-800">
-          Centro de exportaciones
-        </h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-2xl font-semibold text-gray-800">
+            Centro de exportaciones
+          </h1>
+        </div>
         <p className="text-sm text-gray-500 mt-1">
           Descarga información completa en Excel desde un solo panel. 
           Las opciones disponibles dependen de tu rol.
@@ -328,7 +332,7 @@ const ExportCard = ({ titulo, descripcion, onClick, loading, enabled }) => {
           className={
             "px-3 py-1.5 rounded-md text-xs font-medium transition-colors " +
             (enabled
-              ? "bg-blue-900 text-white hover:bg-blue-700 disabled:bg-blue-300"
+              ? "bg-black text-white hover:bg-gray-800 disabled:opacity-50"
               : "bg-gray-100 text-gray-400 cursor-not-allowed")
           }
           title={

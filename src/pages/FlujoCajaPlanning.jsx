@@ -1,10 +1,11 @@
-// src/pages/FlujoCajaPlanning.jsx
+﻿// src/pages/FlujoCajaPlanning.jsx
 // Vista mensual de planificación de pagos — reemplaza el "Flujo GM" del Excel.
 // Muestra transacciones por mes de vencimiento, con semáforo de urgencia,
 // acciones rápidas (cambiar estado, postergar) y resumen por área.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../components/ui/BackButton";
 import {
   obtenerTransaccionesPlaneadas,
   patchTransaccionFinanciera,
@@ -226,7 +227,10 @@ export default function FlujoCajaPlanning() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Planificación de Pagos</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Planificación de Pagos</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Vista mensual · {transDelMes.length} ítem{transDelMes.length !== 1 ? "s" : ""} en {formatMes(mesActual)}
           </p>
@@ -235,7 +239,7 @@ export default function FlujoCajaPlanning() {
         <div className="flex items-center gap-2">
           <button onClick={() => setMesActual((m) => addMonths(m, -1))}
             className="w-8 h-8 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-600 text-lg font-bold">‹</button>
-          <span className="font-semibold text-[#004990] text-sm min-w-[90px] text-center">
+          <span className="font-semibold text-black text-sm min-w-[90px] text-center">
             {formatMes(mesActual)}
           </span>
           <button onClick={() => setMesActual((m) => addMonths(m, 1))}
@@ -261,19 +265,19 @@ export default function FlujoCajaPlanning() {
               onClick={() => setMesActual(mes)}
               className={`rounded-xl border p-3 text-left transition-all ${
                 activo
-                  ? "border-[#004990] bg-[#004990] text-white shadow-md"
-                  : "border-gray-200 bg-white hover:border-[#004990] hover:shadow-sm"
+                  ? "border-black bg-black text-white shadow-md"
+                  : "border-gray-200 bg-white hover:border-black hover:shadow-sm"
               }`}
             >
-              <p className={`text-xs font-bold ${activo ? "text-blue-200" : "text-gray-400"}`}>
+              <p className={`text-xs font-bold ${activo ? "text-white/60" : "text-gray-400"}`}>
                 {formatMes(mes, true)} {mes.slice(0, 4)}
               </p>
               <p className={`text-sm font-bold font-mono mt-0.5 ${activo ? "text-white" : "text-gray-800"}`}>
                 {d.total > 0
                   ? `S/ ${(d.total / 1000).toFixed(0)}k`
-                  : <span className={activo ? "text-blue-300" : "text-gray-300"}>—</span>}
+                  : <span className={activo ? "text-white/40" : "text-gray-300"}>—</span>}
               </p>
-              <p className={`text-[10px] mt-0.5 ${activo ? "text-blue-200" : "text-gray-400"}`}>
+              <p className={`text-[10px] mt-0.5 ${activo ? "text-white/60" : "text-gray-400"}`}>
                 {d.count} ítem{d.count !== 1 ? "s" : ""}
               </p>
               {d.total > 0 && (
@@ -297,7 +301,7 @@ export default function FlujoCajaPlanning() {
               onClick={() => setAreaTab(area.id)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 areaTab === area.id
-                  ? "border-[#004990] text-[#004990]"
+                  ? "border-black text-black"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}>
               {area.label}
@@ -348,8 +352,8 @@ export default function FlujoCajaPlanning() {
             <button key={o.id} type="button" onClick={() => setOrdenar(o.id)}
               className={`px-2.5 py-1 rounded text-xs border transition-colors ${
                 ordenar === o.id
-                  ? "bg-[#004990] text-white border-[#004990]"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-[#004990]"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
               }`}>
               {o.label}
             </button>
@@ -357,7 +361,7 @@ export default function FlujoCajaPlanning() {
         </div>
         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
           <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)}
-            className="accent-[#004990]" />
+            className="accent-[#f0c000]" />
           Solo pendientes
         </label>
       </div>
@@ -460,7 +464,7 @@ export default function FlujoCajaPlanning() {
                     <td className="px-3 py-2">
                       {t.oc_numero ? (
                         <button onClick={() => navigate(`/ver?id=${t.oc_id || ""}`)}
-                          className="text-[#004990] hover:underline font-mono text-[10px]">
+                          className="text-black hover:underline font-mono text-[10px]">
                           {t.oc_numero}
                         </button>
                       ) : "—"}
@@ -474,7 +478,7 @@ export default function FlujoCajaPlanning() {
                           defaultValue={t.estado}
                           onBlur={() => setEditandoEstado(null)}
                           onChange={(e) => handleCambiarEstado(t, e.target.value)}
-                          className="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#004990]"
+                          className="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-black"
                         >
                           {ESTADOS_OPCIONES.map((e) => <option key={e} value={e}>{e}</option>)}
                         </select>
@@ -551,8 +555,8 @@ function estadoBadge(estado) {
   const map = {
     "Pagado":      "bg-green-100 text-green-700 border-green-200",
     "Pendiente":   "bg-amber-100 text-amber-700 border-amber-200",
-    "Programado":  "bg-blue-100 text-blue-700 border-blue-200",
-    "En proceso":  "bg-indigo-100 text-indigo-700 border-indigo-200",
+    "Programado":  "bg-gray-100 text-gray-700 border-gray-200",
+    "En proceso":  "bg-gray-100 text-gray-600 border-gray-200",
     "Vencido":     "bg-red-100 text-red-700 border-red-200",
     "Postergado":  "bg-purple-100 text-purple-700 border-purple-200",
   };

@@ -1,9 +1,10 @@
-// src/pages/HistorialPagos.jsx
+﻿// src/pages/HistorialPagos.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCsPagadas, obtenerFacturasDeOrden } from "../firebase/firestoreHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import ExportMenu from "../components/ExportMenu";
+import BackButton from "../components/ui/BackButton";
 
 const normaliza = (v) => String(v || "").toLowerCase();
 
@@ -99,7 +100,10 @@ const HistorialPagos = () => {
   return (
     <div className="p-6">
       <div className="page-header">
-        <h2 className="page-title">Historial de Pagos</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="page-title">Historial de Pagos</h2>
+        </div>
         <ExportMenu
           data={filtradas.map(flattenPago)}
           nombre={`historial-pagos-${new Date().toISOString().slice(0,10)}`}
@@ -209,7 +213,7 @@ const HistorialPagos = () => {
                     {o.tipoCambio ? Number(o.tipoCambio).toFixed(3) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="p-2">
-                    <button className="text-blue-700 underline text-xs" onClick={() => verFacturas(o)}>
+                    <button className="text-black underline text-xs hover:font-semibold transition-all" onClick={() => verFacturas(o)}>
                       Ver adjuntos
                     </button>
                   </td>
@@ -239,8 +243,8 @@ const HistorialPagos = () => {
                 onClick={() => setPaginaActual(p)}
                 className={`px-3 py-1 border rounded text-sm ${
                   p === paginaActual
-                    ? "bg-[#004990] text-white border-[#004990]"
-                    : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-black border-black hover:bg-gray-100"
                 }`}
               >{p}</button>
             ));
@@ -290,7 +294,7 @@ const HistorialPagos = () => {
                     <td className="p-2">{f.tipoPago || "—"}</td>
                     <td className="p-2">
                       {f.urlAdjunto ? (
-                        <a href={f.urlAdjunto} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                        <a href={f.urlAdjunto} target="_blank" rel="noreferrer" className="text-black underline hover:font-semibold transition-all">
                           Ver archivo
                         </a>
                       ) : <span className="text-gray-400">Sin adjunto</span>}

@@ -1,5 +1,6 @@
-// ✅ src/pages/EditarOC.jsx
+﻿// ✅ src/pages/EditarOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
+import BackButton from "../components/ui/BackButton";
 import { useNavigate, useLocation } from "react-router-dom";
 import ItemTable from "../components/ItemTable";
 import {
@@ -214,14 +215,17 @@ const EditarOC = () => {
         <div className="flex gap-4 items-start">
           <img src={Logo} alt="Logo Memphis" className="h-14" />
           <div className="text-xs leading-tight">
-            <p className="font-bold text-[#004990]">Memphis Maquinarias S.A.C</p>
+            <p className="font-bold text-black">Memphis Maquinarias S.A.C</p>
             <p>RUC: 20603847424</p>
             <p>AV. Circunvalación el Golf N° 158 Of. 203, Surco, Lima</p>
             <p>Teléfono: (01) 7174012</p>
             <p>www.memphismaquinarias.com</p>
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-[#004990]">Editar OC</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="text-2xl font-bold text-black">Editar OC</h2>
+        </div>
       </div>
 
       {/* Datos generales + proveedor */}
@@ -364,7 +368,7 @@ const EditarOC = () => {
 
       {/* Opciones tributarias */}
       <div className="bg-[#f4f4f4] p-6 rounded shadow mt-6 space-y-4">
-        <h3 className="font-semibold text-[#004990]">Opciones Tributarias</h3>
+        <h3 className="font-semibold text-black">Opciones Tributarias</h3>
 
         {/* IGV */}
         <label className="flex items-center gap-2 cursor-pointer">
@@ -454,7 +458,7 @@ const EditarOC = () => {
       <div className="mt-6 text-center">
         <button
           onClick={handleActualizarOC}
-          className="bg-[#004990] text-white px-6 py-2 rounded hover:bg-[#003066] transition-all"
+          className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           Actualizar Orden de Compra
         </button>

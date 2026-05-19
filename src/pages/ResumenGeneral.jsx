@@ -1,5 +1,6 @@
-// src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
+﻿// src/pages/ResumenGeneral.jsx — usa recharts (elimina chart.js / react-chartjs-2)
 import React, { useEffect, useMemo, useState } from "react";
+import BackButton from "../components/ui/BackButton";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
 import { formatearMoneda } from "../utils/formatearMoneda";
 import { useNavigate } from "react-router-dom";
@@ -10,7 +11,7 @@ import {
 
 const ESTADO_COLOR = {
   "Aprobada":                      "#32cd32",
-  "Pagado":                        "#004990",
+  "Pagado":                        "#111111",
   "Pago Parcial":                  "#f59e0b",
   "Pendiente de Comprador":        "#fbc102",
   "Pendiente de Operaciones":      "#fb923c",
@@ -76,14 +77,17 @@ const ResumenGeneral = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4 text-[#004990]">Resumen General</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Resumen General</h2>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KPICard label="Total OCs"  value={ocs.length} />
         <KPICard label="Aprobadas"  value={aprobadas}  color="text-green-700" />
-        <KPICard label="Con pago"   value={pagadas}    color="text-blue-700" />
-        <KPICard label="Monto total" value={formatearMoneda(totalMonto, "Soles")} color="text-[#004990]" />
+        <KPICard label="Con pago"   value={pagadas}    color="text-black" />
+        <KPICard label="Monto total" value={formatearMoneda(totalMonto, "Soles")} color="text-black" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -129,7 +133,7 @@ const ResumenGeneral = () => {
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `S/${(v/1000).toFixed(0)}k`} />
                 <YAxis type="category" dataKey="nombre" width={150} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v) => [`S/ ${v.toLocaleString("es-PE")}`, "Monto"]} />
-                <Bar dataKey="monto" fill="#004990" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="monto" fill="#f0c000" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-gray-400 text-sm">Sin datos</p>}
@@ -146,7 +150,7 @@ const ResumenGeneral = () => {
             {pendientesFirma.map((oc) => (
               <li
                 key={oc.id}
-                className="py-1.5 flex justify-between items-center cursor-pointer hover:text-[#004990]"
+                className="py-1.5 flex justify-between items-center cursor-pointer hover:text-black"
                 onClick={() => navigate(`/ver?id=${oc.id}`)}
               >
                 <span>

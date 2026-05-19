@@ -1,5 +1,5 @@
-// src/components/Sidebar.jsx — Enterprise ERP Sidebar
-import { NavLink } from "react-router-dom";
+﻿// src/components/Sidebar.jsx — Enterprise ERP Sidebar
+import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import {
   Home, ClipboardList, ShoppingCart, FileText, Users, Package,
@@ -103,6 +103,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const nombre = usuario?.nombre || email.split("@")[0];
 
   const [grupoAbierto, setGrupoAbierto] = useState("compras");
+  const { pathname } = useLocation();
 
   const toggle = (id) => setGrupoAbierto((prev) => prev === id ? "" : id);
   const onNav  = () => { if (isOpen) toggleSidebar?.(); };
@@ -119,7 +120,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       <aside className={`
         fixed top-0 left-0 h-screen z-40 flex flex-col
-        w-64 bg-[#012b5a] text-white
+        w-64 bg-[#000000] text-white
         transform transition-transform duration-250
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
         shadow-2xl
@@ -145,13 +146,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* ── Perfil ─────────────────────────────── */}
         <div className="px-4 py-3 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-blue-900 font-bold text-sm flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#f0c000] flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
               {nombre.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold truncate leading-none">{nombre}</p>
-              <p className="text-[10px] text-white/50 truncate mt-0.5">{email}</p>
-              <span className="inline-block mt-1 text-[9px] bg-amber-400/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+              <p className="text-[13px] font-semibold truncate leading-none">{nombre}</p>
+              <p className="text-[11px] text-white/50 truncate mt-0.5">{email}</p>
+              <span className="inline-block mt-1 text-[10px] bg-[#f0c000]/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">
                 {ROL_LABELS[rol] || rol}
               </span>
             </div>
@@ -167,10 +168,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             end
             onClick={onNav}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold
                transition-all duration-150 mb-1
                ${isActive
-                 ? "bg-amber-400 text-[#012b5a] shadow-sm"
+                 ? "bg-[#f0c000] text-[#000000] shadow-sm"
                  : "text-white/80 hover:text-white hover:bg-white/8"
                }`
             }
@@ -187,6 +188,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             const itemsVisibles = grupo.items.filter((it) => puedeAcceder(rol, it.ruta));
             if (!itemsVisibles.length) return null;
 
+            // Verificar si algún item del grupo está activo
+            const grupoActivo = itemsVisibles.some((it) => pathname === it.ruta || pathname.startsWith(it.ruta + "/"));
+
             return (
               <div key={grupo.id}>
                 {/* Cabecera de grupo */}
@@ -198,7 +202,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 >
                   <span className="flex items-center gap-2.5">
                     <GrupoIcon size={15} className="flex-shrink-0 group-hover:text-amber-400 transition-colors" />
-                    <span className="text-xs font-semibold uppercase tracking-wider">{grupo.label}</span>
+                    <span className="text-[13px] font-semibold uppercase tracking-wider">{grupo.label}</span>
+                    {grupoActivo && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#f0c000] flex-shrink-0" />
+                    )}
                   </span>
                   <ChevronDown
                     size={13}
@@ -217,10 +224,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                           to={item.ruta}
                           onClick={onNav}
                           className={({ isActive }) =>
-                            `flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs
+                            `flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px]
                              transition-all duration-150
                              ${isActive
-                               ? "bg-amber-400 text-[#012b5a] font-semibold shadow-sm"
+                               ? "bg-[#f0c000] text-[#000000] font-semibold shadow-sm"
                                : "text-white/65 hover:text-white hover:bg-white/8"
                              }`
                           }
@@ -243,7 +250,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             onClick={cerrarSesion}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg
                        text-white/60 hover:text-white hover:bg-red-600/20
-                       text-xs transition-colors duration-150"
+                       text-[13px] transition-colors duration-150"
           >
             <LogOut size={14} />
             <span>Cerrar sesión</span>

@@ -7,8 +7,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        memphisYellow: "#fbc102",
-        memphisGray: "#5f5f5f",
+        memphisYellow: "#f0c000",
+        memphisBlack:  "#000000",
+        memphisGray:   "#5f5f5f",
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
       },
       keyframes: {
         shimmer: {

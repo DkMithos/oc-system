@@ -1,4 +1,4 @@
-// ✅ src/pages/Cotizaciones.jsx (editable)
+﻿// ✅ src/pages/Cotizaciones.jsx (editable)
 import React, { useEffect, useMemo, useState } from "react";
 import {
   obtenerCotizaciones,
@@ -18,6 +18,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { obtenerRequerimientosPorUsuario } from "../firebase/requerimientosHelpers";
 import { useNavigate } from "react-router-dom";
 import EditCotizacionModal from "../components/EditCotizacionModal";
+import BackButton from "../components/ui/BackButton";
 
 const UNIDADES = [
   "UND","CJ","PAQ","PAR","JGO","PZA","KIT",
@@ -349,7 +350,10 @@ const Cotizaciones = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Registro de Cotizaciones</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Registro de Cotizaciones</h2>
+      </div>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -412,25 +416,15 @@ const Cotizaciones = () => {
         {/* Moneda */}
         <div className="md:col-span-2">
           <label className="text-sm text-gray-600 mb-1 block">Moneda</label>
-          <div className="flex gap-3">
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="moneda"
-                checked={form.moneda === "Soles"}
-                onChange={() => setForm((f) => ({ ...f, moneda: "Soles" }))}
-              />
-              <span>Soles</span>
-            </label>
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="moneda"
-                checked={form.moneda === "Dólares"}
-                onChange={() => setForm((f) => ({ ...f, moneda: "Dólares" }))}
-              />
-              <span>Dólares</span>
-            </label>
+          <div className="flex gap-4">
+            {["Soles", "Dólares"].map((m) => (
+              <label key={m} className="inline-flex items-center gap-2 cursor-pointer" onClick={() => setForm((f) => ({ ...f, moneda: m }))}>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${form.moneda === m ? "border-black" : "border-gray-400"}`}>
+                  {form.moneda === m && <div className="w-2 h-2 rounded-full bg-[#f0c000]" />}
+                </div>
+                <span className="text-sm">{m}</span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -511,7 +505,7 @@ const Cotizaciones = () => {
           </div>
           <button
             onClick={agregarItem}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded flex items-center gap-2"
+            className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 py-2 rounded flex items-center gap-2 transition-colors"
             title="Agregar ítem"
             type="button"
           >
@@ -748,7 +742,7 @@ const Cotizaciones = () => {
             if (end - start < win - 1) start = Math.max(1, end - win + 1);
             return Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
               <button key={p} onClick={() => setPaginaActual(p)}
-                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-[#004990] text-white border-[#004990]" : "bg-white text-[#004990] border-[#004990] hover:bg-blue-50"}`}>
+                className={`px-3 py-1 border rounded text-sm ${p === paginaActual ? "bg-black text-white border-black" : "bg-white text-black border-black hover:bg-gray-100"}`}>
                 {p}
               </button>
             ));

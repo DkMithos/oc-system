@@ -1,4 +1,4 @@
-// src/components/ui/Skeleton.jsx
+﻿// src/components/ui/Skeleton.jsx
 // Placeholders animados para estados de carga
 
 /* ── Base shimmer ─────────────────────────────────────────── */
@@ -78,7 +78,7 @@ export const AppLoader = () => (
     {/* Logo + nombre */}
     <div className="flex flex-col items-center gap-3 animate-fadeInUp">
       <div className="w-16 h-16 rounded-2xl bg-amber-400 flex items-center justify-center shadow-lg">
-        <span className="text-[#012b5a] font-black text-2xl tracking-tight">M</span>
+        <span className="text-black font-black text-2xl tracking-tight">M</span>
       </div>
       <div className="text-center">
         <p className="text-white font-bold text-xl tracking-tight">Memphis ERP</p>

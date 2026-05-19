@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "react-toastify";
 import { useUsuario } from "../context/UsuarioContext";
@@ -11,6 +11,7 @@ import {
   Search, X, FileText, CreditCard, DollarSign, CheckCircle,
   Clock, Paperclip, Upload, Download, AlertCircle, Layers,
 } from "lucide-react";
+import BackButton from "../components/ui/BackButton";
 
 const TIPOS_PAGO = ["Transferencia bancaria", "Cheque", "Efectivo", "Depósito", "Otro"];
 const TIPOS_COMPROBANTE = ["Factura", "Boleta", "Recibo", "Nota de débito", "Otro"];
@@ -376,17 +377,20 @@ const RegistrarPago = () => {
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header + tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="text-2xl font-bold text-[#004990]">Registrar pago</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="text-2xl font-bold text-black">Registrar pago</h2>
+        </div>
         <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
           <button
             onClick={() => setModo("individual")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "individual" ? "bg-white shadow text-[#004990]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "individual" ? "bg-white shadow text-black" : "text-gray-500 hover:text-gray-700"}`}
           >
             <span className="flex items-center gap-1.5"><FileText size={14} />Individual</span>
           </button>
           <button
             onClick={() => setModo("masivo")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "masivo" ? "bg-white shadow text-[#004990]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${modo === "masivo" ? "bg-white shadow text-black" : "text-gray-500 hover:text-gray-700"}`}
           >
             <span className="flex items-center gap-1.5"><Layers size={14} />Carga masiva</span>
           </button>
@@ -404,7 +408,7 @@ const RegistrarPago = () => {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   ref={busquedaRef}
-                  className="border rounded pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-[#004990]/30"
+                  className="border rounded pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
                   placeholder="N° OC, proveedor o RUC…"
                   value={busqueda}
                   onChange={(e) => { setBusqueda(e.target.value); setMostrarLista(true); if (!e.target.value) setSel(null); }}
@@ -428,12 +432,12 @@ const RegistrarPago = () => {
                     return (
                       <button
                         key={oc.id}
-                        className="w-full text-left px-4 py-2.5 hover:bg-blue-50 border-b last:border-0 transition-colors"
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 border-b last:border-0 transition-colors"
                         onClick={() => seleccionar(oc)}
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="font-semibold text-sm text-[#004990]">{oc.numeroOC || oc.numero}</span>
+                            <span className="font-semibold text-sm text-black">{oc.numeroOC || oc.numero}</span>
                             <span className="text-gray-600 text-sm ml-2">{oc.proveedor?.razonSocial || "—"}</span>
                           </div>
                           <div className="text-right">
@@ -452,9 +456,9 @@ const RegistrarPago = () => {
 
             {sel && (
               <div className="mt-4 border rounded-lg overflow-hidden">
-                <div className="bg-[#004990]/5 px-4 py-2 border-b flex items-center justify-between">
+                <div className="bg-gray-50 px-4 py-2 border-b flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-[#004990]">{sel.numeroOC || sel.numero}</span>
+                    <span className="font-bold text-black">{sel.numeroOC || sel.numero}</span>
                     <span className="text-gray-600 ml-2 text-sm">{sel.proveedor?.razonSocial}</span>
                     {sel.proveedor?.ruc && <span className="text-gray-400 text-xs ml-2">RUC {sel.proveedor.ruc}</span>}
                   </div>
@@ -470,9 +474,9 @@ const RegistrarPago = () => {
                         <p className="text-xs text-gray-500">Total OC</p>
                         <p className="font-bold text-sm text-gray-800">{formatearMoneda(totalOC, moneda)}</p>
                       </div>
-                      <div className="bg-blue-50 rounded p-2 text-center">
-                        <p className="text-xs text-blue-500">Pagado</p>
-                        <p className="font-bold text-sm text-blue-700">{formatearMoneda(montoPagadoPrev, moneda)}</p>
+                      <div className="bg-gray-50 rounded p-2 text-center">
+                        <p className="text-xs text-gray-500">Pagado</p>
+                        <p className="font-bold text-sm text-gray-800">{formatearMoneda(montoPagadoPrev, moneda)}</p>
                       </div>
                       <div className="bg-amber-50 rounded p-2 text-center">
                         <p className="text-xs text-amber-500">Saldo</p>
@@ -517,7 +521,7 @@ const RegistrarPago = () => {
           {sel && (
             <div className="bg-white rounded shadow p-4">
               <h3 className="font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                <FileText size={16} className="text-[#004990]" />
+                <FileText size={16} className="text-black" />
                 Datos del comprobante y pago
               </h3>
               <div className="grid md:grid-cols-2 gap-3 mb-3">
@@ -563,7 +567,7 @@ const RegistrarPago = () => {
                 </div>
               </div>
               <div className="mb-4">
-                <label className="inline-flex items-center gap-2 text-sm text-[#004990] underline cursor-pointer">
+                <label className="inline-flex items-center gap-2 text-sm text-black underline cursor-pointer">
                   <Paperclip size={14} />
                   {form.archivo ? form.archivo.name : "Adjuntar comprobante (PDF/JPG/PNG)"}
                   <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setForm({ ...form, archivo: e.target.files[0] || null })} />
@@ -580,7 +584,7 @@ const RegistrarPago = () => {
               )}
               <div className="flex justify-end gap-3">
                 <button onClick={limpiar} className="px-4 py-2 rounded border text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className={`px-5 py-2 rounded text-white text-sm font-medium transition-colors ${guardando ? "bg-green-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
+                <button onClick={guardar} disabled={guardando} className={`px-5 py-2 rounded text-sm font-semibold transition-colors ${guardando ? "bg-[#f0c000]/60 text-black cursor-not-allowed" : "bg-[#f0c000] hover:bg-[#d4a800] text-black"}`}>
                   {guardando ? "Guardando…" : "Registrar pago"}
                 </button>
               </div>
@@ -593,18 +597,18 @@ const RegistrarPago = () => {
       {modo === "masivo" && (
         <div className="space-y-5">
           {/* Instrucciones + plantilla */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-wrap items-start justify-between gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="font-semibold text-blue-800 mb-1 flex items-center gap-2"><Upload size={15} />Carga masiva de pagos</p>
-              <p className="text-sm text-blue-700">Sube un Excel con múltiples pagos. Las columnas requeridas son:</p>
-              <ul className="mt-1 text-xs text-blue-600 list-disc list-inside">
+              <p className="font-semibold text-black mb-1 flex items-center gap-2"><Upload size={15} />Carga masiva de pagos</p>
+              <p className="text-sm text-gray-700">Sube un Excel con múltiples pagos. Las columnas requeridas son:</p>
+              <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
                 <li><b>N° OC</b>, <b>N° Comprobante</b>, <b>Fecha (YYYY-MM-DD)</b>, <b>Monto</b></li>
                 <li>Opcionales: Tipo Comprobante, Tipo Pago, Tipo de Cambio (solo USD), Observaciones</li>
               </ul>
             </div>
             <button
               onClick={descargarPlantilla}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-black text-black rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shrink-0"
             >
               <Download size={14} />
               Descargar plantilla
@@ -614,7 +618,7 @@ const RegistrarPago = () => {
           {/* Drop / select area */}
           {!resultadosMasivos && (
             <div
-              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#004990] hover:bg-blue-50/30 transition-colors"
+              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-black hover:bg-gray-100/30 transition-colors"
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onArchivoMasivo(f); }}
@@ -641,7 +645,7 @@ const RegistrarPago = () => {
                   { label: "Total filas", valor: statsFilas.total, color: "text-gray-800" },
                   { label: "Válidas", valor: statsFilas.validas, color: "text-green-700" },
                   { label: "Con errores", valor: statsFilas.invalidas, color: statsFilas.invalidas > 0 ? "text-red-600" : "text-gray-400" },
-                  { label: "Monto total", valor: `S/ ${statsFilas.montoTotal.toFixed(2)}`, color: "text-blue-700", raw: true },
+                  { label: "Monto total", valor: `S/ ${statsFilas.montoTotal.toFixed(2)}`, color: "text-black", raw: true },
                 ].map(({ label, valor, color, raw }) => (
                   <div key={label} className="bg-white border rounded-xl p-3 text-center shadow-sm">
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -669,7 +673,7 @@ const RegistrarPago = () => {
                       {filasMasivas.map((f, i) => (
                         <tr key={i} className={`border-t ${f.valido ? "hover:bg-gray-50" : "bg-red-50"}`}>
                           <td className="px-3 py-1.5 text-gray-400">{f.fila}</td>
-                          <td className="px-3 py-1.5 font-mono font-semibold text-[#004990]">{f.nroOC}</td>
+                          <td className="px-3 py-1.5 font-mono font-semibold text-black">{f.nroOC}</td>
                           <td className="px-3 py-1.5">{f.tipoComprobante} {f.nroComprobante}</td>
                           <td className="px-3 py-1.5 whitespace-nowrap">{f.fecha}</td>
                           <td className="px-3 py-1.5 font-mono">{f.monto > 0 ? f.monto.toFixed(2) : "—"}</td>
@@ -693,7 +697,7 @@ const RegistrarPago = () => {
                 <button
                   onClick={procesarPagosMasivos}
                   disabled={procesandoMasivo || statsFilas.validas === 0}
-                  className={`px-5 py-2 rounded text-white text-sm font-medium transition-colors flex items-center gap-2 ${procesandoMasivo || statsFilas.validas === 0 ? "bg-green-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                  className={`px-5 py-2 rounded text-sm font-semibold transition-colors flex items-center gap-2 ${procesandoMasivo || statsFilas.validas === 0 ? "bg-[#f0c000]/60 text-black cursor-not-allowed" : "bg-[#f0c000] hover:bg-[#d4a800] text-black"}`}
                 >
                   {procesandoMasivo ? (
                     <><Clock size={14} className="animate-spin" />Procesando…</>
@@ -715,7 +719,7 @@ const RegistrarPago = () => {
                 </p>
                 <button
                   onClick={limpiarMasivo}
-                  className="text-xs text-[#004990] font-medium hover:underline"
+                  className="text-xs text-black font-medium hover:underline"
                 >
                   Cargar otro archivo
                 </button>
@@ -732,7 +736,7 @@ const RegistrarPago = () => {
                   <tbody>
                     {resultadosMasivos.map((r, i) => (
                       <tr key={i} className={`border-t ${r.exito ? "bg-green-50/40" : "bg-red-50"}`}>
-                        <td className="px-3 py-1.5 font-mono font-semibold text-[#004990]">{r.nroOC}</td>
+                        <td className="px-3 py-1.5 font-mono font-semibold text-black">{r.nroOC}</td>
                         <td className="px-3 py-1.5">{r.tipoComprobante} {r.nroComprobante}</td>
                         <td className="px-3 py-1.5 font-mono">{r.monto.toFixed(2)}</td>
                         <td className="px-3 py-1.5">

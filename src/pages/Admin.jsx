@@ -24,6 +24,7 @@ import GestorUsuarios from "../components/admin/GestorUsuarios";
 import GestorCentrosCosto from "../components/admin/GestorCentrosCosto";
 import GestorCondicionesPago from "../components/admin/GestorCondicionesPago";
 import GestorAprobaciones from "../components/admin/GestorAprobaciones";
+import BackButton from "../components/ui/BackButton";
 
 const Admin = () => {
   const { usuario, cargando } = useUsuario();
@@ -141,7 +142,10 @@ const Admin = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="page-header">
-        <h2 className="page-title">Panel de Administración</h2>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h2 className="page-title">Panel de Administración</h2>
+        </div>
       </div>
 
       <ResumenCards ordenes={ordenes} cotizaciones={cotizaciones} proveedores={proveedores} />

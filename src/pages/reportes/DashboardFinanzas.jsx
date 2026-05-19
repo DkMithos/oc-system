@@ -13,10 +13,62 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
+const DEMO_FINANZAS = {
+  resumenFinanzas: {
+    ingresosPen: 384200, egresosPen: 267800, netoPen: 116400,
+    ingresosUsd: 42600, egresosUsd: 31200, netoUsd: 11400,
+    capexPen: 185000, opexPen: 82800, capexUsd: 24000, opexUsd: 7200,
+    totalTransacciones: 148,
+  },
+  flujoMensualPen: [
+    { label: "Dic 2025", ingresos: 58200, egresos: 41400, neto: 16800 },
+    { label: "Ene 2026", ingresos: 62400, egresos: 44800, neto: 17600 },
+    { label: "Feb 2026", ingresos: 71800, egresos: 48200, neto: 23600 },
+    { label: "Mar 2026", ingresos: 84300, egresos: 52600, neto: 31700 },
+    { label: "Abr 2026", ingresos: 69400, egresos: 45800, neto: 23600 },
+    { label: "May 2026", ingresos: 38100, egresos: 35000, neto: 3100 },
+  ],
+  flujoMensualUsd: [
+    { label: "Dic 2025", ingresos: 7200, egresos: 5400, neto: 1800 },
+    { label: "Ene 2026", ingresos: 8100, egresos: 5800, neto: 2300 },
+    { label: "Feb 2026", ingresos: 9400, egresos: 6200, neto: 3200 },
+    { label: "Mar 2026", ingresos: 7800, egresos: 5800, neto: 2000 },
+    { label: "Abr 2026", ingresos: 6900, egresos: 4900, neto: 2000 },
+    { label: "May 2026", ingresos: 3200, egresos: 3100, neto: 100 },
+  ],
+  rankingCategorias: [
+    { categoria: "Equipos y Maquinaria", netoGlobal: 185400 },
+    { categoria: "Combustibles", netoGlobal: 142600 },
+    { categoria: "Repuestos", netoGlobal: 98200 },
+    { categoria: "Servicios Externos", netoGlobal: 74800 },
+    { categoria: "Materiales", netoGlobal: 52100 },
+  ],
+  rankingCentrosCosto: [
+    { centroCosto: "Mina Norte", netoGlobal: 228000 },
+    { centroCosto: "Planta Central", netoGlobal: 184500 },
+    { centroCosto: "Logística", netoGlobal: 112300 },
+    { centroCosto: "Administración", netoGlobal: 68700 },
+  ],
+  porFormaPago: [
+    { formaPago: "Transferencia", netoGlobal: 312400 },
+    { formaPago: "CIPRL", netoGlobal: 85200 },
+    { formaPago: "Cheque", netoGlobal: 98600 },
+    { formaPago: "Efectivo", netoGlobal: 42800 },
+  ],
+  ultimas: [
+    { id: "t1", fechaISO: "2026-05-12", tipo: "Egreso", clasificacion: "OPEX", moneda: "PEN", monto: 28400, categoria: "Combustibles", centroCosto: "Mina Norte", formaPago: "Transferencia", estado: "Pagado", documento: "FAC-001-4821", ocNumero: "OC-2026-0186", notas: "" },
+    { id: "t2", fechaISO: "2026-05-10", tipo: "Ingreso", clasificacion: "CAPEX", moneda: "USD", monto: 4800, categoria: "Equipos y Maquinaria", centroCosto: "Planta Central", formaPago: "CIPRL", estado: "Pagado", documento: "FAC-002-1244", ocNumero: "OC-2026-0185", notas: "" },
+    { id: "t3", fechaISO: "2026-05-08", tipo: "Egreso", clasificacion: "OPEX", moneda: "PEN", monto: 18600, categoria: "Repuestos", centroCosto: "Mina Norte", formaPago: "Cheque", estado: "Pagado", documento: "FAC-001-3988", ocNumero: "OC-2026-0184", notas: "" },
+    { id: "t4", fechaISO: "2026-05-06", tipo: "Egreso", clasificacion: "OPEX", moneda: "PEN", monto: 12300, categoria: "Servicios Externos", centroCosto: "Logística", formaPago: "Transferencia", estado: "Pendiente", documento: "FAC-003-0812", ocNumero: "OC-2026-0183", notas: "Pendiente confirmación" },
+    { id: "t5", fechaISO: "2026-05-03", tipo: "Egreso", clasificacion: "OPEX", moneda: "PEN", monto: 4200, categoria: "Materiales", centroCosto: "Administración", formaPago: "Efectivo", estado: "Pagado", documento: "REC-001-0091", ocNumero: "", notas: "" },
+  ],
+};
+
 const DashboardFinanzas = ({ filtros }) => {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [esDemo, setEsDemo] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -27,7 +79,13 @@ const DashboardFinanzas = ({ filtros }) => {
       try {
         const res = await obtenerIndicadoresFinanzas(filtros);
         if (!activo) return;
-        setData(res);
+        if (!res || ((res.resumenFinanzas?.ingresosPen ?? 0) + (res.resumenFinanzas?.egresosPen ?? 0)) < 1000) {
+          setData(DEMO_FINANZAS);
+          setEsDemo(true);
+        } else {
+          setData(res);
+          setEsDemo(false);
+        }
       } catch (e) {
         console.error("Error cargando indicadores de Finanzas:", e);
         if (activo) setError("No se pudieron cargar los indicadores de Finanzas.");
@@ -245,6 +303,11 @@ const DashboardFinanzas = ({ filtros }) => {
 
   return (
     <div className="space-y-4">
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center">
+          Vista previa con datos de ejemplo — no hay transacciones financieras en el periodo seleccionado.
+        </p>
+      )}
       {/* Encabezado + export */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

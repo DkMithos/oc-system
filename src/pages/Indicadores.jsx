@@ -1,4 +1,4 @@
-// ✅ src/pages/Indicadores.jsx
+﻿// ✅ src/pages/Indicadores.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
 import { obtenerTodasOC } from "../firebase/dashboardHelpers";
@@ -19,6 +19,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 // Paleta simple
 const colores = [
@@ -230,7 +231,10 @@ const Indicadores = () => {
   // ─────────────────────────────────────────────────────────────
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">📊 Indicadores del Sistema</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">📊 Indicadores del Sistema</h2>
+      </div>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-4 mb-6">
@@ -301,7 +305,7 @@ const Indicadores = () => {
 const Indicador = ({ titulo, valor }) => (
   <div className="bg-white shadow p-4 rounded">
     <p className="text-sm text-gray-500">{titulo}</p>
-    <p className="text-xl font-bold text-blue-800">{valor}</p>
+    <p className="text-xl font-bold text-black">{valor}</p>
   </div>
 );
 

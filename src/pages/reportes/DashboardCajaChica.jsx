@@ -15,10 +15,45 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
+const DEMO_CAJA = {
+  resumenCajaChica: {
+    ingresosPen: 28500, egresosPen: 19800, saldoPen: 8700,
+    ingresosUsd: 3200, egresosUsd: 2100, saldoUsd: 1100,
+    totalMovimientos: 64,
+  },
+  porCaja: [
+    { cajaId: "Caja Principal", saldoPen: 4800, saldoUsd: 800 },
+    { cajaId: "Caja Obras", saldoPen: 2400, saldoUsd: 300 },
+    { cajaId: "Caja Admin", saldoPen: 1500, saldoUsd: 0 },
+  ],
+  rankingCentrosCosto: [
+    { nombre: "Mina Norte", saldoGlobal: 4200 },
+    { nombre: "Planta Central", saldoGlobal: 3100 },
+    { nombre: "Logística", saldoGlobal: 2800 },
+    { nombre: "Administración", saldoGlobal: 1600 },
+  ],
+  egresosMensuales: [
+    { label: "Dic 2025", pen: 2800, usd: 300 },
+    { label: "Ene 2026", pen: 3200, usd: 350 },
+    { label: "Feb 2026", pen: 3600, usd: 400 },
+    { label: "Mar 2026", pen: 4100, usd: 420 },
+    { label: "Abr 2026", pen: 3800, usd: 380 },
+    { label: "May 2026", pen: 2300, usd: 250 },
+  ],
+  ultimosMovs: [
+    { id:"m1", cajaId:"Caja Principal", fechaISO:"2026-05-12", tipo:"Egreso", moneda:"PEN", monto:850, centroCosto:"Mina Norte", descripcion:"Compra de combustible emergencia", creadoPor:"J. García" },
+    { id:"m2", cajaId:"Caja Obras", fechaISO:"2026-05-10", tipo:"Egreso", moneda:"PEN", monto:420, centroCosto:"Planta Central", descripcion:"Materiales ferretería", creadoPor:"R. López" },
+    { id:"m3", cajaId:"Caja Principal", fechaISO:"2026-05-09", tipo:"Ingreso", moneda:"PEN", monto:5000, centroCosto:"Administración", descripcion:"Reposición fondos", creadoPor:"A. Torres" },
+    { id:"m4", cajaId:"Caja Admin", fechaISO:"2026-05-07", tipo:"Egreso", moneda:"PEN", monto:280, centroCosto:"Administración", descripcion:"Útiles de oficina", creadoPor:"M. Quispe" },
+    { id:"m5", cajaId:"Caja Obras", fechaISO:"2026-05-05", tipo:"Egreso", moneda:"USD", monto:180, centroCosto:"Logística", descripcion:"Repuesto importado urgente", creadoPor:"J. García" },
+  ],
+};
+
 const DashboardCajaChica = ({ filtros }) => {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [esDemo, setEsDemo] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -29,7 +64,13 @@ const DashboardCajaChica = ({ filtros }) => {
       try {
         const res = await obtenerIndicadoresCajaChica(filtros);
         if (!activo) return;
-        setData(res);
+        if (!res || ((res.resumenCajaChica?.ingresosPen ?? 0) + (res.resumenCajaChica?.egresosPen ?? 0)) < 100) {
+          setData(DEMO_CAJA);
+          setEsDemo(true);
+        } else {
+          setData(res);
+          setEsDemo(false);
+        }
       } catch (e) {
         console.error("Error cargando indicadores de Caja Chica:", e);
         if (activo) setError("No se pudieron cargar los indicadores de Caja Chica.");
@@ -231,6 +272,11 @@ const DashboardCajaChica = ({ filtros }) => {
 
   return (
     <div className="space-y-4">
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center">
+          Vista previa con datos de ejemplo — no hay movimientos de Caja Chica en el periodo seleccionado.
+        </p>
+      )}
       {/* Encabezado y exportaciones */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

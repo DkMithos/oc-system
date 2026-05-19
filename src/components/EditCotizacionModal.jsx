@@ -205,7 +205,7 @@ const EditCotizacionModal = ({ cotizacion, onClose, onSaved }) => {
             Cancelar
           </button>
           <button
-            className="px-3 py-1 rounded bg-[#004990] text-white disabled:opacity-60"
+            className="px-3 py-1 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold disabled:opacity-60 transition-colors"
             onClick={save}
             disabled={guardando}
           >

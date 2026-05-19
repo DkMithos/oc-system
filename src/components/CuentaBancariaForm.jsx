@@ -61,7 +61,7 @@ const CuentaBancariaForm = ({
       <button
         type="button"
         onClick={agregarCuenta}
-        className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700"
+        className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-1 rounded transition-colors"
       >
         Agregar Cuenta
       </button>

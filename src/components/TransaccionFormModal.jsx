@@ -506,7 +506,7 @@ export default function TransaccionFormModal({
               Cancelar
             </button>
             <button type="submit" disabled={guardando}
-              className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs sm:text-sm font-medium text-white disabled:opacity-60">
+              className="px-3 py-1.5 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-xs sm:text-sm font-semibold text-black disabled:opacity-60 transition-colors">
               {guardando ? "Guardando..." : form.id ? "Guardar cambios" : "Crear transaccion"}
             </button>
           </div>

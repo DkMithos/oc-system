@@ -29,11 +29,11 @@ const GestorCondicionesPago = ({ condiciones = [], agregar, cambiarEstado }) => 
           placeholder="Nueva condición de pago"
           value={nuevo}
           onChange={(e) => setNuevo(e.target.value)}
-          className="border px-3 py-2 rounded w-full"
+          className="border border-gray-300 px-3 py-2 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
         />
         <button
           onClick={handleAgregar}
-          className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700"
+          className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 rounded-lg transition-colors"
         >
           Agregar
         </button>
@@ -77,7 +77,7 @@ const GestorCondicionesPago = ({ condiciones = [], agregar, cambiarEstado }) => 
                     <select
                       value={c.estado || "Activo"}
                       onChange={(e) => cambiarEstado(c.id, c.nombre, e.target.value)}
-                      className="border px-2 py-1 rounded"
+                      className="border border-gray-300 px-2 py-1 rounded text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
                     >
                       {ESTADOS.map((e) => (
                         <option key={e} value={e}>
@@ -101,7 +101,7 @@ const GestorCondicionesPago = ({ condiciones = [], agregar, cambiarEstado }) => 
               key={n}
               onClick={() => setPagina(n)}
               className={`px-3 py-1 rounded border ${
-                pagina === n ? "bg-blue-600 text-white" : "bg-white text-gray-700"
+                pagina === n ? "bg-black text-white" : "bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
               {n}

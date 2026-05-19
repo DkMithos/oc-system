@@ -1,4 +1,4 @@
-// src/pages/PresupuestoVsEjecutado.jsx
+﻿// src/pages/PresupuestoVsEjecutado.jsx
 // Fase 4: Comparativo Presupuesto vs Ejecutado con semáforos,
 // tabla detallada, gráfico mensual y gestión de presupuesto.
 
@@ -14,6 +14,7 @@ import {
 } from "../firebase/presupuestoHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 
 // ── Constantes ──────────────────────────────────────────
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -177,7 +178,10 @@ export default function PresupuestoVsEjecutado() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Presupuesto vs Ejecutado</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Presupuesto vs Ejecutado</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Comparativo de presupuesto asignado contra gasto real — {anio}
           </p>
@@ -195,7 +199,7 @@ export default function PresupuestoVsEjecutado() {
           {puedeEditar && !editando && (
             <button
               onClick={iniciarEdicion}
-              className="bg-[#004990] text-white text-xs px-3 py-1.5 rounded hover:bg-[#003670] transition-colors"
+              className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
             >
               {data?.tienePresupuesto ? "Editar Presupuesto" : "Cargar Presupuesto"}
             </button>
@@ -205,7 +209,7 @@ export default function PresupuestoVsEjecutado() {
 
       {/* ── KPIs globales ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Presupuesto Total" valor={resumen.totalPresupuesto} prefijo="S/ " color="text-[#004990]" />
+        <KpiCard label="Presupuesto Total" valor={resumen.totalPresupuesto} prefijo="S/ " color="text-black" />
         <KpiCard label="Ejecutado" valor={resumen.totalEjecutado} prefijo="S/ " color="text-gray-800" />
         <KpiCard
           label="Variación"
@@ -242,7 +246,7 @@ export default function PresupuestoVsEjecutado() {
       {editando && (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b bg-blue-50 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#004990]">
+            <h3 className="text-sm font-semibold text-black">
               Editar Presupuesto {anio} (valores en PEN)
             </h3>
             <div className="flex gap-2">
@@ -255,7 +259,7 @@ export default function PresupuestoVsEjecutado() {
               <button
                 onClick={guardarPresupuesto}
                 disabled={guardando}
-                className="text-xs px-3 py-1 rounded bg-[#004990] text-white hover:bg-[#003670] disabled:opacity-50"
+                className="text-xs px-3 py-1 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold disabled:opacity-50 transition-colors"
               >
                 {guardando ? "Guardando..." : "Guardar"}
               </button>
@@ -320,7 +324,7 @@ export default function PresupuestoVsEjecutado() {
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Presupuesto</span>
-                      <span className="font-medium text-[#004990]">S/ {fmt(a.presupuesto)}</span>
+                      <span className="font-medium text-black">S/ {fmt(a.presupuesto)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Ejecutado</span>
@@ -433,7 +437,7 @@ export default function PresupuestoVsEjecutado() {
                   <tr key={`${r.area}-${r.mes}`} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2 font-medium text-gray-700">{r.areaLabel}</td>
                     <td className="px-4 py-2 text-center text-gray-600">{MESES[r.mes - 1]}</td>
-                    <td className="px-4 py-2 text-right font-mono text-[#004990]">{fmt(r.presupuesto)}</td>
+                    <td className="px-4 py-2 text-right font-mono text-black">{fmt(r.presupuesto)}</td>
                     <td className="px-4 py-2 text-right font-mono text-gray-800">{fmt(r.ejecutado)}</td>
                     <td className={`px-4 py-2 text-right font-mono ${r.variacion > 0 ? "text-red-600" : "text-emerald-600"}`}>
                       {r.variacion > 0 ? "+" : ""}{fmt(r.variacion)}

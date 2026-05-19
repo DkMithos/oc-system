@@ -3,6 +3,7 @@ import { asignarTicket, cambiarEstadoTicket, escucharTicket, listarTicketsAdmin 
 import TicketChat from "../components/TicketChat";
 import { useUsuario } from "../context/UsuarioContext";
 import { PageLoader } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 
 const AdminTickets = () => {
   const { usuario, cargando: loading } = useUsuario();
@@ -62,9 +63,12 @@ const AdminTickets = () => {
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-1 space-y-4">
         <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-3">Tickets</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <BackButton />
+            <h2 className="text-lg font-bold">Tickets</h2>
+          </div>
           <div className="flex gap-2 mb-3">
-            <select className="border rounded px-2 py-1 text-sm" value={filtro.estado} onChange={e => setFiltro(f => ({ ...f, estado: e.target.value }))}>
+            <select className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400" value={filtro.estado} onChange={e => setFiltro(f => ({ ...f, estado: e.target.value }))}>
               <option value="">Todos</option>
               <option value="abierto">Abiertos</option>
               <option value="en_progreso">En progreso</option>
@@ -84,7 +88,7 @@ const AdminTickets = () => {
               <button
                 key={t.id}
                 onClick={() => setSeleccionado(t)}
-                className={`w-full text-left p-2 rounded border hover:bg-gray-50 ${seleccionado?.id === t.id ? "border-blue-500" : "border-gray-200"}`}
+                className={`w-full text-left p-2 rounded-lg border hover:bg-gray-50 transition-colors ${seleccionado?.id === t.id ? "border-black" : "border-gray-200"}`}
               >
                 <div className="flex justify-between">
                   <div className="font-semibold text-sm">{t.asunto}</div>
@@ -119,15 +123,15 @@ const AdminTickets = () => {
               <div className="flex flex-wrap gap-2">
                 {!seleccionado.asignadoA && (
                   <>
-                    <button onClick={tomarTicket} className="bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 text-sm">
+                    <button onClick={tomarTicket} className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-3 py-1 rounded-lg text-sm transition-colors">
                       Tomar ticket
                     </button>
-                    <button onClick={tomarTicketKevin} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm" title="Asignar directamente a Kevin">
+                    <button onClick={tomarTicketKevin} className="bg-black hover:bg-gray-800 text-white px-3 py-1 rounded-lg text-sm transition-colors" title="Asignar directamente a Kevin">
                       Tomar ticket (Kevin)
                     </button>
                   </>
                 )}
-                <select className="border rounded px-2 py-1 text-sm" value={seleccionado.estado} onChange={(e) => cambiarEstado(e.target.value)}>
+                <select className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400" value={seleccionado.estado} onChange={(e) => cambiarEstado(e.target.value)}>
                   <option value="abierto">Abierto</option>
                   <option value="en_progreso">En progreso</option>
                   <option value="resuelto">Resuelto</option>
@@ -144,7 +148,7 @@ const AdminTickets = () => {
                 <ul className="list-disc ml-5">
                   {seleccionado.adjuntos.map((a, i) => (
                     <li key={`${a.url}-${i}`}>
-                      <a className="text-blue-700 underline" href={a.url} target="_blank" rel="noreferrer">
+                      <a className="text-black underline hover:font-semibold transition-all" href={a.url} target="_blank" rel="noreferrer">
                         {a.nombre || "Archivo"}
                       </a>
                     </li>

@@ -1,8 +1,9 @@
-// src/pages/InstrumentosFinancieros.jsx
+﻿// src/pages/InstrumentosFinancieros.jsx
 // Fase 6: Gestión de instrumentos financieros (CIPRL, cartas fianza, etc.)
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 import { toast } from "react-toastify";
 import {
   obtenerInstrumentos,
@@ -53,14 +54,14 @@ function ModalCrear({ onClose, onCreado, email }) {
     }
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none";
+  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 focus:border-gray-400 outline-none";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#004990]">Nuevo Instrumento Financiero</h2>
+          <h2 className="text-lg font-bold text-black">Nuevo Instrumento Financiero</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
@@ -124,7 +125,7 @@ function ModalCrear({ onClose, onCreado, email }) {
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={guardando} className="px-4 py-2 text-sm bg-[#004990] text-white rounded-lg hover:bg-[#003670] disabled:opacity-50 flex items-center gap-1.5">
+            <button type="submit" disabled={guardando} className="px-4 py-2 text-sm bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1.5 transition-colors">
               {guardando ? "Guardando..." : <><Plus size={14} /> Crear</>}
             </button>
           </div>
@@ -162,21 +163,21 @@ function ModalMovimiento({ instrumento, tipo, onClose, onGuardado, email }) {
     }
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none";
+  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 focus:border-gray-400 outline-none";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#004990]">
+          <h2 className="text-lg font-bold text-black">
             {esUso ? "Registrar Uso" : "Registrar Abono"} — {instrumento.codigo}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XCircle size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
           {esUso && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-              <span className="text-blue-700 font-medium">Saldo disponible:</span>{" "}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
+              <span className="text-gray-700 font-medium">Saldo disponible:</span>{" "}
               <span className="font-bold">{instrumento.moneda === "USD" ? "US$ " : "S/ "}{fmt(instrumento.saldo)}</span>
             </div>
           )}
@@ -265,17 +266,20 @@ export default function InstrumentosFinancieros() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Instrumentos Financieros</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Instrumentos Financieros</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             CIPRL, cartas fianza y otros instrumentos con saldo
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={cargar} disabled={cargando} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+          <button onClick={cargar} disabled={cargando} className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:border-gray-400 hover:text-black disabled:opacity-50 transition-colors">
             <RefreshCw size={14} className={cargando ? "animate-spin" : ""} /> Actualizar
           </button>
           {puedeEditar && (
-            <button onClick={() => setModalCrear(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#004990] text-white rounded-lg text-sm hover:bg-[#003670]">
+            <button onClick={() => setModalCrear(true)} className="flex items-center gap-1.5 px-4 py-2 bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold rounded-lg text-sm transition-colors">
               <Plus size={14} /> Nuevo
             </button>
           )}
@@ -289,7 +293,7 @@ export default function InstrumentosFinancieros() {
             <FileText size={14} className="text-gray-400" />
             <p className="text-[10px] text-gray-500 uppercase font-medium">Instrumentos Activos</p>
           </div>
-          <p className="text-xl font-bold text-[#004990]">{activos.length}</p>
+          <p className="text-xl font-bold text-black">{activos.length}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
@@ -316,11 +320,11 @@ export default function InstrumentosFinancieros() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
-        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none">
+        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-black/20 outline-none">
           <option value="">Todos los tipos</option>
           {TIPOS_INSTRUMENTO.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
         </select>
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none">
+        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-black/20 outline-none">
           <option value="">Todos los estados</option>
           <option value="activo">Activo</option>
           <option value="agotado">Agotado</option>
@@ -336,7 +340,7 @@ export default function InstrumentosFinancieros() {
             <FileText size={40} className="mx-auto mb-3 text-gray-300" />
             <p className="text-gray-400">No hay instrumentos financieros registrados</p>
             {puedeEditar && (
-              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-[#004990] underline hover:text-[#003670]">
+              <button onClick={() => setModalCrear(true)} className="mt-3 text-sm text-black underline hover:font-semibold transition-all">
                 Crear el primero
               </button>
             )}
@@ -367,7 +371,7 @@ export default function InstrumentosFinancieros() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-gray-800">{inst.codigo}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
                           {tipoLabel}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${ESTADOS_BADGE[inst.estado] || ESTADOS_BADGE.activo}`}>

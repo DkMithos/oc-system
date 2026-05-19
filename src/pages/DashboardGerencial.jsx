@@ -1,4 +1,4 @@
-// src/pages/DashboardGerencial.jsx
+﻿// src/pages/DashboardGerencial.jsx
 // Dashboard ejecutivo para Gerencia: KPIs consolidados, alertas urgentes,
 // gráficos por área, tendencia mensual, proveedores pendientes y top categorías.
 
@@ -12,6 +12,7 @@ import { obtenerIndicadoresGerencial } from "../firebase/reportesHelpers";
 import { useUsuario } from "../context/UsuarioContext";
 import { useNavigate } from "react-router-dom";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 
 // ── Constantes ─────────────────────────────────────────────────
 const AREAS_META = {
@@ -103,7 +104,10 @@ export default function DashboardGerencial() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Dashboard Gerencial</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Dashboard Gerencial</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">Resumen ejecutivo de flujos financieros — {anio}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +115,7 @@ export default function DashboardGerencial() {
           <select
             value={anio}
             onChange={(e) => setAnio(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-black"
           >
             {[2024, 2025, 2026, 2027].map((a) => (
               <option key={a} value={a}>{a}</option>
@@ -122,7 +126,7 @@ export default function DashboardGerencial() {
 
       {/* ── FILA 1: KPIs principales ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label="Transacciones" valor={kpis.totalTransacciones} formato="entero" color="text-[#004990]" />
+        <KpiCard label="Transacciones" valor={kpis.totalTransacciones} formato="entero" color="text-black" />
         <KpiCard label="Ingresos" valor={kpis.ingresos} color="text-emerald-600" prefijo="S/ " />
         <KpiCard label="Egresos" valor={kpis.egresos} color="text-red-500" prefijo="S/ " />
         <KpiCard label="Flujo Neto" valor={kpis.flujoNeto} color={kpis.flujoNeto >= 0 ? "text-emerald-600" : "text-red-600"} prefijo="S/ " resaltado />
@@ -156,7 +160,7 @@ export default function DashboardGerencial() {
                     className={`border-t border-gray-100 cursor-pointer hover:bg-gray-50 ${a.urgente ? "bg-red-50/50" : ""}`}
                     onClick={() => navigate(`/ver?id=${a.id}`)}
                   >
-                    <td className="px-4 py-2 font-medium text-[#004990]">{a.numeroOC}</td>
+                    <td className="px-4 py-2 font-medium text-black">{a.numeroOC}</td>
                     <td className="px-4 py-2 text-gray-700 max-w-[200px] truncate">{a.proveedor}</td>
                     <td className="px-4 py-2">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -289,7 +293,7 @@ export default function DashboardGerencial() {
                 <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fmtK} />
                 <YAxis type="category" dataKey="nombre" tick={{ fontSize: 10 }} width={110} />
                 <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />
-                <Bar dataKey="monto" name="Egreso" fill="#8B5CF6" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="monto" name="Egreso" fill="#f0c000" radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -375,7 +379,7 @@ export default function DashboardGerencial() {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[80px]">
                         <div
-                          className="bg-[#004990] h-1.5 rounded-full"
+                          className="bg-black h-1.5 rounded-full"
                           style={{ width: `${Math.min(pctTotal, 100)}%` }}
                         />
                       </div>
@@ -404,7 +408,7 @@ function KpiCard({ label, valor, color = "text-gray-800", prefijo = "", formato,
     : fmtK(valor);
 
   return (
-    <div className={`bg-white border rounded-xl p-3 shadow-sm ${resaltado ? "border-[#004990] ring-1 ring-[#004990]/20" : "border-gray-200"}`}>
+    <div className={`bg-white border rounded-xl p-3 shadow-sm ${resaltado ? "border-black ring-1 ring-black/10" : "border-gray-200"}`}>
       <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">{label}</p>
       <p className={`mt-1 text-lg sm:text-xl font-bold font-mono ${color}`}>
         {prefijo}{display}

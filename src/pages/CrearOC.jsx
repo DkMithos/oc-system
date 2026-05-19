@@ -1,9 +1,9 @@
-// ✅ src/pages/CrearOC.jsx
+﻿// ✅ src/pages/CrearOC.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { PageLoader } from "../components/ui/Skeleton";
 import { useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import Logo from "../assets/Logo_OC.png";
+import Logo from "../assets/logo-memphis.svg";
 import { useUsuario } from "../context/UsuarioContext";
 import { cargarConfigIGV, IGV_TASA_DEFAULT } from "../utils/igv";
 import { calcularDetraccion, calcularRetencion } from "../utils/detracciones";
@@ -20,6 +20,7 @@ import {
 } from "../firebase/firestoreHelpers";
 import { obtenerCotizaciones } from "../firebase/cotizacionesHelpers";
 import { obtenerRequerimientosPorRol } from "../firebase/requerimientosHelpers";
+import BackButton from "../components/ui/BackButton";
 
 const selectStyles = {
   control: (base) => ({
@@ -506,8 +507,9 @@ const CrearOC = () => {
   return (
     <div className="p-4 max-w-6xl mx-auto">
       <div className="flex items-center gap-4 mb-4">
-        <img src={Logo} alt="Memphis" className="h-10" />
+        <BackButton />
         <h1 className="text-xl font-semibold">Generar Orden</h1>
+        <img src={Logo} alt="Memphis" className="h-10 ml-auto" />
       </div>
 
       {error && (
@@ -538,7 +540,7 @@ const CrearOC = () => {
               {alertaDuplicado.ocs.map((oc) => (
                 <div key={oc.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-mono font-bold text-[#004990]">{oc.numeroOC || oc.id}</span>
+                    <span className="font-mono font-bold text-black">{oc.numeroOC || oc.id}</span>
                     <span className="text-gray-500 ml-2 text-xs">{oc.proveedor?.razonSocial || "—"}</span>
                   </div>
                   <span className="text-xs text-gray-400 whitespace-nowrap">{oc.fechaEmision || "—"}</span>
@@ -917,7 +919,7 @@ const CrearOC = () => {
 
         <div className="flex gap-2">
           <button type="submit" disabled={guardando}
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
+            className="px-4 py-2 rounded bg-[#f0c000] text-black font-semibold hover:bg-[#d4a800] disabled:opacity-60 transition-colors">
             {guardando ? "Guardando..." : "Generar Orden"}
           </button>
           <button type="button" className="px-4 py-2 rounded border" onClick={() => navigate(-1)}>

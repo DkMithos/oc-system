@@ -1,5 +1,6 @@
-// src/pages/Logs.jsx — Fase 7: Paginación + filtros de fecha
+﻿// src/pages/Logs.jsx — Fase 7: Paginación + filtros de fecha
 import React, { useEffect, useState, useCallback } from "react";
+import BackButton from "../components/ui/BackButton";
 import { obtenerLogsPaginados } from "../firebase/firestoreHelpers";
 import { exportarLogsAExcel } from "../utils/exportarLogsAExcel";
 import { RefreshCw, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
@@ -73,7 +74,10 @@ const Logs = () => {
     <div className="p-4 md:p-6 max-w-[1200px] mx-auto space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-[#004990]">Bitácora del Sistema</h2>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h2 className="text-2xl font-bold text-black">Bitácora del Sistema</h2>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">Registro de acciones del sistema</p>
         </div>
         <div className="flex gap-2">
@@ -86,7 +90,7 @@ const Logs = () => {
           </button>
           <button
             onClick={() => exportarLogsAExcel(logsFiltrados)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#004990] text-white rounded-lg text-sm hover:bg-[#003670]"
+            className="flex items-center gap-1.5 px-3 py-2 bg-black hover:bg-gray-800 text-white rounded-lg text-sm transition-colors"
           >
             <Download size={14} /> Exportar
           </button>
@@ -105,7 +109,7 @@ const Logs = () => {
                 placeholder="OC, usuario o acción..."
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none"
+                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-black/20 focus:border-gray-400 outline-none"
               />
             </div>
           </div>
@@ -115,7 +119,7 @@ const Logs = () => {
               type="date"
               value={desde}
               onChange={(e) => setDesde(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 outline-none"
             />
           </div>
           <div>
@@ -124,7 +128,7 @@ const Logs = () => {
               type="date"
               value={hasta}
               onChange={(e) => setHasta(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-black/20 outline-none"
             />
           </div>
           {(desde || hasta) && (

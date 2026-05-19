@@ -1,5 +1,6 @@
 // ✅ src/pages/reportes/Reporteria.jsx
 import React, { useEffect, useState } from "react";
+import BackButton from "../../components/ui/BackButton";
 import DashboardGeneral from "./DashboardGeneral";
 import DashboardCajaChica from "./DashboardCajaChica";
 import DashboardFinanzas from "./DashboardFinanzas";
@@ -85,9 +86,12 @@ const Reporteria = () => {
     <div className="space-y-4">
       {/* Encabezado */}
       <div>
-        <h1 className="text-2xl font-semibold text-gray-800">
-          Reportería &amp; Dashboards
-        </h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-2xl font-semibold text-black">
+            Reportería &amp; Dashboards
+          </h1>
+        </div>
         <p className="text-sm text-gray-500 mt-1">
           Usa el buscador para filtrar por rango de fechas, centro de costo o
           proveedor. Luego explora los dashboards en cada pestaña.
@@ -107,7 +111,7 @@ const Reporteria = () => {
               name="fechaDesde"
               value={filtros.fechaDesde}
               onChange={handleFiltroChange}
-              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500"
+              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
             />
           </div>
 
@@ -121,7 +125,7 @@ const Reporteria = () => {
               name="fechaHasta"
               value={filtros.fechaHasta}
               onChange={handleFiltroChange}
-              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500"
+              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
             />
           </div>
 
@@ -134,7 +138,7 @@ const Reporteria = () => {
               name="centro_costo_id"
               value={filtros.centro_costo_id}
               onChange={handleFiltroChange}
-              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500"
+              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
             >
               <option value="">Todos</option>
               {centrosCosto.map((cc) => (
@@ -157,7 +161,7 @@ const Reporteria = () => {
               onChange={handleFiltroChange}
               list="proveedores-reporteria"
               placeholder="RUC o raz&oacute;n social"
-              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-blue-500"
+              className="mt-1 bg-white border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-gray-400"
             />
             <datalist id="proveedores-reporteria">
               {proveedores.map((p) => (
@@ -199,7 +203,7 @@ const Reporteria = () => {
               className={
                 "px-3 py-1.5 rounded-full text-xs sm:text-sm border transition-colors " +
                 (dashboardActivo === t.id
-                  ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                  ? "bg-black text-white border-black shadow-sm"
                   : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
               }
             >

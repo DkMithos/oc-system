@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { Package, Plus, Pencil, X, Download, Search } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerCentrosCosto } from "../firebase/firestoreHelpers";
+import BackButton from "../components/ui/BackButton";
 import {
   escucharItemsInventario,
   agregarItemInventario,
@@ -184,7 +185,10 @@ const Inventario = () => {
         <div className="flex items-center gap-3">
           <div className="bg-blue-100 p-2 rounded-lg"><Package className="text-blue-600" size={24} /></div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+            <div className="flex items-center gap-2">
+              <BackButton />
+              <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+            </div>
             <p className="text-sm text-gray-500">Gestión de ítems estandarizados por centro de costo</p>
           </div>
         </div>
@@ -192,7 +196,7 @@ const Inventario = () => {
           <button onClick={exportar} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-600 text-green-700 hover:bg-green-50 text-sm font-medium">
             <Download size={16} /> Exportar
           </button>
-          <button onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+          <button onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black text-sm font-semibold transition-colors">
             <Plus size={16} /> Nuevo ítem
           </button>
         </div>
@@ -255,14 +259,14 @@ const Inventario = () => {
             </div>
             <div className="flex items-center gap-2 pt-1">
               <input type="checkbox" id="activoCheck" checked={form.activo}
-                onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="w-4 h-4 accent-blue-600" />
+                onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="w-4 h-4 accent-[#f0c000]" />
               <label htmlFor="activoCheck" className="text-sm text-gray-700">Activo</label>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-5">
             <button onClick={() => setMostrarForm(false)} className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
             <button onClick={guardar} disabled={guardando}
-              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60">
+              className="px-5 py-2 rounded-lg bg-[#f0c000] hover:bg-[#d4a800] text-black text-sm font-semibold disabled:opacity-60 transition-colors">
               {guardando ? "Guardando..." : editandoId ? "Actualizar" : "Registrar"}
             </button>
           </div>
@@ -289,7 +293,7 @@ const Inventario = () => {
           </select>
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
             <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)}
-              className="w-4 h-4 accent-blue-600" />
+              className="w-4 h-4 accent-[#f0c000]" />
             Mostrar inactivos
           </label>
         </div>
@@ -311,7 +315,7 @@ const Inventario = () => {
             )}
             {!cargando && itemsPagina.length === 0 && (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                No se encontraron ítems. {!mostrarForm && <button onClick={abrirNuevo} className="text-blue-600 underline ml-1">Agregar uno</button>}
+                No se encontraron ítems. {!mostrarForm && <button onClick={abrirNuevo} className="text-black underline ml-1 hover:font-semibold transition-all">Agregar uno</button>}
               </td></tr>
             )}
             {!cargando && itemsPagina.map((item, idx) => (
@@ -333,7 +337,7 @@ const Inventario = () => {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => abrirEditar(item)} className="p-1.5 rounded hover:bg-blue-100 text-blue-600" title="Editar"><Pencil size={14} /></button>
+                    <button onClick={() => abrirEditar(item)} className="p-1.5 rounded hover:bg-gray-100 text-black transition-colors" title="Editar"><Pencil size={14} /></button>
                     {item.activo !== false && (
                       <button onClick={() => desactivar(item)} className="p-1.5 rounded hover:bg-red-100 text-red-500" title="Desactivar"><X size={14} /></button>
                     )}
@@ -354,7 +358,7 @@ const Inventario = () => {
               <button key={l} onClick={() => setPagina(Math.max(1,p))} disabled={pagina===1}
                 className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">{l}</button>
             ))}
-            <span className="px-3 py-1 rounded border bg-blue-600 text-white">{pagina}</span>
+            <span className="px-3 py-1 rounded border bg-black text-white border-black">{pagina}</span>
             {[["›",pagina+1],["»",totalPaginas]].map(([l,p]) => (
               <button key={l} onClick={() => setPagina(Math.min(totalPaginas,p))} disabled={pagina===totalPaginas}
                 className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">{l}</button>

@@ -11,10 +11,24 @@ import * as XLSX from "xlsx";
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
+const DEMO_OPS = [
+  { id:"op1", fechaISO:"2026-05-12", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:42800, monto_total_pen:42800, categoriaNombre:"Combustibles", proveedor_cliente_nombre:"Petroperu S.A.", centro_costo_nombre:"Mina Norte", estado:"pagado" },
+  { id:"op2", fechaISO:"2026-05-10", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:28600, monto_total_pen:28600, categoriaNombre:"Repuestos", proveedor_cliente_nombre:"Ferreyros S.A.", centro_costo_nombre:"Planta Central", estado:"pagado" },
+  { id:"op3", fechaISO:"2026-05-08", tipo:"egreso", area:"operaciones", moneda:"USD", monto_total:9800, monto_total_pen:36260, categoriaNombre:"Equipos y Maquinaria", proveedor_cliente_nombre:"Komatsu Mitsui", centro_costo_nombre:"Mina Norte", estado:"pendiente" },
+  { id:"op4", fechaISO:"2026-04-28", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:18400, monto_total_pen:18400, categoriaNombre:"Servicios Externos", proveedor_cliente_nombre:"Tecniplus S.R.L.", centro_costo_nombre:"Logística", estado:"pagado" },
+  { id:"op5", fechaISO:"2026-04-20", tipo:"ingreso", area:"operaciones", moneda:"PEN", monto_total:85000, monto_total_pen:85000, categoriaNombre:"Transferencia Interna", proveedor_cliente_nombre:"Administración Central", centro_costo_nombre:"Mina Norte", estado:"pagado" },
+  { id:"op6", fechaISO:"2026-04-15", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:12300, monto_total_pen:12300, categoriaNombre:"Materiales", proveedor_cliente_nombre:"Suministros Técnicos", centro_costo_nombre:"Proyectos", estado:"pagado" },
+  { id:"op7", fechaISO:"2026-03-30", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:31500, monto_total_pen:31500, categoriaNombre:"Combustibles", proveedor_cliente_nombre:"Petroperu S.A.", centro_costo_nombre:"Planta Central", estado:"pagado" },
+  { id:"op8", fechaISO:"2026-03-22", tipo:"ingreso", area:"operaciones", moneda:"USD", monto_total:12000, monto_total_pen:44400, categoriaNombre:"Venta de Activos", proveedor_cliente_nombre:"Memphis Internacional", centro_costo_nombre:"Administración", estado:"pagado" },
+  { id:"op9", fechaISO:"2026-03-10", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:22800, monto_total_pen:22800, categoriaNombre:"Repuestos", proveedor_cliente_nombre:"SKF del Perú", centro_costo_nombre:"Mina Norte", estado:"pagado" },
+  { id:"op10", fechaISO:"2026-02-28", tipo:"egreso", area:"operaciones", moneda:"PEN", monto_total:9600, monto_total_pen:9600, categoriaNombre:"Servicios Externos", proveedor_cliente_nombre:"Epiroc Perú", centro_costo_nombre:"Logística", estado:"pendiente" },
+];
+
 const DashboardOperaciones = ({ filtros }) => {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [esDemo, setEsDemo] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -30,7 +44,15 @@ const DashboardOperaciones = ({ filtros }) => {
         });
         // Filtrar solo operaciones
         const ops = transacciones.filter((t) => t.area === "operaciones");
-        if (activo) setData(ops);
+        if (!activo) return;
+        const totalOps = ops.reduce((s, t) => s + Number(t.monto_total_pen ?? t.monto_total ?? 0), 0);
+        if (ops.length === 0 || totalOps < 1000) {
+          setData(DEMO_OPS);
+          setEsDemo(true);
+        } else {
+          setData(ops);
+          setEsDemo(false);
+        }
       } catch (e) {
         console.error("Error cargando DashboardOperaciones:", e);
         if (activo) setError("No se pudieron cargar los indicadores de Operaciones.");
@@ -148,6 +170,11 @@ const DashboardOperaciones = ({ filtros }) => {
 
   return (
     <div className="space-y-4">
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center">
+          Vista previa con datos de ejemplo — no hay transacciones de operaciones en el periodo seleccionado.
+        </p>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-gray-800">Dashboard Operaciones</h2>

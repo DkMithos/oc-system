@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { ClipboardCheck, CheckCircle, AlertCircle, Clock, ChevronRight, X } from "lucide-react";
 import { useUsuario } from "../context/UsuarioContext";
 import { obtenerOCsPorEstado } from "../firebase/firestoreHelpers";
+import BackButton from "../components/ui/BackButton";
 import { crearRecepcion, obtenerRecepcionesPorOC } from "../firebase/recepcionHelpers";
 
 // ── helpers ──────────────────────────────────────────────────
@@ -190,7 +191,10 @@ const RecepcionBienes = () => {
       <div className="flex items-center gap-3">
         <div className="bg-green-100 p-2 rounded-lg"><ClipboardCheck className="text-green-600" size={24} /></div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Recepción de Bienes y Servicios</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-gray-900">Recepción de Bienes y Servicios</h1>
+          </div>
           <p className="text-sm text-gray-500">Confirma la recepción de órdenes aprobadas</p>
         </div>
       </div>
@@ -226,8 +230,8 @@ const RecepcionBienes = () => {
                     onClick={() => seleccionarOC(oc)}
                     className={`w-full text-left p-3 rounded-lg border transition-all ${
                       activa
-                        ? "border-blue-400 bg-blue-50 shadow-sm"
-                        : "border-gray-200 hover:border-blue-200 hover:bg-blue-50"
+                        ? "border-black bg-[#f0c000]/10 shadow-sm"
+                        : "border-gray-200 hover:border-gray-400 hover:bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -352,7 +356,7 @@ const RecepcionBienes = () => {
                                   updateItemRec(idx, "cantidadRecibida", val ? it.cantidadOrdenada : 0);
                                 }
                               }}
-                              className={`w-4 h-4 ${esServicio ? "accent-blue-600 w-5 h-5" : "accent-green-600"}`}
+                              className={`w-4 h-4 accent-[#f0c000] ${esServicio ? "w-5 h-5" : ""}`}
                             />
                           </td>
                           <td className="px-3 py-2">

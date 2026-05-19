@@ -1,4 +1,4 @@
-// src/pages/Home.jsx
+﻿// src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUsuario } from "../context/UsuarioContext";
@@ -13,66 +13,66 @@ import {
 // ── Accesos rápidos por rol ──────────────────────────────────
 const ACCESOS_POR_ROL = {
   admin: [
-    { label: "Historial OCs",    path: "/historial",     color: "bg-[#004990]" },
+    { label: "Historial OCs",    path: "/historial",     color: "bg-black" },
     { label: "Panel Admin",      path: "/admin",         color: "bg-gray-700"  },
-    { label: "Dashboard",        path: "/dashboard",     color: "bg-blue-600"  },
+    { label: "Dashboard",        path: "/dashboard",     color: "bg-black"  },
     { label: "Logs",             path: "/logs",          color: "bg-red-600"   },
     { label: "Maestros",         path: "/cargar-maestros", color: "bg-purple-600" },
     { label: "Exportaciones",    path: "/exportaciones", color: "bg-green-600" },
   ],
   comprador: [
-    { label: "Nueva OC",         path: "/crear",         color: "bg-[#004990]" },
-    { label: "Requerimientos",   path: "/requerimientos",color: "bg-blue-600"  },
+    { label: "Nueva OC",         path: "/crear",         color: "bg-black" },
+    { label: "Requerimientos",   path: "/requerimientos",color: "bg-black"  },
     { label: "Cotizaciones",     path: "/cotizaciones",  color: "bg-indigo-600"},
     { label: "Mis OCs",          path: "/historial",     color: "bg-gray-600"  },
     { label: "Proveedores",      path: "/proveedores",   color: "bg-teal-600"  },
   ],
   operaciones: [
     { label: "Pendientes",       path: "/historial?bandeja=1", color: "bg-amber-600" },
-    { label: "Historial OCs",   path: "/historial",     color: "bg-[#004990]" },
+    { label: "Historial OCs",   path: "/historial",     color: "bg-black" },
     { label: "Caja Chica",       path: "/caja",          color: "bg-green-600" },
-    { label: "Requerimientos",   path: "/requerimientos",color: "bg-blue-600"  },
+    { label: "Requerimientos",   path: "/requerimientos",color: "bg-black"  },
   ],
   "gerencia operaciones": [
     { label: "Pendientes",       path: "/historial?bandeja=1", color: "bg-amber-600" },
-    { label: "Dashboard",        path: "/dashboard",     color: "bg-[#004990]" },
+    { label: "Dashboard",        path: "/dashboard",     color: "bg-black" },
     { label: "Caja Chica",       path: "/caja",          color: "bg-green-600" },
-    { label: "Indicadores",      path: "/indicadores",   color: "bg-blue-600"  },
+    { label: "Indicadores",      path: "/indicadores",   color: "bg-black"  },
   ],
   "gerencia general": [
     { label: "Pendientes",       path: "/historial?bandeja=1", color: "bg-amber-600" },
-    { label: "Dashboard",        path: "/dashboard",     color: "bg-[#004990]" },
-    { label: "Indicadores",      path: "/indicadores",   color: "bg-blue-600"  },
+    { label: "Dashboard",        path: "/dashboard",     color: "bg-black" },
+    { label: "Indicadores",      path: "/indicadores",   color: "bg-black"  },
     { label: "Resumen",          path: "/resumen",       color: "bg-gray-700"  },
   ],
   gerencia: [
     { label: "Pendientes",       path: "/historial?bandeja=1", color: "bg-amber-600" },
-    { label: "Dashboard",        path: "/dashboard",     color: "bg-[#004990]" },
-    { label: "Indicadores",      path: "/indicadores",   color: "bg-blue-600"  },
+    { label: "Dashboard",        path: "/dashboard",     color: "bg-black" },
+    { label: "Indicadores",      path: "/indicadores",   color: "bg-black"  },
   ],
   finanzas: [
     { label: "Registrar Pago",   path: "/pago",          color: "bg-green-600" },
-    { label: "Historial Pagos",  path: "/pagos",         color: "bg-[#004990]" },
-    { label: "Flujos Financ.",   path: "/flujos-financieros", color: "bg-blue-600" },
+    { label: "Historial Pagos",  path: "/pagos",         color: "bg-black" },
+    { label: "Flujos Financ.",   path: "/flujos-financieros", color: "bg-black" },
     { label: "Dashboard",        path: "/dashboard",     color: "bg-gray-600"  },
   ],
   "gerencia finanzas": [
-    { label: "Historial Pagos",  path: "/pagos",         color: "bg-[#004990]" },
-    { label: "Dashboard",        path: "/dashboard",     color: "bg-blue-600"  },
+    { label: "Historial Pagos",  path: "/pagos",         color: "bg-black" },
+    { label: "Dashboard",        path: "/dashboard",     color: "bg-black"  },
     { label: "Flujos Financ.",   path: "/flujos-financieros", color: "bg-green-600" },
     { label: "Indicadores",      path: "/indicadores",   color: "bg-gray-600"  },
   ],
   administracion: [
     { label: "Caja Chica",       path: "/caja",          color: "bg-green-600" },
-    { label: "Historial OCs",    path: "/historial",     color: "bg-[#004990]" },
-    { label: "Flujos Financ.",   path: "/flujos-financieros", color: "bg-blue-600" },
+    { label: "Historial OCs",    path: "/historial",     color: "bg-black" },
+    { label: "Flujos Financ.",   path: "/flujos-financieros", color: "bg-black" },
   ],
   legal: [
-    { label: "Historial OCs",    path: "/historial",     color: "bg-[#004990]" },
+    { label: "Historial OCs",    path: "/historial",     color: "bg-black" },
     { label: "Exportaciones",    path: "/exportaciones", color: "bg-green-600" },
   ],
   soporte: [
-    { label: "Tickets",          path: "/adminsoporte",  color: "bg-[#004990]" },
+    { label: "Tickets",          path: "/adminsoporte",  color: "bg-black" },
     { label: "Logs",             path: "/logs",          color: "bg-red-600"   },
     { label: "Historial OCs",    path: "/historial",     color: "bg-gray-600"  },
   ],
@@ -88,7 +88,7 @@ const BADGE = {
   "Pendiente de Gerencia General":     "bg-red-100 text-red-700",
   "Aprobada": "bg-green-100 text-green-800",
   "Rechazada": "bg-red-100 text-red-700",
-  "Pagado":   "bg-blue-100 text-blue-800",
+  "Pagado":   "bg-blue-100 text-black",
 };
 const badgeClass = (estado) => BADGE[estado] || "bg-gray-100 text-gray-600";
 
@@ -172,7 +172,7 @@ const Home = () => {
 
       {/* Saludo */}
       <div>
-        <h1 className="text-2xl font-bold text-[#004990]">
+        <h1 className="text-2xl font-bold text-black">
           Bienvenido, {usuario?.nombre || usuario?.email?.split("@")[0]}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -315,7 +315,7 @@ const Home = () => {
           </h2>
           <button
             onClick={() => navigate("/historial")}
-            className="text-xs text-[#004990] underline"
+            className="text-xs text-black underline"
           >
             Ver todas
           </button>
@@ -363,7 +363,7 @@ const Home = () => {
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => navigate(`/ver?id=${oc.id}`)}
-                        className="text-xs text-[#004990] underline"
+                        className="text-xs text-black underline"
                       >
                         Ver
                       </button>

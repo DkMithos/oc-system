@@ -1,6 +1,6 @@
-// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
-import { Menu, Bell, ChevronDown, LogOut, User, Settings } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+﻿// src/components/Topbar.jsx — Enterprise ERP Topbar (responsive)
+import { Menu, ChevronDown, LogOut, User, Settings, Home } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import logo from "../assets/logo-navbar.png";
 
@@ -23,35 +23,86 @@ const ROL_LABELS = {
   legal: "Legal",
 };
 
-/** Breadcrumb mapping para rutas conocidas */
-const BREADCRUMB_MAP = {
-  "/":                  ["Compras", "Inicio"],
-  "/historial":         ["Compras", "Historial OC"],
-  "/crear":             ["Compras", "Nueva Orden"],
-  "/cotizaciones":      ["Compras", "Cotizaciones"],
-  "/proveedores":       ["Compras", "Proveedores"],
-  "/requerimientos":    ["Compras", "Requerimientos"],
-  "/caja":              ["Finanzas", "Caja Chica"],
-  "/dashboard":         ["Finanzas", "Dashboard"],
-  "/pagos":             ["Finanzas", "Historial de Pagos"],
-  "/pago":              ["Finanzas", "Registrar Pago"],
-  "/flujos-financieros":["Finanzas", "Flujos Financieros"],
-  "/indicadores":       ["Reportes", "Indicadores"],
-  "/resumen":           ["Reportes", "Resumen General"],
-  "/reportes":          ["Reportes", "Reportería"],
-  "/exportaciones":     ["Reportes", "Centro de Exportaciones"],
-  "/soporte":           ["Soporte", "Tickets"],
-  "/adminsoporte":      ["Soporte", "Admin Tickets"],
-  "/mi-firma":          ["Soporte", "Mi Firma"],
-  "/admin":             ["Sistema", "Panel Admin"],
-  "/cargar-maestros":   ["Sistema", "Cargar Maestros"],
-  "/logs":              ["Sistema", "Bitácora"],
+/**
+ * Cada entrada define:
+ *  - modulo: texto del primer segmento
+ *  - label: texto del segundo segmento
+ *  - moduloLink: ruta al hacer clic en el módulo (opcional)
+ *  - parentLink: ruta al hacer clic en el label (si hay un tercer segmento)
+ *  - match: regex para rutas dinámicas (opcional)
+ *  - getId: función para extraer el ID del pathname (opcional)
+ */
+const RUTAS = [
+  { path: "/",                   modulo: "Inicio",   moduloLink: null,         label: "Inicio" },
+  { path: "/historial",          modulo: "Compras",  moduloLink: "/historial", label: "Historial OC" },
+  { path: "/crear",              modulo: "Compras",  moduloLink: "/historial", label: "Nueva Orden" },
+  { path: "/cotizaciones",       modulo: "Compras",  moduloLink: "/historial", label: "Cotizaciones" },
+  { path: "/proveedores",        modulo: "Compras",  moduloLink: "/historial", label: "Proveedores" },
+  { path: "/requerimientos",     modulo: "Compras",  moduloLink: "/historial", label: "Requerimientos" },
+  { path: "/inventario",         modulo: "Compras",  moduloLink: "/historial", label: "Inventario" },
+  { path: "/recepcion",          modulo: "Compras",  moduloLink: "/historial", label: "Recepción de Bienes" },
+  { path: "/solicitudes-edicion",modulo: "Compras",  moduloLink: "/historial", label: "Solicitudes de Edición" },
+  { path: "/caja",               modulo: "Finanzas", moduloLink: "/dashboard", label: "Caja Chica" },
+  { path: "/dashboard",          modulo: "Finanzas", moduloLink: "/dashboard", label: "Dashboard" },
+  { path: "/pagos",              modulo: "Finanzas", moduloLink: "/dashboard", label: "Historial de Pagos" },
+  { path: "/pago",               modulo: "Finanzas", moduloLink: "/dashboard", label: "Registrar Pago" },
+  { path: "/pagos-cc",           modulo: "Finanzas", moduloLink: "/dashboard", label: "Pagos por Centro de Costo" },
+  { path: "/flujos-financieros", modulo: "Finanzas", moduloLink: "/dashboard", label: "Flujos Financieros" },
+  { path: "/dashboard-gerencial",modulo: "Finanzas", moduloLink: "/dashboard", label: "Dashboard Gerencial" },
+  { path: "/presupuesto-vs-ejecutado", modulo: "Finanzas", moduloLink: "/dashboard", label: "Presupuesto vs Ejecutado" },
+  { path: "/mesa-pagos",         modulo: "Finanzas", moduloLink: "/dashboard", label: "Mesa de Pagos" },
+  { path: "/compromisos",        modulo: "Finanzas", moduloLink: "/dashboard", label: "Compromisos Activos" },
+  { path: "/instrumentos-financieros", modulo: "Finanzas", moduloLink: "/dashboard", label: "Instrumentos (CIPRL)" },
+  { path: "/planificacion",      modulo: "Finanzas", moduloLink: "/dashboard", label: "Planificación de Pagos" },
+  { path: "/importar-flujos",    modulo: "Finanzas", moduloLink: "/dashboard", label: "Importar Flujos" },
+  { path: "/reportes",           modulo: "Reportes", moduloLink: "/reportes",  label: "Reportería" },
+  { path: "/exportaciones",      modulo: "Reportes", moduloLink: "/reportes",  label: "Centro de Exportaciones" },
+  { path: "/soporte",            modulo: "Soporte",  moduloLink: "/soporte",   label: "Tickets" },
+  { path: "/adminsoporte",       modulo: "Soporte",  moduloLink: "/soporte",   label: "Admin Tickets" },
+  { path: "/mi-firma",           modulo: "Soporte",  moduloLink: "/soporte",   label: "Mi Firma" },
+  { path: "/admin",              modulo: "Sistema",  moduloLink: "/admin",     label: "Panel Admin" },
+  { path: "/cargar-maestros",    modulo: "Sistema",  moduloLink: "/admin",     label: "Cargar Maestros" },
+  { path: "/logs",               modulo: "Sistema",  moduloLink: "/admin",     label: "Bitácora" },
+  // Rutas dinámicas
+  { match: /^\/oc\/(.+)$/,       modulo: "Compras",  moduloLink: "/historial", label: "Ver OC",      getId: (m) => m[1] },
+  { match: /^\/editar\/(.+)$/,   modulo: "Compras",  moduloLink: "/historial", label: "Editar OC",   getId: (m) => m[1] },
+  { match: /^\/firmar\/(.+)$/,   modulo: "Compras",  moduloLink: "/historial", label: "Firmar OC",   getId: (m) => m[1] },
+  { match: /^\/pago\/(.+)$/,     modulo: "Finanzas", moduloLink: "/pagos",     label: "Registrar Pago", getId: (m) => m[1] },
+];
+
+/** Construye los segmentos del breadcrumb según el pathname */
+const buildCrumbs = (pathname) => {
+  // Buscar primero coincidencia exacta
+  const exacta = RUTAS.find((r) => r.path === pathname);
+  if (exacta) {
+    return [
+      { label: exacta.modulo, link: exacta.moduloLink },
+      { label: exacta.label,  link: null },
+    ];
+  }
+  // Buscar coincidencia por regex (rutas dinámicas)
+  for (const ruta of RUTAS) {
+    if (!ruta.match) continue;
+    const m = pathname.match(ruta.match);
+    if (m) {
+      const id = ruta.getId ? ruta.getId(m) : null;
+      return [
+        { label: ruta.modulo, link: ruta.moduloLink },
+        { label: ruta.label,  link: ruta.moduloLink },
+        { label: id,          link: null },
+      ];
+    }
+  }
+  // Fallback
+  return [{ label: pathname.replace("/", "") || "Inicio", link: null }];
 };
 
 const Topbar = ({ toggleSidebar }) => {
   const { usuario, cerrarSesion } = useUsuario();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const isHome = location.pathname === "/";
   const dropdownRef = useRef(null);
 
   const rol    = String(usuario?.rol || "").toLowerCase();
@@ -59,7 +110,7 @@ const Topbar = ({ toggleSidebar }) => {
   const nombre = usuario?.nombre || email.split("@")[0];
   const rolLabel = ROL_LABELS[rol] || rol;
 
-  const crumbs = BREADCRUMB_MAP[location.pathname] || ["Sistema", location.pathname.replace("/", "") || "Inicio"];
+  const crumbs = buildCrumbs(location.pathname);
 
   // Cerrar dropdown al click fuera
   useEffect(() => {
@@ -73,7 +124,7 @@ const Topbar = ({ toggleSidebar }) => {
   }, []);
 
   return (
-    <header className="bg-[#012b5a] text-white sticky top-0 z-30 border-b border-white/10">
+    <header className="bg-[#000000] text-white sticky top-0 z-30 border-b border-white/10">
       <div className="flex items-center justify-between h-14 px-4 gap-4">
 
         {/* ── Izquierda ─────────────────────────────── */}
@@ -92,14 +143,43 @@ const Topbar = ({ toggleSidebar }) => {
             <img src={logo} alt="Memphis" className="h-7 w-auto" />
           </Link>
 
+          {/* Botón Home — visible en cualquier página menos el Home */}
+          {!isHome && (
+            <Link
+              to="/"
+              className="hidden md:flex p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+              aria-label="Ir al inicio"
+              title="Ir al inicio"
+            >
+              <Home size={16} />
+            </Link>
+          )}
+
           {/* Separador */}
           <div className="hidden md:block w-px h-6 bg-white/20 flex-shrink-0" />
 
-          {/* Breadcrumb */}
-          <nav className="hidden sm:flex items-center gap-1.5 text-xs min-w-0">
-            <span className="text-white/50 truncate">{crumbs[0]}</span>
-            <span className="text-white/30">/</span>
-            <span className="text-white font-medium truncate">{crumbs[1]}</span>
+          {/* Breadcrumb navegable */}
+          <nav className="hidden sm:flex items-center gap-1 text-xs min-w-0">
+            {crumbs.map((crumb, i) => {
+              const esUltimo = i === crumbs.length - 1;
+              return (
+                <span key={i} className="flex items-center gap-1 min-w-0">
+                  {i > 0 && <span className="text-white/30 flex-shrink-0">/</span>}
+                  {crumb.link && !esUltimo ? (
+                    <Link
+                      to={crumb.link}
+                      className="text-white/60 hover:text-white hover:underline truncate transition-colors"
+                    >
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span className={`truncate ${esUltimo ? "text-white font-medium" : "text-white/60"}`}>
+                      {crumb.label}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </nav>
         </div>
 
@@ -128,14 +208,14 @@ const Topbar = ({ toggleSidebar }) => {
                            hover:bg-white/10 transition-colors"
               >
                 {/* Avatar */}
-                <div className="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center
-                                text-[#012b5a] font-bold text-xs flex-shrink-0">
+                <div className="w-7 h-7 rounded-full bg-[#f0c000] flex items-center justify-center
+                                text-black font-bold text-xs flex-shrink-0">
                   {nombre.charAt(0).toUpperCase()}
                 </div>
                 {/* Info (desktop) */}
                 <div className="hidden sm:block text-left">
                   <p className="text-xs font-semibold leading-none truncate max-w-[120px]">{nombre}</p>
-                  <p className="text-[10px] text-white/50 leading-none mt-0.5">{rolLabel}</p>
+                  <p className="text-[11px] text-white/50 leading-none mt-0.5">{rolLabel}</p>
                 </div>
                 <ChevronDown
                   size={13}
@@ -152,7 +232,7 @@ const Topbar = ({ toggleSidebar }) => {
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900 truncate">{nombre}</p>
                     <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>
-                    <span className="inline-block mt-1.5 text-[10px] bg-blue-900/10 text-blue-900
+                    <span className="inline-block mt-1.5 text-[11px] bg-blue-900/10 text-black
                                      border border-blue-900/20 px-2 py-0.5 rounded-full
                                      uppercase tracking-wider font-semibold">
                       {rolLabel}
@@ -165,9 +245,9 @@ const Topbar = ({ toggleSidebar }) => {
                       to="/mi-firma"
                       onClick={() => setDropdownOpen(false)}
                       className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700
-                                 hover:bg-gray-50 transition-colors"
+                                 hover:bg-black hover:text-white transition-colors group"
                     >
-                      <User size={14} className="text-gray-400" />
+                      <User size={14} className="text-gray-400 group-hover:text-white transition-colors" />
                       Mi Firma
                     </Link>
                     {rol === "admin" && (
@@ -175,9 +255,9 @@ const Topbar = ({ toggleSidebar }) => {
                         to="/admin"
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700
-                                   hover:bg-gray-50 transition-colors"
+                                   hover:bg-black hover:text-white transition-colors group"
                       >
-                        <Settings size={14} className="text-gray-400" />
+                        <Settings size={14} className="text-gray-400 group-hover:text-white transition-colors" />
                         Panel Admin
                       </Link>
                     )}
@@ -188,9 +268,9 @@ const Topbar = ({ toggleSidebar }) => {
                     <button
                       onClick={() => { setDropdownOpen(false); cerrarSesion(); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600
-                                 hover:bg-red-50 transition-colors"
+                                 hover:bg-red-600 hover:text-white transition-colors group"
                     >
-                      <LogOut size={14} />
+                      <LogOut size={14} className="group-hover:text-white transition-colors" />
                       Cerrar sesión
                     </button>
                   </div>

@@ -1,9 +1,10 @@
-// src/pages/CompromisosActivos.jsx
+﻿// src/pages/CompromisosActivos.jsx
 // Fase 5d: Panel de compromisos de pago activos.
 // Muestra promesas de pago con fechas límite, estado de cumplimiento y alertas.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 import { toast } from "react-toastify";
 import {
   obtenerCompromisosActivos,
@@ -97,7 +98,10 @@ export default function CompromisosActivos() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#004990]">Compromisos de Pago</h1>
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <h1 className="text-2xl font-bold text-black">Compromisos de Pago</h1>
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Seguimiento de promesas de pago asignadas en Mesa de Pagos
           </p>
@@ -105,7 +109,7 @@ export default function CompromisosActivos() {
         <button
           onClick={cargar}
           disabled={cargando}
-          className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:border-gray-400 hover:text-black disabled:opacity-50 transition-colors"
         >
           <RefreshCw size={14} className={cargando ? "animate-spin" : ""} />
           Actualizar
@@ -119,7 +123,7 @@ export default function CompromisosActivos() {
             <Calendar size={14} className="text-gray-400" />
             <p className="text-[10px] text-gray-500 uppercase font-medium">Activos</p>
           </div>
-          <p className="text-xl font-bold text-[#004990]">{totalCompromisos}</p>
+          <p className="text-xl font-bold text-black">{totalCompromisos}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
@@ -156,14 +160,14 @@ export default function CompromisosActivos() {
             onClick={() => setFiltro(key)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               filtro === key
-                ? "bg-[#004990] text-white"
+                ? "bg-black text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
             {label}
             {count > 0 && (
               <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                filtro === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-600"
+                filtro === key ? "bg-white/30 text-white" : "bg-gray-200 text-gray-600"
               }`}>
                 {count}
               </span>
@@ -194,14 +198,14 @@ export default function CompromisosActivos() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   {/* Indicador */}
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    c.vencido ? "bg-red-100" : c.proximoVencer ? "bg-amber-100" : "bg-blue-50"
+                    c.vencido ? "bg-red-100" : c.proximoVencer ? "bg-amber-100" : "bg-gray-50"
                   }`}>
                     {c.vencido ? (
                       <AlertTriangle size={18} className="text-red-600" />
                     ) : c.proximoVencer ? (
                       <Clock size={18} className="text-amber-600" />
                     ) : (
-                      <Calendar size={18} className="text-blue-500" />
+                      <Calendar size={18} className="text-gray-400" />
                     )}
                   </div>
 
@@ -222,7 +226,7 @@ export default function CompromisosActivos() {
                         </span>
                       )}
                       {!c.vencido && !c.proximoVencer && c.diasRestantes != null && (
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-600">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-100 text-gray-600">
                           En {c.diasRestantes}d
                         </span>
                       )}
@@ -235,7 +239,7 @@ export default function CompromisosActivos() {
                       {c.categoriaNombre || "Sin categoría"} · {c.area || "—"}
                       {c.documento_tipo && ` · ${c.documento_tipo} ${c.documento_numero || ""}`}
                       {c.mesa_decision && (
-                        <span className="ml-2 text-blue-600">Mesa: {c.mesa_decision}</span>
+                        <span className="ml-2 text-gray-600">Mesa: {c.mesa_decision}</span>
                       )}
                     </p>
                   </div>

@@ -1,4 +1,4 @@
-// ✅ src/pages/reportes/DashboardGeneral.jsx
+﻿// ✅ src/pages/reportes/DashboardGeneral.jsx
 import React, { useEffect, useState } from "react";
 import { obtenerIndicadoresDashboardGeneral } from "../../firebase/reportesHelpers";
 
@@ -13,10 +13,62 @@ import MemphisAreaChart from "../../components/charts/AreaChart";
 import MemphisBarChart from "../../components/charts/BarChart";
 import MemphisDonutChart from "../../components/charts/DonutChart";
 
+const DEMO_GENERAL = {
+  resumenOC: {
+    totalOC: 186,
+    totalMontoPen: 542800.50,
+    totalMontoUsd: 38400.00,
+    totalGlobalPen: 683200.50,
+    tiempoPromedioHoras: 4.2,
+    porEstado: [
+      { estado: "Aprobada", cantidad: 98 },
+      { estado: "Pendiente de Operaciones", cantidad: 34 },
+      { estado: "Pagado", cantidad: 34 },
+      { estado: "Pendiente de Gerencia General", cantidad: 12 },
+      { estado: "Rechazada", cantidad: 8 },
+    ],
+    porTipoOrden: [
+      { tipoOrden: "Compra", totalGlobalPen: 420000 },
+      { tipoOrden: "Servicio", totalGlobalPen: 198000 },
+      { tipoOrden: "Interna", totalGlobalPen: 65200 },
+    ],
+  },
+  comprasMensuales: [
+    { label: "Dic 2025", totalPen: 48200, totalUsd: 5400, totalGlobalPen: 68000 },
+    { label: "Ene 2026", totalPen: 62400, totalUsd: 8200, totalGlobalPen: 92500 },
+    { label: "Feb 2026", totalPen: 71800, totalUsd: 6800, totalGlobalPen: 97400 },
+    { label: "Mar 2026", totalPen: 84300, totalUsd: 9100, totalGlobalPen: 114700 },
+    { label: "Abr 2026", totalPen: 93600, totalUsd: 7200, totalGlobalPen: 120000 },
+    { label: "May 2026", totalPen: 58400, totalUsd: 1700, totalGlobalPen: 64200 },
+  ],
+  rankingProveedores: [
+    { nombre: "Ferreyros S.A.", totalGlobalPen: 185400 },
+    { nombre: "Komatsu Mitsui", totalGlobalPen: 142600 },
+    { nombre: "Epiroc Perú", totalGlobalPen: 98200 },
+    { nombre: "SKF del Perú", totalGlobalPen: 74800 },
+    { nombre: "Suministros Técnicos", totalGlobalPen: 52100 },
+  ],
+  rankingCentrosCosto: [
+    { nombre: "Mina Norte", totalGlobalPen: 228000 },
+    { nombre: "Planta Central", totalGlobalPen: 184500 },
+    { nombre: "Proyectos", totalGlobalPen: 89700 },
+    { nombre: "Logística", totalGlobalPen: 112300 },
+    { nombre: "Administración", totalGlobalPen: 68700 },
+  ],
+  ultimasOC: [
+    { id: "oc1", fechaISO: "2026-05-12", numeroOC: "OC-2026-0186", proveedor: "Ferreyros S.A.", centroCosto: "Mina Norte", tipoOrden: "Compra", estado: "Aprobada", moneda: "PEN", totalPen: 28400, totalUsd: 0 },
+    { id: "oc2", fechaISO: "2026-05-10", numeroOC: "OC-2026-0185", proveedor: "Komatsu Mitsui", centroCosto: "Planta Central", tipoOrden: "Servicio", estado: "Pendiente de Operaciones", moneda: "USD", totalPen: 0, totalUsd: 4800 },
+    { id: "oc3", fechaISO: "2026-05-08", numeroOC: "OC-2026-0184", proveedor: "Epiroc Perú", centroCosto: "Mina Norte", tipoOrden: "Compra", estado: "Pagado", moneda: "PEN", totalPen: 18600, totalUsd: 0 },
+    { id: "oc4", fechaISO: "2026-05-06", numeroOC: "OC-2026-0183", proveedor: "SKF del Perú", centroCosto: "Logística", tipoOrden: "Compra", estado: "Aprobada", moneda: "PEN", totalPen: 12300, totalUsd: 0 },
+    { id: "oc5", fechaISO: "2026-05-03", numeroOC: "OC-2026-0182", proveedor: "Suministros Técnicos", centroCosto: "Administración", tipoOrden: "Interna", estado: "Rechazada", moneda: "PEN", totalPen: 4200, totalUsd: 0 },
+  ],
+};
+
 const DashboardGeneral = ({ filtros }) => {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [esDemo, setEsDemo] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -27,7 +79,13 @@ const DashboardGeneral = ({ filtros }) => {
       try {
         const res = await obtenerIndicadoresDashboardGeneral(filtros);
         if (!activo) return;
-        setData(res);
+        if (!res || (res.resumenOC?.totalGlobalPen ?? 0) < 1000) {
+          setData(DEMO_GENERAL);
+          setEsDemo(true);
+        } else {
+          setData(res);
+          setEsDemo(false);
+        }
       } catch (e) {
         console.error("Error cargando indicadores generales:", e);
         if (activo) setError("No se pudieron cargar los indicadores.");
@@ -227,6 +285,11 @@ const DashboardGeneral = ({ filtros }) => {
 
   return (
     <div className="space-y-4">
+      {esDemo && (
+        <p className="text-[10px] text-gray-400 italic text-center">
+          Vista previa con datos de ejemplo — no hay OCs registradas en el periodo seleccionado.
+        </p>
+      )}
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -492,7 +555,7 @@ const DashboardGeneral = ({ filtros }) => {
                   <td className="px-2 py-1 align-middle">
                     {oc.fechaISO || "-"}
                   </td>
-                  <td className="px-2 py-1 align-middle font-medium text-blue-800">
+                  <td className="px-2 py-1 align-middle font-medium text-black">
                     {oc.numeroOC}
                   </td>
                   <td className="px-2 py-1 align-middle">

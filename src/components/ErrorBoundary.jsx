@@ -36,7 +36,7 @@ export class ErrorBoundary extends React.Component {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 text-sm transition-colors"
               >
                 Reintentar
               </button>

@@ -31,6 +31,7 @@ import {
   siguienteEstado,
   UMBRALES_DEFAULT,
 } from "../utils/aprobaciones";
+import BackButton from "../components/ui/BackButton";
 
 // ─── Mapa: estado → roles que pueden aprobar ────────────────────
 const ROL_POR_ESTADO = {
@@ -347,7 +348,10 @@ const FirmarOC = () => {
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
           <img src={Logo} alt="Logo" className="h-12" />
           <div className="text-right">
-            <h2 className="text-xl font-bold text-[--brand-900]">Firmar Orden</h2>
+            <div className="flex items-center gap-2 justify-end">
+              <BackButton />
+              <h2 className="text-xl font-bold text-[--brand-900]">Firmar Orden</h2>
+            </div>
             <p className="text-sm text-gray-500">N° {orden.numeroOC || orden.numero || orden.id}</p>
             <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
               estadoActual === "Aprobada"  ? "bg-green-100 text-green-800" :

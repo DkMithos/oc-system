@@ -1,4 +1,4 @@
-// ✅ src/components/nav/HistorialNavItem.jsx
+﻿// ✅ src/components/nav/HistorialNavItem.jsx
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { ClipboardList } from "lucide-react";
@@ -16,7 +16,7 @@ const HistorialNavItem = ({ collapsed = false }) => {
       to="/historial"
       className={({ isActive }) =>
         `relative flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition ${
-          isActive ? "bg-gray-100 text-[#004990]" : "text-gray-700"
+          isActive ? "bg-gray-100 text-black" : "text-gray-700"
         }`
       }
       title="Historial"

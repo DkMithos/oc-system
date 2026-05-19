@@ -1,4 +1,4 @@
-// src/components/Notificaciones.jsx
+﻿// src/components/Notificaciones.jsx
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { onMessageListener } from "../firebase/fcm";
@@ -199,12 +199,12 @@ const Notificaciones = () => {
       <audio src={SONIDO} ref={audioRef} preload="auto" />
 
       <button
-        className="relative p-2 rounded-full hover:bg-blue-100"
+        className="relative p-2 rounded-full hover:bg-[#f0c000] transition-colors group"
         onClick={() => setAbierto((v) => !v)}
         title="Ver notificaciones"
         aria-label="Notificaciones"
       >
-        <Bell size={22} className="text-white" />
+        <Bell size={22} className="text-white group-hover:text-black transition-colors" />
         {noLeidas > 0 && (
           <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full">
             {noLeidas > 99 ? "99+" : noLeidas}
@@ -219,7 +219,7 @@ const Notificaciones = () => {
           aria-label="Panel de notificaciones"
         >
           <div className="flex items-center justify-between p-2 border-b">
-            <div className="font-semibold text-blue-900">Notificaciones</div>
+            <div className="font-semibold text-black">Notificaciones</div>
             <div className="flex items-center gap-2">
               <button
                 className="text-xs text-blue-600 underline"

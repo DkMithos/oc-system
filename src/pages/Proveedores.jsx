@@ -1,4 +1,4 @@
-// ✅ src/pages/Proveedores.jsx
+﻿// ✅ src/pages/Proveedores.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { PageLoader } from "../components/ui/Skeleton";
@@ -13,6 +13,7 @@ import CuentaBancariaForm from "../components/CuentaBancariaForm";
 import { exportExcelMultiHoja, exportCSV, exportPDF } from "../utils/exportUtils";
 import ExportMenu from "../components/ExportMenu";
 import { useUsuario } from "../context/UsuarioContext";
+import BackButton from "../components/ui/BackButton";
 
 const esRucValido = (raw) => {
   const ruc = (raw || "").replace(/\D/g, "");
@@ -264,7 +265,10 @@ const Proveedores = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Gestión de Proveedores</h2>
+      <div className="flex items-center gap-2 mb-6">
+        <BackButton />
+        <h2 className="text-2xl font-bold">Gestión de Proveedores</h2>
+      </div>
 
       {/* Formulario */}
       <div className="bg-white p-6 rounded shadow mb-6 space-y-4">
@@ -288,7 +292,7 @@ const Proveedores = () => {
               }}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 form.tipoProv === tipo
-                  ? "bg-white text-[#004990] shadow-sm"
+                  ? "bg-white text-black shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -448,7 +452,7 @@ const Proveedores = () => {
         <div className="col-span-2 flex gap-4 mt-4">
           <button
             onClick={guardar}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            className="bg-[#f0c000] hover:bg-[#d4a800] text-black font-semibold px-4 py-2 rounded transition-colors"
           >
             {editandoId ? "Actualizar" : "Agregar"}
           </button>
@@ -538,7 +542,7 @@ const Proveedores = () => {
                   <td className="p-2">{p.estado || "Activo"}</td>
                   <td className="p-2">
                     <button
-                      className="text-blue-600 hover:text-blue-800"
+                      className="text-black hover:text-[#f0c000] transition-colors"
                       title="Editar"
                       onClick={() => cargarParaEditar(p)}
                     >

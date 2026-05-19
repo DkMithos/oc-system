@@ -1,4 +1,4 @@
-//src/context/UsuarioContext.jsx
+﻿//src/context/UsuarioContext.jsx
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
@@ -111,7 +111,7 @@ export const UsuarioProvider = ({ children }) => {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-white z-50">
         <div className="flex flex-col items-center gap-2">
-          <span className="text-xl text-[#004990] font-bold animate-pulse">
+          <span className="text-xl text-black font-bold animate-pulse">
             {cerrandoSesion ? "Cerrando sesión..." : "Cargando usuario..."}
           </span>
           <div className="w-16 h-1.5 bg-[#004990] rounded-full animate-pulse" />

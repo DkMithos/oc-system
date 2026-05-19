@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { SkeletonKPI, SkeletonCard } from "../components/ui/Skeleton";
+import BackButton from "../components/ui/BackButton";
 import {
   obtenerTodasOC,
   obtenerTodosMovimientosCaja,
@@ -113,6 +114,11 @@ const Dashboard = () => {
     { name: "Egresos",  value: egresos  },
   ];
 
+  // [DEMO] Datos simulados para visualización cuando no hay movimientos reales
+  const dataCajaViz = (ingresos === 0 && egresos === 0)
+    ? [{ name: "Ingresos", value: 3200 }, { name: "Egresos", value: 1800 }]
+    : dataCaja;
+
   // ── OCs por mes ──────────────────────────────────────────────────────────
   const ocsPorMes = useMemo(() => {
     const meses = [...Array(periodo)].map((_, i) => {
@@ -145,13 +151,16 @@ const Dashboard = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-[#004990]">Dashboard de Indicadores</h2>
+      <div className="flex items-center gap-2">
+        <BackButton />
+        <h2 className="text-2xl font-bold text-black">Dashboard de Indicadores</h2>
+      </div>
 
       {/* ── FILA 1: KPIs principales ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded shadow p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Total OCs</p>
-          <p className="text-3xl font-bold text-[#004990] mt-1">{totalOCs}</p>
+          <p className="text-3xl font-bold text-black mt-1">{totalOCs}</p>
         </div>
         <div className="bg-white rounded shadow p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Monto Aprobado</p>
@@ -206,28 +215,27 @@ const Dashboard = () => {
               <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#f0c000" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Pie caja chica */}
         <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Caja Chica</h3>
-          {ingresos === 0 && egresos === 0 ? (
-            <div className="flex items-center justify-center h-[180px] text-gray-400 text-sm">Sin movimientos</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={dataCaja} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, value }) => `${name}: S/${fmt(value)}`} labelLine={false}>
-                  {dataCaja.map((entry, i) => (
-                    <Cell key={entry.name || `cell-${i}`} fill={i === 0 ? "#34D399" : "#F87171"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />
-              </PieChart>
-            </ResponsiveContainer>
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Caja Chica</h3>
+          {ingresos === 0 && egresos === 0 && (
+            <p className="text-[10px] text-gray-400 mb-2 italic">Vista previa con datos de ejemplo</p>
           )}
+          <ResponsiveContainer width="100%" height={180}>
+            <PieChart>
+              <Pie data={dataCajaViz} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, value }) => `${name}: S/${fmt(value)}`} labelLine={false}>
+                {dataCajaViz.map((entry, i) => (
+                  <Cell key={entry.name || `cell-${i}`} fill={i === 0 ? "#f0c000" : "#000000"} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v) => `S/ ${fmt(v)}`} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -242,7 +250,7 @@ const Dashboard = () => {
               .map(([estado, count]) => (
                 <li key={estado} className="flex justify-between py-1.5">
                   <span className="text-gray-700">{estado}</span>
-                  <span className="font-bold text-[#004990]">{count}</span>
+                  <span className="font-bold text-black">{count}</span>
                 </li>
               ))}
             {Object.keys(estados).length === 0 && (
